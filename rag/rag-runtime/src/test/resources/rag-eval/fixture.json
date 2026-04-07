@@ -1,0 +1,14 @@
+{
+  "name": "classpath-fixture",
+  "tenantId": "tenant-b",
+  "topK": 3,
+  "minSimilarity": 0.4,
+  "matchField": "source",
+  "queries": [
+    {
+      "id": "q-1",
+      "query": "who",
+      "expectedIds": ["guide.md"]
+    }
+  ]
+}

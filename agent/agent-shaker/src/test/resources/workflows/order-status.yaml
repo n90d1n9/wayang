@@ -1,0 +1,42 @@
+# Sample Workflow: Order Status Query
+metadata:
+  name: order-status-query
+  description: Query order status from database
+  backend: gollek
+  orchestrator: react
+  version: "1.0.0"
+
+nodes:
+  - id: prompt
+    type: prompt
+    config:
+      template: "What is the status of order {{orderId}}?"
+      model: gpt-4
+
+  - id: tool_call
+    type: tool
+    config:
+      tools:
+        - order-lookup
+        - database-query
+
+  - id: memory
+    type: memory
+    config:
+      tiers:
+        - short-term
+        - conversation
+
+  - id: guardrails
+    type: guardrails
+    config:
+      policies:
+        - pii-redaction
+        - rate-limit
+
+  - id: agent
+    type: agent
+    config:
+      skills:
+        - order-lookup
+        - summarization

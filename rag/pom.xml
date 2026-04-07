@@ -1,0 +1,54 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>tech.kayys.wayang</groupId>
+        <artifactId>wayang</artifactId>
+        <version>0.1.0</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+    <artifactId>wayang-rag-parent</artifactId>
+    <packaging>pom</packaging>
+
+    <properties>
+        <quarkus.platform.version>3.32.2</quarkus.platform.version>
+    </properties>
+
+    <modules>
+        <module>rag-plugin-api</module>
+        <module>rag-plugin-normalize-query</module>
+        <module>rag-plugin-safety-filter</module>
+        <module>rag-plugin-lexical-rerank</module>
+        <module>rag-runtime</module>
+        <module>rag-core</module>
+        <module>wayang-rag-retrieval</module>
+        <module>wayang-rag-config</module>
+        <module>wayang-rag-embedding</module>
+        <module>wayang-rag-slo</module>
+        <module>rag-memory-integration</module>
+        <module>rag-graph-integration</module>
+    </modules>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.quarkus.platform</groupId>
+                <artifactId>quarkus-bom</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+
+    <dependencies>
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
+
+    </dependencies>
+</project>

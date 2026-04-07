@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>tech.kayys.wayang</groupId>
+        <artifactId>wayang-agentic-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>agent-parent</artifactId>
+    <packaging>pom</packaging>
+
+    <name>agent-parent</name>
+    <description>agent-parent</description>
+
+
+    <properties>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+
+    </dependencies>
+
+    <modules>
+        <!-- SPI: Pure interfaces and types, no runtime dependencies -->
+        <module>agent-spi</module>
+
+        <!-- Core: Agent implementation, depends on SPI -->
+        <module>agent-core</module>
+
+        <!-- Orchestration: Agent orchestration strategies (ReAct, Reflexion, ToolCalling) -->
+        <module>agent-orchestration</module>
+
+        <!-- Integration: Backend and service integrations -->
+        <module>agent-integration-gamelan</module>
+
+        <!-- Backend Adapters: Implement backend-agnostic SPI -->
+        <module>agent-backend-gamelan</module>
+        <module>agent-backend-gollek</module>
+
+        <!-- Adapters: Service adapters -->
+        <module>agent-adapter</module>
+
+        <!-- Skills: Built-in and custom skills -->
+        <module>agent-skills-builtin</module>
+
+        <!-- API: REST API endpoints -->
+        <module>agent-api</module>
+
+        <!-- Examples: Demo agents and use cases -->
+        <module>agent-examples</module>
+
+        <!-- Testing: Chaos engineering and resilience testing -->
+        <module>agent-shaker</module>
+    </modules>
+</project>

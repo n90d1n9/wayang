@@ -1,0 +1,95 @@
+package tech.kayys.gollek.agent.skills.repo.db.entity;
+
+import io.quarkus.hibernate.reactive.panache.PanacheEntity;
+import io.smallrye.mutiny.Uni;
+import jakarta.persistence.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.Type;
+
+import java.time.Instant;
+import java.util.List;
+
+/**
+ * Skill entity for database storage.
+ */
+@Entity
+@Table(name = "skills")
+public class SkillEntity extends PanacheEntity {
+
+    @Column(name = "skill_id", unique = true, nullable = false)
+    public String skillId;
+
+    @Column(name = "name", nullable = false)
+    public String name;
+
+    @Column(name = "version")
+    public String version;
+
+    @Column(name = "description", columnDefinition = "text")
+    public String description;
+
+    @Column(name = "category")
+    public String category;
+
+    @Column(name = "author")
+    public String author;
+
+    @Column(name = "tags")
+    @Type(JsonBinaryType.class)
+    public List<String> tags;
+
+    @Column(name = "content", columnDefinition = "text")
+    public String content;
+
+    @Column(name = "manifest", columnDefinition = "jsonb")
+    @Type(JsonBinaryType.class)
+    public String manifestJson;
+
+    @Column(name = "enabled")
+    public boolean enabled;
+
+    @Column(name = "checksum")
+    public String checksum;
+
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    public Instant createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at")
+    public Instant updatedAt;
+
+    /**
+     * Find by skill ID.
+     */
+    public static Uni<SkillEntity> findBySkillId(String skillId) {
+        return find("skillId", skillId).firstResult();
+    }
+
+    /**
+     * Check if skill exists.
+     */
+    public static Uni<Boolean> existsBySkillId(String skillId) {
+        return count("skillId", skillId)
+                .onItem().transform(count -> count > 0);
+    }
+
+    /**
+     * Find by category.
+     */
+    public static io.smallrye.mutiny.Multi<SkillEntity> findByCategory(String category) {
+        return stream("category", category);
+    }
+
+    /**
+     * Search by query.
+     */
+    public static io.smallrye.mutiny.Multi<SkillEntity> search(String query) {
+        String searchQuery = "%" + query.toLowerCase() + "%";
+        return stream(
+            "lower(name) like ?1 or lower(description) like ?1",
+            searchQuery
+        );
+    }
+}

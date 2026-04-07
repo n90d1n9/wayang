@@ -1,0 +1,74 @@
+# ============================================================================
+# APPLICATION CONFIGURATION - application.yml
+# ============================================================================
+
+quarkus:
+  application:
+    name: gamelan-human-task-executor
+    version: 1.0.0
+
+  # Database Configuration
+  datasource:
+    db-kind: postgresql
+    username: gamelan
+    password: gamelan_password
+    reactive:
+      url: postgresql://localhost:5432/gamelan_db
+      max-size: 20
+
+  hibernate-orm:
+    database:
+      generation: update
+    log:
+      sql: true
+      format-sql: true
+
+  # Security
+  security:
+    auth:
+      enabled-in-dev-mode: true
+
+  # Mailer Configuration
+  mailer:
+    from: noreply@gamelan.company.com
+    host: smtp.gmail.com
+    port: 587
+    start-tls: REQUIRED
+    username: ${SMTP_USERNAME}
+    password: ${SMTP_PASSWORD}
+    mock: false
+
+  # Scheduler
+  scheduler:
+    enabled: true
+
+  # HTTP
+  http:
+    port: 8080
+    cors: true
+
+  # Swagger/OpenAPI
+  swagger-ui:
+    always-include: true
+    path: /swagger-ui
+
+# Gamelan Configuration
+gamelan:
+  app:
+    base-url: http://localhost:8080
+
+  notifications:
+    email:
+      enabled: true
+    slack:
+      enabled: false
+      webhook-url: ${SLACK_WEBHOOK_URL:}
+    teams:
+      enabled: false
+      webhook-url: ${TEAMS_WEBHOOK_URL:}
+    reminder:
+      hours-before-due: 24
+
+  executor:
+    transport: GRPC
+    max-concurrent-tasks: 100

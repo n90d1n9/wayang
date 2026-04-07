@@ -1,0 +1,41 @@
+---
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: gamelan-postgres
+    environment:
+      POSTGRES_DB: gamelan_db
+      POSTGRES_USER: gamelan
+      POSTGRES_PASSWORD: gamelan_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
+    networks:
+      - gamelan-network
+
+  gamelan-app:
+    build: .
+    container_name: gamelan-human-task
+    environment:
+      QUARKUS_DATASOURCE_REACTIVE_URL: postgresql://postgres:5432/gamelan_db
+      QUARKUS_DATASOURCE_USERNAME: gamelan
+      QUARKUS_DATASOURCE_PASSWORD: gamelan_password
+      SMTP_USERNAME: ${SMTP_USERNAME}
+      SMTP_PASSWORD: ${SMTP_PASSWORD}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    networks:
+      - gamelan-network
+
+volumes:
+  postgres_data:
+
+networks:
+  gamelan-network:
+    driver: bridge

@@ -1,0 +1,181 @@
+# ═══════════════════════════════════════════════════════════════════
+# Gollek Agent System — Application Configuration
+# ═══════════════════════════════════════════════════════════════════
+# All agent-specific properties are under the `gollek.agent` namespace.
+# Engine-level properties (providers, session pools, batching) live in
+# the gollek-engine module and are documented separately.
+# ═══════════════════════════════════════════════════════════════════
+
+quarkus:
+  application:
+    name: gollek-agent
+    version: 1.0.0
+
+  # ── HTTP ────────────────────────────────────────────────────────
+  http:
+    port: 8080
+    cors:
+      ~: true
+      origins: "*"
+      methods: GET,POST,PUT,DELETE,OPTIONS
+      headers: Content-Type,Authorization,X-Tenant-Id,X-API-Key
+
+  # ── Logging ─────────────────────────────────────────────────────
+  log:
+    level: INFO
+    category:
+      "tech.kayys.gollek.agent":
+        level: DEBUG
+
+  # ── OpenTelemetry (structured tracing) ──────────────────────────
+  opentelemetry:
+    enabled: true
+    tracer:
+      exporter:
+        otlp:
+          endpoint: http://localhost:4317
+
+# ═══════════════════════════════════════════════════════════════════
+# Gollek Engine — Inference backend
+# ═══════════════════════════════════════════════════════════════════
+gollek:
+  models:
+    default-model: Qwen/Qwen2.5-0.5B-Instruct
+    default-provider: gguf
+    auto-download-enabled: true
+
+# ═══════════════════════════════════════════════════════════════════
+# Gollek Agent Framework
+# ═══════════════════════════════════════════════════════════════════
+  agent:
+
+    # ── Default execution parameters ──────────────────────────────
+    default-strategy: react
+    default-max-steps: 10
+    default-timeout-seconds: 120
+    default-model: ${gollek.models.default-model}
+
+    # ── Multi-tenancy ──────────────────────────────────────────────
+    multitenancy:
+      enabled: false           # Set to true in production
+      header-name: X-Tenant-Id
+
+    # ── Memory backends ───────────────────────────────────────────
+    memory:
+      # Use "in-memory" for dev/test, "redis" for production clusters
+      backend: in-memory       # in-memory | redis | pg-vector
+
+      redis:
+        url: redis://localhost:6379
+        key-prefix: gollek:agent:
+        ttl-seconds: 3600
+
+      pg-vector:
+        datasource: default    # Agroal datasource name
+        table-prefix: agent_
+        embedding-dim: 768
+
+      conversation:
+        max-history-per-session: 50
+        session-ttl-seconds: 7200
+
+    # ── Orchestration strategies ───────────────────────────────────
+    orchestrators:
+      react:
+        stop-tokens: ["Observation:"]
+        thought-prefix: "Thought:"
+        action-prefix: "Action:"
+        action-input-prefix: "Action Input:"
+        final-answer-prefix: "Final Answer:"
+        temperature: 0.7
+        max-tokens-per-step: 512
+
+      plan_and_execute:
+        planner-temperature: 0.3
+        executor-temperature: 0.5
+        synthesiser-temperature: 0.4
+        planner-max-tokens: 512
+        executor-max-tokens: 256
+        synthesiser-max-tokens: 512
+
+    # ── Built-in skill configuration ──────────────────────────────
+    skills:
+
+      inference:
+        enabled: true
+        default-model: ${gollek.agent.default-model}
+        default-max-tokens: 1024
+        default-temperature: 0.7
+
+      rag:
+        enabled: true
+        default-model: ${gollek.agent.default-model}
+        default-collection: agent-knowledge
+        default-top-k: 5
+        embedding-model: default
+        vector-store-enabled: false  # Enable when Qdrant/pgvector is ready
+
+      code-execution:
+        enabled: true
+        python-executable: python3
+        node-executable: node
+        default-timeout-seconds: 10
+
+      http-call:
+        enabled: true
+        default-timeout-seconds: 15
+        # allowed-hosts: api.example.com,internal.service.local
+
+      summarization:
+        enabled: true
+
+      embedding:
+        enabled: true
+
+      memory-store:
+        enabled: true
+
+    # ── Metrics ────────────────────────────────────────────────────
+    metrics:
+      enabled: true
+      include-tenant-tag: true
+
+# ═══════════════════════════════════════════════════════════════════
+# Profiles
+# ═══════════════════════════════════════════════════════════════════
+
+"%dev":
+  quarkus:
+    log:
+      level: DEBUG
+    http:
+      port: 8080
+  gollek:
+    agent:
+      default-max-steps: 5
+      default-timeout-seconds: 60
+      skills:
+        code-execution:
+          default-timeout-seconds: 5
+
+"%test":
+  quarkus:
+    log:
+      level: WARN
+  gollek:
+    agent:
+      memory:
+        backend: in-memory
+      multitenancy:
+        enabled: false
+
+"%prod":
+  quarkus:
+    log:
+      level: INFO
+  gollek:
+    agent:
+      memory:
+        backend: redis
+      multitenancy:
+        enabled: true

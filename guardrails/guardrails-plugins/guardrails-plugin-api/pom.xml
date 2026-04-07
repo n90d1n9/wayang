@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>tech.kayys.wayang</groupId>
+        <artifactId>wayang-guardrails-plugins</artifactId>
+        <version>0.1.0</version>
+    </parent>
+
+    <artifactId>wayang-guardrails-plugin-api</artifactId>
+    <name>Wayang :: Guardrails :: Plugin API</name>
+
+    <dependencies>
+        <dependency>
+            <groupId>io.smallrye.reactive</groupId>
+            <artifactId>mutiny</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.enterprise</groupId>
+            <artifactId>jakarta.enterprise.cdi-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>wayang-plugin-spi</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- Add any core dependencies needed for plugin interfaces, but not the main implementation -->
+    </dependencies>
+
+</project>

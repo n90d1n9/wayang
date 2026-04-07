@@ -1,0 +1,54 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>tech.kayys.wayang</groupId>
+        <artifactId>wayang-executor-parent</artifactId>
+        <version>0.1.0</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+    <groupId>tech.kayys.wayang</groupId>
+    <artifactId>wayang-memory-parent</artifactId>
+    <packaging>pom</packaging>
+    <modules>
+        <module>memory-core</module>
+        <module>golek-memory-context-engineering</module>
+        <module>golek-memory-episodic</module>
+        <module>golek-memory-longterm</module>
+        <module>golek-memory-short</module>
+        <module>golek-memory-semantic</module>
+        <module>golek-memory-working</module>
+        <module>gollek-plugin-memory-integration</module>
+        <module>memory-runtime</module>
+        <module>vector-memory-integration</module>
+        <module>graph-memory-integration</module>
+    </modules>
+
+    <properties>
+        <quarkus.platform.version>3.32.2</quarkus.platform.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>io.quarkus.platform</groupId>
+                <artifactId>quarkus-bom</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+
+    <dependencies>
+        <!-- Validation -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+        </dependency>
+
+    </dependencies>
+</project>

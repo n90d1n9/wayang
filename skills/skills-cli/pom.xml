@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>tech.kayys.gollek</groupId>
+        <artifactId>gollek-agent-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>agent-skills-command</artifactId>
+
+    <description>
+        golok Code Agent core — skills management, external skill loading,
+        SKILL.md parsing, and code-agent orchestration.
+    </description>
+
+    <properties>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
+        <snakeyaml.version>2.4</snakeyaml.version>
+        <jgit.version>7.2.0.202503040940-r</jgit.version>
+    </properties>
+
+    <dependencies>
+        <!-- Core Tool API -->
+        <dependency>
+            <groupId>tech.kayys.golok</groupId>
+            <artifactId>golok-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+
+        <!-- golok Agent SPI (AgentSkill, SkillRegistry, etc.) -->
+        <dependency>
+            <groupId>tech.kayys.golok</groupId>
+            <artifactId>golok-agent-spi</artifactId>
+        </dependency>
+
+        <!-- golok core SPI -->
+        <dependency>
+            <groupId>tech.kayys.golok</groupId>
+            <artifactId>golok-spi</artifactId>
+        </dependency>
+
+        <!-- YAML frontmatter parsing -->
+        <dependency>
+            <groupId>org.yaml</groupId>
+            <artifactId>snakeyaml</artifactId>
+            <version>${snakeyaml.version}</version>
+        </dependency>
+
+        <!-- Git operations (clone, pull) for skill installation -->
+        <dependency>
+            <groupId>org.eclipse.jgit</groupId>
+            <artifactId>org.eclipse.jgit</artifactId>
+            <version>${jgit.version}</version>
+        </dependency>
+
+        <!-- CDI annotations -->
+        <dependency>
+            <groupId>jakarta.enterprise</groupId>
+            <artifactId>jakarta.enterprise.cdi-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.jboss.logging</groupId>
+            <artifactId>jboss-logging</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Mutiny for reactive -->
+        <dependency>
+            <groupId>io.smallrye.reactive</groupId>
+            <artifactId>mutiny</artifactId>
+        </dependency>
+
+        <!-- JSON processing -->
+        <dependency>
+            <groupId>jakarta.json</groupId>
+            <artifactId>jakarta.json-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Picocli for CLI commands -->
+        <dependency>
+            <groupId>info.picocli</groupId>
+            <artifactId>picocli</artifactId>
+            <version>4.7.5</version>
+        </dependency>
+
+    </dependencies>
+
+</project>

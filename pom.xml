@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>tech.kayys.wayang</groupId>
+    <artifactId>wayang-agentic-parent</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <packaging>pom</packaging>
+
+    <name>wayang-agentic-parent</name>
+    <description>wayang Agentic</description>
+
+
+    <properties>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
+        <quarkus.platform.version>3.32.2</quarkus.platform.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Import Quarkus BOM -->
+            <dependency>
+                <groupId>io.quarkus.platform</groupId>
+                <artifactId>quarkus-bom</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- Import Gollek BOM for internal module versions -->
+            <dependency>
+                <groupId>tech.kayys.gollek</groupId>
+                <artifactId>gollek-bom</artifactId>
+                <version>0.1.0-SNAPSHOT</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>tech.kayys.gollek</groupId>
+                <artifactId>gollek-spi-inference</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>tech.kayys.gollek</groupId>
+                <artifactId>agent-tools-spi</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+
+    </dependencies>
+
+    <modules>
+        <module>agent</module>
+        <module>graph</module>
+        <module>guardrails</module>
+        <module>hitl</module>
+        <module>memory</module>
+        <module>prompt</module>
+        <module>rag</module>
+        <module>skills</module>
+        <module>tools</module>
+        <module>vector</module>
+        <module>embedding</module>
+        <module>mcp</module>
+        <module>storage</module>
+        <module>backend-gollek</module>
+        <module>backend-gamelan</module>
+        <module>runtime-quarkus</module>
+        <module>agent-shaker</module>
+    </modules>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <!--
+                    ═══════════════════════════════════════════════════════════
+                    DEPENDENCY ENFORCEMENT RULES
+                    Prevents wayang-gollek modules from depending on
+                    gamelan-engine-core (must use SDK/SPI only)
+                    ═══════════════════════════════════════════════════════════
+                -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-enforcer-plugin</artifactId>
+                    <version>3.5.0</version>
+                    <executions>
+                        <execution>
+                            <id>enforce-sdk-only-dependencies</id>
+                            <goals>
+                                <goal>enforce</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <bannedDependencies>
+                                        <searchTransitive>true</searchTransitive>
+                                        <excludes>
+                                            <!--
+                                                Banned: Engine implementation (pulls full Quarkus runtime)
+                                                Use instead: gamelan-engine-spi, gamelan-sdk-executor-core,
+                                                             gamelan-sdk-client-core
+                                            -->
+                                            <exclude>tech.kayys.gamelan:gamelan-engine-core</exclude>
+                                        </excludes>
+                                        <message>
+                                            ❌ VIOLATION: wayang-gollek modules must NOT depend on gamelan-engine-core.
+                                            Use gamelan-engine-spi and gamelan-sdk-*-core instead.
+                                            See: DEPENDENCIES.md for allowed dependencies.
+                                        </message>
+                                    </bannedDependencies>
+                                </rules>
+                                <fail>true</fail>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+</project>

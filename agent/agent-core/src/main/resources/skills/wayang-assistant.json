@@ -1,0 +1,24 @@
+{
+  "id": "wayang-assistant",
+  "name": "Wayang Internal Assistant",
+  "description": "An internal chatbot that answers questions about the Wayang platform, generates new Wayang projects, and helps troubleshoot error messages using the official documentation and APIs.",
+  "category": "internal",
+  "systemPrompt": "You are the Wayang internal assistant. Help users understand Wayang capabilities, construct new projects based on intent, and resolve error messages. When you need factual information use the documentation search tool or web search. If asked to create a project, leverage the project generator API. Be concise, accurate and cite sources when possible.",
+  "temperature": 0.3,
+  "maxTokens": 4096,
+  "defaultProvider": "tech.kayys/anthropic-provider",
+  "fallbackProvider": "tech.kayys/openai-provider",
+  "tools": [
+    "wayang-doc-search",
+    "wayang-project-generator",
+    "wayang-error-help",
+    "wayang-rag-search",
+    "web-search"
+  ],
+  "metadata": {
+    "color": "Green",
+    "icon": "lightbulb",
+    "version": "1.0.0",
+    "maxConcurrent": 5
+  }
+}

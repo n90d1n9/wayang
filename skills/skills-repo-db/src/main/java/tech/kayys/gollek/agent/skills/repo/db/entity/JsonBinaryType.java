@@ -1,0 +1,36 @@
+package tech.kayys.gollek.agent.skills.repo.db.entity;
+
+import org.hibernate.type.descriptor.converter.spi.BasicValueConverter;
+
+import java.sql.Types;
+
+/**
+ * Type converter for PostgreSQL JSONB.
+ */
+public class JsonBinaryType implements BasicValueConverter<String, String> {
+
+    @Override
+    public String toDomainValue(String dbData) {
+        return dbData;
+    }
+
+    @Override
+    public String toPersistedValue(String domainData) {
+        return domainData;
+    }
+
+    @Override
+    public Class<String> getDomainJavaType() {
+        return String.class;
+    }
+
+    @Override
+    public Class<String> getPersistedJavaType() {
+        return String.class;
+    }
+
+    @Override
+    public int getJdbcType() {
+        return Types.OTHER; // PostgreSQL JSONB
+    }
+}

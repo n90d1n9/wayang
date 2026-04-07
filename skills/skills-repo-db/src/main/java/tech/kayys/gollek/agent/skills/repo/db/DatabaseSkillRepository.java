@@ -1,0 +1,365 @@
+package tech.kayys.gollek.agent.skills.repo.db;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import io.quarkus.hibernate.reactive.panache.Panache;
+import io.smallrye.mutiny.Uni;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import tech.kayys.gollek.agent.skills.repo.db.entity.SkillEntity;
+import tech.kayys.gollek.agent.skills.repo.spi.*;
+
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+/**
+ * Database-backed skill repository with L1 caching.
+ *
+ * <p>Uses PostgreSQL with Hibernate Reactive for storage and Caffeine for L1 caching.
+ */
+@ApplicationScoped
+public class DatabaseSkillRepository implements SkillRepository {
+
+    private static final Logger log = LoggerFactory.getLogger(DatabaseSkillRepository.class);
+
+    private static final Duration CACHE_TTL = Duration.ofMinutes(10);
+    private static final int MAX_CACHE_SIZE = 500;
+
+    @Inject
+    ObjectMapper objectMapper;
+
+    private final Cache<String, SkillContent> contentCache;
+    private final Cache<String, SkillMetadata> metadataCache;
+    private final CacheStats stats;
+
+    /**
+     * Default constructor.
+     */
+    public DatabaseSkillRepository() {
+        this.contentCache = Caffeine.newBuilder()
+                .maximumSize(MAX_CACHE_SIZE)
+                .expireAfterWrite(CACHE_TTL.toMillis(), TimeUnit.MILLISECONDS)
+                .recordStats()
+                .build();
+        this.metadataCache = Caffeine.newBuilder()
+                .maximumSize(MAX_CACHE_SIZE)
+                .expireAfterWrite(CACHE_TTL.toMillis(), TimeUnit.MILLISECONDS)
+                .recordStats()
+                .build();
+        this.stats = new CacheStats();
+        log.info("DatabaseSkillRepository initialized with caching");
+    }
+
+    @Override
+    public String name() {
+        return "database";
+    }
+
+    @Override
+    public Uni<SkillMetadata> save(SkillContent content) {
+        return Panache.withTransaction(() -> {
+            SkillEntity entity = new SkillEntity();
+            entity.skillId = content.metadata().id();
+            entity.name = content.metadata().name();
+            entity.version = content.metadata().version();
+            entity.description = content.metadata().description();
+            entity.category = content.metadata().category();
+            entity.author = content.metadata().author();
+            entity.tags = content.metadata().tags();
+            entity.content = content.content();
+            
+            try {
+                entity.manifestJson = objectMapper.writeValueAsString(content.manifest());
+            } catch (JsonProcessingException e) {
+                return Uni.createFrom().failure(new RuntimeException("Failed to serialize manifest", e));
+            }
+            
+            entity.enabled = content.metadata().enabled();
+            entity.checksum = content.metadata().checksum();
+
+            return entity.<SkillEntity>persist()
+                    .onItem().transform(saved -> {
+                        // Update caches
+                        contentCache.put(saved.skillId, content);
+                        metadataCache.put(saved.skillId, toMetadata(saved));
+                        
+                        log.info("Saved skill to database: {}", saved.skillId);
+                        return toMetadata(saved);
+                    });
+        });
+    }
+
+    @Override
+    public Uni<Optional<SkillContent>> get(String skillId) {
+        // Check L1 cache first
+        SkillContent cached = contentCache.getIfPresent(skillId);
+        if (cached != null) {
+            stats.recordHit();
+            log.debug("Cache hit for skill: {}", skillId);
+            return Uni.createFrom().item(Optional.of(cached));
+        }
+
+        stats.recordMiss();
+
+        // Query database
+        return SkillEntity.findBySkillId(skillId)
+                .onItem().transform(entity -> {
+                    if (entity == null) {
+                        return Optional.empty();
+                    }
+
+                    try {
+                        SkillContent content = new SkillContent.Builder()
+                                .metadata(toMetadata(entity))
+                                .content(entity.content)
+                                .manifest(objectMapper.readValue(entity.manifestJson, Map.class))
+                                .build();
+
+                        // Update L1 cache
+                        contentCache.put(skillId, content);
+
+                        return Optional.of(content);
+                    } catch (JsonProcessingException e) {
+                        log.error("Failed to deserialize skill: {}", skillId, e);
+                        return Optional.empty();
+                    }
+                });
+    }
+
+    @Override
+    public Uni<Optional<SkillMetadata>> getMetadata(String skillId) {
+        // Check L1 cache first
+        SkillMetadata cached = metadataCache.getIfPresent(skillId);
+        if (cached != null) {
+            stats.recordHit();
+            return Uni.createFrom().item(Optional.of(cached));
+        }
+
+        stats.recordMiss();
+
+        // Query database
+        return SkillEntity.findBySkillId(skillId)
+                .onItem().transform(entity -> {
+                    if (entity == null) {
+                        return Optional.empty();
+                    }
+
+                    SkillMetadata metadata = toMetadata(entity);
+                    
+                    // Update L1 cache
+                    metadataCache.put(skillId, metadata);
+
+                    return Optional.of(metadata);
+                });
+    }
+
+    @Override
+    public Uni<Boolean> delete(String skillId) {
+        return Panache.withTransaction(() -> 
+            SkillEntity.findBySkillId(skillId)
+                .onItem().transformToUni(entity -> {
+                    if (entity == null) {
+                        return Uni.createFrom().item(false);
+                    }
+
+                    return entity.<Void>delete()
+                            .onItem().transform(v -> {
+                                // Remove from caches
+                                contentCache.invalidate(skillId);
+                                metadataCache.invalidate(skillId);
+                                
+                                log.info("Deleted skill from database: {}", skillId);
+                                return true;
+                            });
+                })
+        );
+    }
+
+    @Override
+    public Uni<List<SkillMetadata>> list(int offset, int limit) {
+        return SkillEntity.<SkillEntity>listAll()
+                .onItem().transform(entities -> 
+                    entities.stream()
+                            .skip(offset)
+                            .limit(limit)
+                            .map(this::toMetadata)
+                            .collect(Collectors.toList())
+                );
+    }
+
+    @Override
+    public Uni<List<SkillMetadata>> search(String query, int offset, int limit) {
+        return SkillEntity.search(query)
+                .collect().asList()
+                .onItem().transform(entities ->
+                    entities.stream()
+                            .skip(offset)
+                            .limit(limit)
+                            .map(this::toMetadata)
+                            .collect(Collectors.toList())
+                );
+    }
+
+    @Override
+    public Uni<List<SkillMetadata>> getByCategory(String category) {
+        return SkillEntity.findByCategory(category)
+                .collect().asList()
+                .onItem().transform(entities ->
+                    entities.stream()
+                            .map(this::toMetadata)
+                            .collect(Collectors.toList())
+                );
+    }
+
+    @Override
+    public Uni<List<SkillMetadata>> getByTags(List<String> tags, boolean matchAll) {
+        return SkillEntity.<SkillEntity>listAll()
+                .onItem().transform(entities ->
+                    entities.stream()
+                            .filter(entity -> matchesTags(entity.tags, tags, matchAll))
+                            .map(this::toMetadata)
+                            .collect(Collectors.toList())
+                );
+    }
+
+    @Override
+    public Uni<Boolean> exists(String skillId) {
+        return SkillEntity.existsBySkillId(skillId);
+    }
+
+    @Override
+    public Uni<Boolean> setEnabled(String skillId, boolean enabled) {
+        return Panache.withTransaction(() ->
+            SkillEntity.findBySkillId(skillId)
+                .onItem().transformToUni(entity -> {
+                    if (entity == null) {
+                        return Uni.createFrom().item(false);
+                    }
+
+                    entity.enabled = enabled;
+                    return entity.<SkillEntity>persist()
+                            .onItem().transform(saved -> {
+                                // Update cache
+                                SkillMetadata metadata = toMetadata(saved);
+                                metadataCache.put(skillId, metadata);
+                                
+                                return true;
+                            });
+                })
+        );
+    }
+
+    @Override
+    public Uni<RepositoryStats> getStats() {
+        return SkillEntity.<Long>countAll()
+                .onItem().transformToUni(total -> 
+                    SkillEntity.count("enabled", true)
+                        .onItem().transform(enabled -> {
+                            long disabled = total - enabled;
+                            
+                            // Estimate size (simplified)
+                            long totalSize = total * 1024; // Assume 1KB average
+                            
+                            double hitRatio = stats.getHitRatio();
+                            
+                            return new RepositoryStats(
+                                    Math.toIntExact(total),
+                                    Math.toIntExact(enabled),
+                                    Math.toIntExact(disabled),
+                                    totalSize,
+                                    stats.getHits(),
+                                    stats.getMisses(),
+                                    hitRatio
+                            );
+                        })
+                );
+    }
+
+    @Override
+    public Uni<Void> clearCache() {
+        return Uni.createFrom().voidItem().invoke(() -> {
+            contentCache.invalidateAll();
+            metadataCache.invalidateAll();
+            stats.reset();
+            log.info("Cache cleared");
+        });
+    }
+
+    @Override
+    public Uni<Void> initialize() {
+        return Uni.createFrom().voidItem().invoke(() -> {
+            log.info("Database skill repository initialized");
+            // Database schema is managed by Hibernate
+        });
+    }
+
+    // ==================== Private Helpers ====================
+
+    private SkillMetadata toMetadata(SkillEntity entity) {
+        return new SkillMetadata.Builder()
+                .id(entity.skillId)
+                .name(entity.name)
+                .version(entity.version)
+                .description(entity.description)
+                .category(entity.category)
+                .author(entity.author)
+                .tags(entity.tags)
+                .contentPath("db:" + entity.id)
+                .manifestPath("db:" + entity.id + "/manifest")
+                .createdAt(entity.createdAt)
+                .updatedAt(entity.updatedAt)
+                .enabled(entity.enabled)
+                .checksum(entity.checksum)
+                .build();
+    }
+
+    private boolean matchesTags(List<String> skillTags, List<String> filterTags, boolean matchAll) {
+        if (matchAll) {
+            return skillTags.containsAll(filterTags);
+        } else {
+            return filterTags.stream().anyMatch(skillTags::contains);
+        }
+    }
+
+    /**
+     * Simple cache statistics tracker.
+     */
+    private static class CacheStats {
+        private final java.util.concurrent.atomic.AtomicLong hits = new java.util.concurrent.atomic.AtomicLong(0);
+        private final java.util.concurrent.atomic.AtomicLong misses = new java.util.concurrent.atomic.AtomicLong(0);
+
+        public void recordHit() {
+            hits.incrementAndGet();
+        }
+
+        public void recordMiss() {
+            misses.incrementAndGet();
+        }
+
+        public long getHits() {
+            return hits.get();
+        }
+
+        public long getMisses() {
+            return misses.get();
+        }
+
+        public double getHitRatio() {
+            long total = hits.get() + misses.get();
+            return total > 0 ? (double) hits.get() / total : 0.0;
+        }
+
+        public void reset() {
+            hits.set(0);
+            misses.set(0);
+        }
+    }
+}

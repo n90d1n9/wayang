@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>tech.kayys.wayang</groupId>
+        <artifactId>wayang-vector-parent</artifactId>
+        <version>0.1.0</version>
+    </parent>
+    <artifactId>wayang-vector-faiss</artifactId>
+
+    <properties>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
+        <faiss.version>1.8.0</faiss.version>
+        <!-- Leave empty to run all tests; set to 'native' to filter -->
+        <faiss.test.groups></faiss.test.groups>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>wayang-vector-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Quarkus dependencies -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-arc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.smallrye.reactive</groupId>
+            <artifactId>mutiny</artifactId>
+        </dependency>
+
+        <!-- No external Java dependencies needed for FAISS -->
+        <!-- Native FAISS C library is accessed via JDK 25 FFM (Foreign Function & Memory API) -->
+        <!-- Build libfaiss_c with: scripts/build-faiss.sh -->
+
+        <!-- Test dependencies -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <profiles>
+        <!--
+            Auto-build: activates automatically when libfaiss_c is NOT found
+            at ~/.wayang/lib/. Runs build-faiss.sh during generate-resources.
+        -->
+        <profile>
+            <id>faiss-auto-build</id>
+            <activation>
+                <file>
+                    <missing>${user.home}/.wayang/lib/libfaiss_c.dylib</missing>
+                </file>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.5.0</version>
+                        <executions>
+                            <execution>
+                                <id>auto-build-faiss-native</id>
+                                <phase>generate-resources</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>bash</executable>
+                                    <workingDirectory>${project.basedir}</workingDirectory>
+                                    <arguments>
+                                        <argument>${project.basedir}/scripts/build-faiss.sh</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!--
+            Force rebuild: activate with  mvn ... -Dfaiss.rebuild
+            Rebuilds even if library already exists.
+        -->
+        <profile>
+            <id>faiss-rebuild</id>
+            <activation>
+                <property>
+                    <name>faiss.rebuild</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.5.0</version>
+                        <executions>
+                            <execution>
+                                <id>rebuild-faiss-native</id>
+                                <phase>generate-resources</phase>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <configuration>
+                                    <executable>bash</executable>
+                                    <workingDirectory>${project.basedir}</workingDirectory>
+                                    <arguments>
+                                        <argument>${project.basedir}/scripts/build-faiss.sh</argument>
+                                        <argument>--force</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>25</source>
+                    <target>25</target>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.3.1</version>
+                <configuration>
+                    <argLine>--enable-native-access=ALL-UNNAMED
+                        -Djava.library.path=${user.home}/.wayang/lib</argLine>
+                    <systemPropertyVariables>
+                        <wayang.faiss.lib.path>${user.home}/.wayang/lib</wayang.faiss.lib.path>
+                    </systemPropertyVariables>
+                    <!-- Skip FAISS native tests if library not available -->
+                    <groups>${faiss.test.groups}</groups>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
