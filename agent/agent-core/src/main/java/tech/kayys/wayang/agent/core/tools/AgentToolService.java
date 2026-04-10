@@ -6,7 +6,7 @@ import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.kayys.wayang.agent.core.memory.AgentMemoryService;
-import tech.kayys.golok.tools.spi.*;
+import tech.kayys.wayang.tools.spi.*;
 import tech.kayys.wayang.memory.spi.MemoryEntry;
 
 import java.time.Instant;

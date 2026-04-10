@@ -62,16 +62,12 @@
         <module>memory</module>
         <module>prompt</module>
         <module>rag</module>
-        <module>skills</module>
         <module>tools</module>
         <module>vector</module>
         <module>embedding</module>
         <module>mcp</module>
         <module>storage</module>
-        <module>backend-gollek</module>
-        <module>backend-gamelan</module>
         <module>runtime-quarkus</module>
-        <module>agent-shaker</module>
     </modules>
 
     <build>

@@ -1,4 +1,4 @@
-package tech.kayys.golok.tools.spi;
+package tech.kayys.wayang.tools.spi;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;

@@ -23,6 +23,13 @@
             <artifactId>mutiny</artifactId>
             <version>2.1.0</version>
         </dependency>
+        
+        <!-- Wayang Plugin SPI -->
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>wayang-plugin-spi</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 
 </project>

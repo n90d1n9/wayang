@@ -2,6 +2,7 @@ package tech.kayys.wayang.agent.spi.skills;
 
 import java.util.List;
 import java.util.Optional;
+import tech.kayys.wayang.agent.spi.AgentSkill;
 
 /**
  * Registry for managing {@link SkillDefinition} instances at runtime.
@@ -15,11 +16,28 @@ import java.util.Optional;
  * Implementations must be thread-safe since skills can be
  * registered/unregistered
  * concurrently during workflow execution.
- * 
- * @deprecated Use {@link tech.kayys.wayang.agent.spi.SkillRegistry} instead
  */
-@Deprecated
 public interface SkillRegistry {
+
+    List<AgentSkill> listAll();
+
+    Optional<AgentSkill> find(String id);
+
+    AgentSkill findOrThrow(String id);
+
+    void register(AgentSkill skill);
+
+    void unregister(String skillId);
+
+    List<AgentSkill> findByCategory(SkillCategory category);
+
+    List<AgentSkill> listAllowed(String tenantId, java.util.Set<String> allowedIds);
+
+    boolean isRegistered(String skillId);
+
+    java.util.Map<String, SkillHealth> checkHealth();
+
+    int size();
 
     /**
      * Look up a skill by its unique ID.

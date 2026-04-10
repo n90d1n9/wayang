@@ -11,9 +11,9 @@ import tech.kayys.wayang.agent.spi.AgentOrchestrator;
 import tech.kayys.wayang.agent.spi.AgentRequest;
 import tech.kayys.wayang.agent.spi.AgentResponse;
 import tech.kayys.wayang.agent.spi.OrchestrationStrategy;
-import tech.kayys.golok.tools.spi.ToolCall;
-import tech.kayys.golok.tools.spi.ToolCallResult;
-import tech.kayys.golok.tools.spi.ToolResult;
+import tech.kayys.wayang.tools.spi.ToolCall;
+import tech.kayys.wayang.tools.spi.ToolCallResult;
+import tech.kayys.wayang.tools.spi.ToolResult;
 
 import java.time.Duration;
 import java.time.Instant;

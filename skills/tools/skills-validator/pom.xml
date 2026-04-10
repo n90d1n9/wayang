@@ -22,6 +22,13 @@
     </properties>
 
     <dependencies>
+        <!-- Agent Core (unified skill validator) -->
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>agent-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!-- YAML parsing -->
         <dependency>
             <groupId>org.yaml</groupId>

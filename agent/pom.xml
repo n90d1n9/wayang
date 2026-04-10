@@ -24,7 +24,14 @@
 
     <dependencyManagement>
         <dependencies>
-
+            <!-- Inherit from parent Quarkus BOM -->
+            <dependency>
+                <groupId>io.quarkus.platform</groupId>
+                <artifactId>quarkus-bom</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -33,10 +40,10 @@
     </dependencies>
 
     <modules>
-        <!-- SPI: Pure interfaces and types, no runtime dependencies -->
+        <!-- SPI: Pure interfaces and types, unified agent + skill SPI -->
         <module>agent-spi</module>
 
-        <!-- Core: Agent implementation, depends on SPI -->
+        <!-- Core: Agent and skill implementation, discovery, loading, validation -->
         <module>agent-core</module>
 
         <!-- Orchestration: Agent orchestration strategies (ReAct, Reflexion, ToolCalling) -->
@@ -55,8 +62,15 @@
         <!-- Skills: Built-in and custom skills -->
         <module>agent-skills-builtin</module>
 
+        <!-- Skill Management: Lifecycle management and auditing -->
+        <module>skill-management</module>
+        <module>skill-audit</module>
+
         <!-- API: REST API endpoints -->
         <module>agent-api</module>
+
+        <!-- CLI Tools: Command-line utilities -->
+        <module>skills-cli</module>
 
         <!-- Examples: Demo agents and use cases -->
         <module>agent-examples</module>

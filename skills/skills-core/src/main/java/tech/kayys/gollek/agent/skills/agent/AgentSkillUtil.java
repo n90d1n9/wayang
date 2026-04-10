@@ -1,14 +1,14 @@
-package tech.kayys.golok.code.agent;
+package tech.kayys.gollek.agent.skills.agent;
 
-import tech.kayys.golok.code.skills.cli.SkillsCommandHandler;
-import tech.kayys.golok.code.skills.discovery.SkillDiscoveryService;
-import tech.kayys.golok.code.skills.loader.GitSkillLoader;
-import tech.kayys.golok.code.skills.loader.LocalSkillLoader;
-import tech.kayys.golok.code.skills.manifest.SkillManifest;
-import tech.kayys.golok.code.skills.store.ExternalSkillAdapter;
-import tech.kayys.golok.code.skills.store.ExternalSkillStore;
-import tech.kayys.golok.tools.CodeToolRegistry;
-import tech.kayys.golok.tools.ToolRouter;
+import tech.kayys.gollek.agent.skills.skills.cli.SkillsCommandHandler;
+import tech.kayys.gollek.agent.skills.skills.discovery.SkillDiscoveryService;
+import tech.kayys.gollek.agent.skills.skills.loader.GitSkillLoader;
+import tech.kayys.gollek.agent.skills.skills.loader.LocalSkillLoader;
+import tech.kayys.gollek.agent.skills.skills.manifest.SkillManifest;
+import tech.kayys.gollek.agent.skills.skills.store.ExternalSkillAdapter;
+import tech.kayys.gollek.agent.skills.skills.store.ExternalSkillStore;
+import tech.kayys.wayang.tools.CodeToolRegistry;
+import tech.kayys.wayang.tools.ToolRouter;
 
 import java.util.*;
 import java.util.stream.Collectors;

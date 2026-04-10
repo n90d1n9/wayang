@@ -1,4 +1,4 @@
-package tech.kayys.golok.tools.spi;
+package tech.kayys.wayang.tools.spi;
 
 import java.nio.file.Path;
 import java.time.Duration;

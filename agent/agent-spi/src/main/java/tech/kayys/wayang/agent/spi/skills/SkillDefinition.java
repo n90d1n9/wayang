@@ -49,7 +49,6 @@ import java.util.Map;
  * @param metadata           Additional properties: color, icon, tags, version,
  *                           author, etc.
  */
-@Deprecated
 public record SkillDefinition(
         String id,
         String name,

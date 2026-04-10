@@ -1,4 +1,4 @@
-package tech.kayys.golok.tools.spi;
+package tech.kayys.wayang.tools.spi;
 
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;

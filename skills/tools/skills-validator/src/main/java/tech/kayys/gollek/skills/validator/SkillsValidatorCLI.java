@@ -1,5 +1,7 @@
 package tech.kayys.gollek.skills.validator;
 
+import tech.kayys.wayang.agent.core.skills.validation.SkillValidator;
+
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -71,7 +73,7 @@ public final class SkillsValidatorCLI {
         SkillsValidator.ValidationSummary summary = validator.getSummary();
 
         // Print individual results
-        for (ValidationResult result : validator.getResults()) {
+        for (SkillValidator.ValidationResult result : validator.getResults()) {
             printSkillResult(result);
         }
 
@@ -96,7 +98,7 @@ public final class SkillsValidatorCLI {
         // Print details if there are errors
         if (summary.getErrorCount() > 0) {
             System.out.println("Errors:");
-            for (ValidationResult result : validator.getResults()) {
+            for (SkillValidator.ValidationResult result : validator.getResults()) {
                 if (!result.isValid()) {
                     System.out.println("  " + result.getSkillName());
                     for (String error : result.getErrors()) {
@@ -110,8 +112,8 @@ public final class SkillsValidatorCLI {
         // Print warnings if any
         if (summary.getWarningCount() > 0) {
             System.out.println("Warnings:");
-            for (ValidationResult result : validator.getResults()) {
-                if (result.hasWarnings()) {
+            for (SkillValidator.ValidationResult result : validator.getResults()) {
+                if (!result.getWarnings().isEmpty()) {
                     System.out.println("  " + result.getSkillName());
                     for (String warning : result.getWarnings()) {
                         System.out.println("    • " + warning);
@@ -122,7 +124,7 @@ public final class SkillsValidatorCLI {
         }
     }
 
-    private static void printSkillResult(ValidationResult result) {
+    private static void printSkillResult(SkillValidator.ValidationResult result) {
         System.out.println("━".repeat(80));
         System.out.println("Validating: " + result.getSkillName());
         System.out.println("━".repeat(80));
@@ -136,7 +138,7 @@ public final class SkillsValidatorCLI {
             }
         }
 
-        if (result.hasWarnings()) {
+        if (!result.getWarnings().isEmpty()) {
             for (String warning : result.getWarnings()) {
                 System.out.println("  WARNING: " + warning);
             }

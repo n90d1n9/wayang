@@ -1,7 +1,7 @@
-package tech.kayys.golok.code.skills.store;
+package tech.kayys.gollek.agent.skills.skills.store;
 
-import tech.kayys.golok.code.skills.manifest.SkillManifest;
-import tech.kayys.golok.code.skills.manifest.SkillManifestParser;
+import tech.kayys.gollek.agent.skills.skills.manifest.SkillManifest;
+import tech.kayys.gollek.agent.skills.skills.manifest.SkillManifestParser;
 
 import java.io.IOException;
 import java.nio.file.*;

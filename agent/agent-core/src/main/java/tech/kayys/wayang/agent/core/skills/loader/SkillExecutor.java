@@ -1,28 +1,39 @@
 package tech.kayys.wayang.agent.core.skills.loader;
 
 import org.jboss.logging.Logger;
-import tech.kayys.wayang.agent.core.skills.loader.SkillsLoader;
-import tech.kayys.wayang.agent.core.skills.SkillsLoader.SkillMetadata;
+import tech.kayys.wayang.agent.core.skills.manifest.SkillManifest;
+import tech.kayys.wayang.agent.core.skills.validation.SkillValidator;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.TimeoutException;
 
 /**
  * Executes skills and handles their lifecycle.
- * Skills can be shell scripts, Python programs, or other executables.
+ * 
+ * <p>Skills can be shell scripts, Python programs, or other executables.
+ * This executor:
+ * <ul>
+ *   <li>Loads skill manifests from SKILL.md files</li>
+ *   <li>Validates skill parameters against manifest specifications</li>
+ *   <li>Executes skill scripts with specified parameters</li>
+ *   <li>Captures output and handles timeouts</li>
+ *   <li>Reports execution results with timing information</li>
+ * </ul>
+ *
+ * @author Bhangun
  */
 public class SkillExecutor {
 
     private static final Logger LOGGER = Logger.getLogger(SkillExecutor.class);
 
     private final Path skillsDirectory;
-    private final SkillsLoader skillsLoader;
-    private final Map<String, SkillMetadata> loadedSkills;
+    private final SkillsLoaderService loaderService;
+    private final SkillValidator validator;
+    private final Map<String, SkillManifest> loadedSkills;
     private final int executionTimeoutSeconds;
 
     public SkillExecutor(Path skillsDirectory) {
@@ -30,18 +41,22 @@ public class SkillExecutor {
     }
 
     public SkillExecutor(Path skillsDirectory, int executionTimeoutSeconds) {
-        this.skillsDirectory = Objects.requireNonNull(skillsDirectory);
+        this.skillsDirectory = Objects.requireNonNull(skillsDirectory, "skillsDirectory");
         this.executionTimeoutSeconds = executionTimeoutSeconds;
-        this.skillsLoader = new SkillsLoader(skillsDirectory);
+        this.loaderService = new DefaultSkillsLoaderService(skillsDirectory);
+        this.validator = new SkillValidator();
         this.loadedSkills = new HashMap<>();
     }
 
     /**
      * Load all available skills from the skills directory.
      */
-    public Map<String, SkillMetadata> loadAllSkills() throws IOException {
+    public Map<String, SkillManifest> loadAllSkills() throws IOException {
         loadedSkills.clear();
-        loadedSkills.putAll(skillsLoader.loadAllSkills());
+        List<SkillManifest> manifests = loaderService.loadSkillsFromDirectory(skillsDirectory);
+        for (SkillManifest manifest : manifests) {
+            loadedSkills.put(manifest.getName(), manifest);
+        }
         LOGGER.infof("Loaded %d skills", loadedSkills.size());
         return Map.copyOf(loadedSkills);
     }
@@ -63,12 +78,12 @@ public class SkillExecutor {
             );
         }
 
-        SkillMetadata metadata = loadedSkills.get(skillName);
+        SkillManifest manifest = loadedSkills.get(skillName);
 
         try {
-            // Validate parameters
-            SkillParameterValidator.ValidationResult validation = 
-                    SkillParameterValidator.validateParameters(skillName, metadata, parameters);
+            // Validate parameters against manifest using unified validator
+            SkillValidator.ValidationResult validation = 
+                    validator.validateParameters(skillName, manifest, parameters);
             
             if (!validation.isValid()) {
                 return new SkillExecutionResult(
@@ -76,12 +91,12 @@ public class SkillExecutor {
                         null,
                         System.currentTimeMillis() - startTime,
                         false,
-                        "Parameter validation failed: " + validation.getErrors()
+                        "Parameter validation failed: " + String.join("; ", validation.getErrors())
                 );
             }
 
             // Execute the skill
-            String output = executeSkillProcess(skillName, metadata, parameters);
+            String output = executeSkillProcess(skillName, manifest, parameters);
 
             return new SkillExecutionResult(
                     skillName,
@@ -106,8 +121,9 @@ public class SkillExecutor {
     /**
      * Execute the skill process/script.
      */
-    private String executeSkillProcess(String skillName, SkillMetadata metadata, 
-                                      Map<String, Object> parameters) throws IOException, InterruptedException, java.util.concurrent.TimeoutException {
+    private String executeSkillProcess(String skillName, SkillManifest manifest, 
+                                      Map<String, Object> parameters) 
+            throws IOException, InterruptedException, TimeoutException {
         
         Path skillPath = skillsDirectory.resolve(skillName);
         Path skillMd = skillPath.resolve("SKILL.md");
@@ -219,9 +235,9 @@ public class SkillExecutor {
     }
 
     /**
-     * Get skill metadata by name.
+     * Get skill manifest by name.
      */
-    public Optional<SkillMetadata> getSkillMetadata(String skillName) {
+    public Optional<SkillManifest> getSkillManifest(String skillName) {
         return Optional.ofNullable(loadedSkills.get(skillName));
     }
 

@@ -46,9 +46,10 @@
 
         <!-- Inference -->
         <dependency>
-            <groupId>tech.kayys.gollek</groupId>
+            <groupId>tech.kayys.wayang</groupId>
             <artifactId>gollek-sdk</artifactId>
             <version>0.1.0</version>
+      <scope>provided</scope>
         </dependency>
 
         <!-- Logging -->

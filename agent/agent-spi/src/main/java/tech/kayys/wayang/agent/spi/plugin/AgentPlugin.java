@@ -1,6 +1,6 @@
 package tech.kayys.wayang.agent.spi.plugin;
 
-import tech.kayys.wayang.agent.spi.core.AgentType;
+import tech.kayys.wayang.agent.spi.AgentType;
 import tech.kayys.wayang.plugin.WayangPlugin;
 
 /**

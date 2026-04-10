@@ -1,7 +1,7 @@
-package tech.kayys.golok.code.skills.store;
+package tech.kayys.gollek.agent.skills.skills.store;
 
 import io.smallrye.mutiny.Uni;
-import tech.kayys.golok.code.skills.manifest.SkillManifest;
+import tech.kayys.gollek.agent.skills.skills.manifest.SkillManifest;
 
 import java.util.List;
 import java.util.Map;

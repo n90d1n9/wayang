@@ -1,5 +1,7 @@
 package tech.kayys.gollek.skills.validator;
 
+import tech.kayys.wayang.agent.core.skills.validation.SkillValidator;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -9,11 +11,13 @@ import java.util.stream.Stream;
 
 /**
  * Orchestrates validation of multiple skills and generates reports.
+ * 
+ * <p>Uses the unified SkillValidator from agent-core for spec compliance.
  */
 public final class SkillsValidator {
 
     private final SkillValidator validator = new SkillValidator();
-    private final List<ValidationResult> results = new ArrayList<>();
+    private final List<SkillValidator.ValidationResult> results = new ArrayList<>();
 
     /**
      * Validates all skills in a directory.
@@ -35,12 +39,12 @@ public final class SkillsValidator {
                     .filter(p -> !p.getFileName().toString().equals(".DS_Store"))
                     .sorted()
                     .forEach(skillPath -> {
-                        ValidationResult result = validator.validate(skillPath);
+                        SkillValidator.ValidationResult result = validator.validateSkillDirectory(skillPath);
                         results.add(result);
                     });
         }
 
-        return results.stream().allMatch(ValidationResult::isValid);
+        return results.stream().allMatch(SkillValidator.ValidationResult::isValid);
     }
 
     /**
@@ -48,7 +52,7 @@ public final class SkillsValidator {
      *
      * @return List of validation results
      */
-    public List<ValidationResult> getResults() {
+    public List<SkillValidator.ValidationResult> getResults() {
         return new ArrayList<>(results);
     }
 
@@ -59,7 +63,7 @@ public final class SkillsValidator {
      */
     public ValidationSummary getSummary() {
         int totalSkills = results.size();
-        int validSkills = (int) results.stream().filter(ValidationResult::isValid).count();
+        int validSkills = (int) results.stream().filter(SkillValidator.ValidationResult::isValid).count();
         int errorCount = (int) results.stream().mapToLong(r -> r.getErrors().size()).sum();
         int warningCount = (int) results.stream().mapToLong(r -> r.getWarnings().size()).sum();
 

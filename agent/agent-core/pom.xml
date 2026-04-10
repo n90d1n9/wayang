@@ -41,35 +41,40 @@
       <scope>provided</scope>
     </dependency>
 
-    <!-- Gollek Tools SPI (for tool integration) -->
+    <!-- Gollek Tools SPI (for tool integration) - optional, adapter only -->
     <dependency>
-      <groupId>tech.kayys.gollek</groupId>
+      <groupId>tech.kayys.wayang</groupId>
       <artifactId>gollek-tools-spi</artifactId>
       <version>${project.version}</version>
+      <optional>true</optional>
     </dependency>
 
-    <!-- Gollek Tools Core (for ToolRegistry and implementation) -->
+    <!-- Gollek Tools Core (for ToolRegistry and implementation) - optional, adapter only -->
     <dependency>
-      <groupId>tech.kayys.gollek</groupId>
+      <groupId>tech.kayys.wayang</groupId>
       <artifactId>gollek-tools-core</artifactId>
       <version>${project.version}</version>
+      <optional>true</optional>
     </dependency>
 
-    <!-- Gollek core SPI (Message, InferenceRequest, etc.) -->
+    <!-- Gollek core SPI (Message, InferenceRequest, etc.) - optional, adapter only -->
     <dependency>
-      <groupId>tech.kayys.gollek</groupId>
+      <groupId>tech.kayys.wayang</groupId>
       <artifactId>gollek-spi</artifactId>
       <version>${gollek.version}</version>
+      <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>tech.kayys.gollek</groupId>
+      <groupId>tech.kayys.wayang</groupId>
       <artifactId>gollek-spi-inference</artifactId>
       <version>${gollek.version}</version>
+      <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>tech.kayys.gollek</groupId>
+      <groupId>tech.kayys.wayang</groupId>
       <artifactId>gollek-engine</artifactId>
       <version>${gollek.version}</version>
+      <optional>true</optional>
     </dependency>
 
     <!-- Quarkus Extensions -->
@@ -135,33 +140,33 @@
       <version>${project.version}</version>
     </dependency>
 
-    <!-- Gollek SDK facade — discovers local or remote implementation at runtime -->
+    <!-- Gollek SDK facade — discovers local or remote implementation at runtime - optional -->
     <dependency>
-      <groupId>tech.kayys.gollek</groupId>
+      <groupId>tech.kayys.wayang</groupId>
       <artifactId>gollek-sdk</artifactId>
       <version>0.1.0</version>
+      <optional>true</optional>
     </dependency>
 
-    <!-- Gollek Agent Extension - Enhanced client, caching, and tool selection -->
+    <!-- Gollek Agent Skill Management - optional at runtime -->
+    <!--
     <dependency>
-      <groupId>tech.kayys.gollek</groupId>
-      <artifactId>agent-core</artifactId>
-      <version>1.0.0-SNAPSHOT</version>
-    </dependency>
-
-    <!-- Gollek Agent Skill Management - CRUD, repository switching, REST API -->
-    <dependency>
-      <groupId>tech.kayys.gollek</groupId>
+      <groupId>tech.kayys.wayang</groupId>
       <artifactId>agent-skill-management</artifactId>
       <version>1.0.0-SNAPSHOT</version>
+      <optional>true</optional>
     </dependency>
+    -->
 
-    <!-- Gollek Agent Audit - Audit logging, RBAC, validation, analytics -->
+    <!-- Gollek Agent Audit - optional at runtime -->
+    <!--
     <dependency>
-      <groupId>tech.kayys.gollek</groupId>
+      <groupId>tech.kayys.wayang</groupId>
       <artifactId>agent-skill-audit</artifactId>
       <version>1.0.0-SNAPSHOT</version>
+      <optional>true</optional>
     </dependency>
+    -->
 
     <!-- CDI for dependency injection -->
     <dependency>

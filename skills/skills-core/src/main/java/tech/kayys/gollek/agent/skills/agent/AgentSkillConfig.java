@@ -1,4 +1,4 @@
-package tech.kayys.golok.code.agent;
+package tech.kayys.gollek.agent.skills.agent;
 
 import java.nio.file.Path;
 import java.util.List;

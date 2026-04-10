@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
  * <li>10x performance improvement for repeated tool executions</li>
  * </ul>
  * 
- * @deprecated Use {@link tech.kayys.golok.tools.spi.ToolRegistry} instead
+ * @deprecated Use {@link tech.kayys.wayang.tools.spi.ToolRegistry} instead
  */
 @Deprecated
 @ApplicationScoped

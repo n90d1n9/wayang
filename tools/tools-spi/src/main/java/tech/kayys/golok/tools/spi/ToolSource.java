@@ -1,4 +1,4 @@
-package tech.kayys.golok.tools.spi;
+package tech.kayys.wayang.tools.spi;
 
 /**
  * Enumerates the possible sources of tools in the golok platform.

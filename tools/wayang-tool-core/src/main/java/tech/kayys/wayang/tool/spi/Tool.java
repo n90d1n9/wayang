@@ -6,7 +6,7 @@ import java.util.Map;
 /**
  * Interface definition for a generic Tool.
  * 
- * @deprecated Use {@link tech.kayys.golok.tools.spi.Tool} instead
+ * @deprecated Use {@link tech.kayys.wayang.tools.spi.Tool} instead
  */
 @Deprecated
 public interface Tool {
