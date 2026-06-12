@@ -1,0 +1,10 @@
+{
+  "kind": "DATA_PART_MAP",
+  "body": "",
+  "dataPart": {
+    "kind": "userAction",
+    "nested": {
+      "value": "original"
+    }
+  }
+}

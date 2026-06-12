@@ -11,4 +11,8 @@ public record RagRetrievalEvalRequest(
                 Map<String, Object> filters,
                 String fixturePath,
                 RagEvalDataset dataset) {
+
+        public RagRetrievalEvalRequest {
+                filters = RagRetrievalEvalFilters.copy(filters);
+        }
 }

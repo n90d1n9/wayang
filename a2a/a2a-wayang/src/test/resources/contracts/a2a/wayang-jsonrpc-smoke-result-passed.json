@@ -1,0 +1,38 @@
+{
+  "passed": true,
+  "exitCode": 0,
+  "scenarioResult": {
+    "scenarioId": "a2a.jsonrpc.contract.pass",
+    "passed": true,
+    "exchangeCount": 1,
+    "issueCount": 0,
+    "exchanges": [
+      {
+        "index": 0,
+        "requestId": "ok",
+        "method": "GetExtendedAgentCard",
+        "statusCode": 200,
+        "successful": true,
+        "contentType": "application/json",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "jsonrpc": "2.0",
+          "id": "ok",
+          "result": {
+            "kind": "contract-pass",
+            "name": "Wayang"
+          }
+        }
+      }
+    ],
+    "issues": [],
+    "attributes": {}
+  },
+  "attributes": {
+    "source": "contract",
+    "scenarioId": "a2a.jsonrpc.contract.pass",
+    "exchangeCount": 1
+  }
+}

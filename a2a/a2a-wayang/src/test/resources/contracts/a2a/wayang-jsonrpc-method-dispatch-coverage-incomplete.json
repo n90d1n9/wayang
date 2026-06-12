@@ -1,0 +1,103 @@
+{
+  "complete": false,
+  "registeredMethodCount": 2,
+  "dispatchMethodCount": 2,
+  "registeredMethods": [
+    "SendMessage",
+    "GetTask"
+  ],
+  "dispatchMethods": [
+    "SendMessage",
+    "CustomMethod"
+  ],
+  "missingDispatchMethods": [
+    "GetTask"
+  ],
+  "orphanDispatchMethods": [
+    "CustomMethod"
+  ],
+  "methodGroups": [
+    {
+      "group": "send",
+      "complete": true,
+      "registeredMethodCount": 1,
+      "dispatchMethodCount": 1,
+      "registeredMethods": [
+        "SendMessage"
+      ],
+      "dispatchMethods": [
+        "SendMessage"
+      ],
+      "missingDispatchMethods": [],
+      "orphanDispatchMethods": []
+    },
+    {
+      "group": "taskQuery",
+      "complete": false,
+      "registeredMethodCount": 1,
+      "dispatchMethodCount": 0,
+      "registeredMethods": [
+        "GetTask"
+      ],
+      "dispatchMethods": [],
+      "missingDispatchMethods": [
+        "GetTask"
+      ],
+      "orphanDispatchMethods": []
+    },
+    {
+      "group": "taskLifecycle",
+      "complete": true,
+      "registeredMethodCount": 0,
+      "dispatchMethodCount": 0,
+      "registeredMethods": [],
+      "dispatchMethods": [],
+      "missingDispatchMethods": [],
+      "orphanDispatchMethods": []
+    },
+    {
+      "group": "taskSubscription",
+      "complete": true,
+      "registeredMethodCount": 0,
+      "dispatchMethodCount": 0,
+      "registeredMethods": [],
+      "dispatchMethods": [],
+      "missingDispatchMethods": [],
+      "orphanDispatchMethods": []
+    },
+    {
+      "group": "pushConfig",
+      "complete": true,
+      "registeredMethodCount": 0,
+      "dispatchMethodCount": 0,
+      "registeredMethods": [],
+      "dispatchMethods": [],
+      "missingDispatchMethods": [],
+      "orphanDispatchMethods": []
+    },
+    {
+      "group": "agentCard",
+      "complete": true,
+      "registeredMethodCount": 0,
+      "dispatchMethodCount": 0,
+      "registeredMethods": [],
+      "dispatchMethods": [],
+      "missingDispatchMethods": [],
+      "orphanDispatchMethods": []
+    },
+    {
+      "group": "unassigned",
+      "complete": false,
+      "registeredMethodCount": 0,
+      "dispatchMethodCount": 1,
+      "registeredMethods": [],
+      "dispatchMethods": [
+        "CustomMethod"
+      ],
+      "missingDispatchMethods": [],
+      "orphanDispatchMethods": [
+        "CustomMethod"
+      ]
+    }
+  ]
+}

@@ -4,67 +4,27 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
-import tech.kayys.wayang.agent.spi.*;
+import tech.kayys.wayang.agent.spi.AgentSkill;
+import tech.kayys.wayang.agent.spi.skills.SkillCategory;
+import tech.kayys.wayang.agent.spi.skills.SkillDescriptor;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-/**
- * Executes Python or JavaScript snippets in a sandboxed child process and
- * returns stdout as the observation.
- *
- * <h2>Security</h2>
- * <p>
- * The skill writes code to a temp file and spawns an external interpreter
- * process. The process is subject to a wall-clock timeout (default 10 s) after
- * which it is killed. Network access and file system writes are <em>not</em>
- * restricted by this implementation — operators should layer OS-level sandbox
- * policies (seccomp, AppArmor, Docker) around the Gollek JVM process for
- * production workloads.
- * </p>
- *
- * <h2>Inputs</h2>
- * <table border="1">
- * <tr>
- * <th>Key</th>
- * <th>Required</th>
- * <th>Description</th>
- * </tr>
- * <tr>
- * <td>code</td>
- * <td>yes</td>
- * <td>Source code to execute</td>
- * </tr>
- * <tr>
- * <td>language</td>
- * <td>no</td>
- * <td>python (default) | javascript</td>
- * </tr>
- * <tr>
- * <td>timeout_seconds</td>
- * <td>no</td>
- * <td>Execution timeout (default 10)</td>
- * </tr>
- * </table>
- *
- * <h2>Outputs</h2>
- * <ul>
- * <li>{@code stdout} – captured standard output</li>
- * <li>{@code stderr} – captured standard error (empty on success)</li>
- * <li>{@code exit_code} – process exit code</li>
- * <li>{@code language} – interpreter used</li>
- * </ul>
- */
 @ApplicationScoped
-@SkillDescriptor(id = "code_execution", name = "Code Execution", description = "Executes Python or JavaScript code snippets in a sandboxed process and returns the output.", version = "1.0.0", category = SkillCategory.EXECUTION, inputs = {
+@SkillDescriptor(id = "code_execution", name = "Code Execution", description = "Executes Python or JavaScript code snippets in a child process and returns the output.", version = "1.0.0", category = SkillCategory.EXECUTION, inputs = {
         @SkillDescriptor.Input(name = "code", description = "The source code to execute"),
         @SkillDescriptor.Input(name = "language", required = false, description = "python (default) | javascript"),
         @SkillDescriptor.Input(name = "timeout_seconds", type = "integer", required = false, description = "Execution timeout in seconds")
@@ -78,18 +38,16 @@ public class CodeExecutionSkill implements AgentSkill {
     private static final Logger LOG = Logger.getLogger(CodeExecutionSkill.class);
 
     @ConfigProperty(name = "gollek.agent.skills.code-execution.enabled", defaultValue = "true")
-    boolean enabled;
+    boolean enabled = true;
 
     @ConfigProperty(name = "gollek.agent.skills.code-execution.python-executable", defaultValue = "python3")
-    String pythonExec;
+    String pythonExec = "python3";
 
     @ConfigProperty(name = "gollek.agent.skills.code-execution.node-executable", defaultValue = "node")
-    String nodeExec;
+    String nodeExec = "node";
 
     @ConfigProperty(name = "gollek.agent.skills.code-execution.default-timeout-seconds", defaultValue = "10")
-    int defaultTimeout;
-
-    // ── AgentSkill lifecycle ──────────────────────────────────────────────────
+    int defaultTimeout = 10;
 
     @Override
     public String id() {
@@ -107,68 +65,51 @@ public class CodeExecutionSkill implements AgentSkill {
     }
 
     @Override
-    public String version() {
-        return "1.0.0";
-    }
-
-    @Override
-    public SkillCategory category() {
-        return SkillCategory.EXECUTION;
+    public String category() {
+        return SkillCategory.EXECUTION.name();
     }
 
     @Override
     public boolean canHandle(Map<String, Object> inputs) {
-        return enabled && inputs.containsKey("code");
+        return enabled && inputs != null && inputs.containsKey("code");
     }
 
-    // ── Execution ─────────────────────────────────────────────────────────────
-
     @Override
-    public Uni<SkillResult> execute(SkillContext ctx) {
-        String code = ctx.requireInput("code", String.class);
-        String language = ctx.getStringInput("language", "python");
-        int timeoutSec = ctx.getIntInput("timeout_seconds", defaultTimeout);
+    public Uni<Map<String, Object>> execute(Map<String, Object> context) {
+        Map<String, Object> inputs = context == null ? Map.of() : context;
+        String code = BuiltinSkillSupport.stringInput(inputs, "code");
+        if (code == null || code.isBlank()) {
+            return Uni.createFrom().item(BuiltinSkillSupport.failure("Input 'code' is required"));
+        }
+        String language = BuiltinSkillSupport.stringInput(inputs, "language", "python");
+        int timeoutSec = BuiltinSkillSupport.intInput(inputs, "timeout_seconds", defaultTimeout);
 
-        return Uni.createFrom().item(() -> runCode(ctx, code, language, timeoutSec))
+        return Uni.createFrom().item(() -> runCode(code, language, timeoutSec))
                 .runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool());
     }
 
-    // ── Internal ──────────────────────────────────────────────────────────────
-
-    private SkillResult runCode(SkillContext ctx, String code, String language, int timeoutSec) {
+    private Map<String, Object> runCode(String code, String language, int timeoutSec) {
         Instant start = Instant.now();
         Path tempFile = null;
         try {
-            // Write code to temp file
             String ext = "javascript".equalsIgnoreCase(language) ? ".js" : ".py";
-            tempFile = Files.createTempFile("gollek-agent-" + UUID.randomUUID(), ext);
+            tempFile = Files.createTempFile("wayang-agent-" + UUID.randomUUID(), ext);
             Files.writeString(tempFile, code, StandardCharsets.UTF_8);
 
             String interpreter = "javascript".equalsIgnoreCase(language) ? nodeExec : pythonExec;
-            ProcessBuilder pb = new ProcessBuilder(interpreter, tempFile.toString());
-            pb.redirectErrorStream(false);
-            Process proc = pb.start();
+            Process proc = new ProcessBuilder(interpreter, tempFile.toString()).start();
 
-            // Capture output in parallel threads to avoid blocking
             StringWriter stdout = new StringWriter();
             StringWriter stderr = new StringWriter();
-
             Thread outReader = new Thread(() -> captureStream(proc.getInputStream(), stdout));
             Thread errReader = new Thread(() -> captureStream(proc.getErrorStream(), stderr));
             outReader.start();
             errReader.start();
 
             boolean finished = proc.waitFor(timeoutSec, TimeUnit.SECONDS);
-
             if (!finished) {
                 proc.destroyForcibly();
-                return SkillResult.builder()
-                        .skillId(ctx.skillId())
-                        .invocationId(ctx.invocationId())
-                        .status(SkillResult.Status.FAILURE)
-                        .observation("Execution timed out after " + timeoutSec + " seconds.")
-                        .durationMs(Duration.between(start, Instant.now()).toMillis())
-                        .build();
+                return BuiltinSkillSupport.failure("Execution timed out after " + timeoutSec + " seconds.");
             }
 
             outReader.join(1000);
@@ -178,39 +119,22 @@ public class CodeExecutionSkill implements AgentSkill {
             String out = stdout.toString();
             String err = stderr.toString();
             long durationMs = Duration.between(start, Instant.now()).toMillis();
+            Map<String, Object> outputs = new LinkedHashMap<>();
+            outputs.put("stdout", out);
+            outputs.put("stderr", err);
+            outputs.put("exit_code", exitCode);
+            outputs.put("language", language);
+            outputs.put("durationMs", durationMs);
 
             if (exitCode == 0) {
-                return SkillResult.builder()
-                        .skillId(ctx.skillId())
-                        .invocationId(ctx.invocationId())
-                        .status(SkillResult.Status.SUCCESS)
-                        .observation(out.isBlank() ? "(no output)" : out)
-                        .output("stdout", out)
-                        .output("stderr", err)
-                        .output("exit_code", exitCode)
-                        .output("language", language)
-                        .durationMs(durationMs)
-                        .build();
-            } else {
-                return SkillResult.builder()
-                        .skillId(ctx.skillId())
-                        .invocationId(ctx.invocationId())
-                        .status(SkillResult.Status.FAILURE)
-                        .observation("Process exited with code " + exitCode + ": " + err)
-                        .durationMs(durationMs)
-                        .build();
+                return BuiltinSkillSupport.success(out.isBlank() ? "(no output)" : out, outputs);
             }
-
+            Map<String, Object> failure = BuiltinSkillSupport.failure("Process exited with code " + exitCode + ": " + err);
+            failure.putAll(outputs);
+            return failure;
         } catch (Exception e) {
-            LOG.errorf(e, "Code execution failed for skill %s", ctx.skillId());
-            return SkillResult.builder()
-                    .skillId(ctx.skillId())
-                    .invocationId(ctx.invocationId())
-                    .status(SkillResult.Status.ERROR)
-                    .observation("Execution error: " + e.getMessage())
-                    .error(e)
-                    .durationMs(Duration.between(start, Instant.now()).toMillis())
-                    .build();
+            LOG.errorf(e, "Code execution failed");
+            return BuiltinSkillSupport.error(e);
         } finally {
             if (tempFile != null) {
                 try {
@@ -234,14 +158,6 @@ public class CodeExecutionSkill implements AgentSkill {
 
     @Override
     public boolean isHealthy() {
-        if (!enabled)
-            return false;
-        try {
-            Process p = new ProcessBuilder(pythonExec, "--version").start();
-            return p.waitFor(2, TimeUnit.SECONDS) && p.exitValue() == 0;
-        } catch (Exception e) {
-            LOG.debugf("Python health check failed: %s", e.getMessage());
-            return false;
-        }
+        return enabled;
     }
 }

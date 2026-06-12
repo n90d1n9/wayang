@@ -13,9 +13,9 @@ public class RagPluginAdminService {
     RagPluginManager pluginManager;
 
     public RagPluginAdminStatus status(String tenantId) {
-        String effectiveTenantId = tenantId == null ? "" : tenantId.trim();
+        String effectiveTenantId = RagPluginSelectionConfig.normalizeTenant(tenantId);
         RagPluginTenantStrategyResolution strategy = pluginManager.resolveTenantStrategy(effectiveTenantId);
-        List<RagPluginManager.PluginInspection> plugins = pluginManager.inspectPlugins(effectiveTenantId);
+        List<RagPluginInspection> plugins = pluginManager.inspectPlugins(effectiveTenantId);
         List<String> activePluginIds = pluginManager.activePluginIds(effectiveTenantId);
         return new RagPluginAdminStatus(effectiveTenantId, strategy, plugins, activePluginIds, Instant.now());
     }

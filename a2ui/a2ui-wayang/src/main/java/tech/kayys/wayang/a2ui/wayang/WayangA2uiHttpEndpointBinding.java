@@ -1,6 +1,8 @@
 package tech.kayys.wayang.a2ui.wayang;
 
-import java.lang.reflect.Array;
+import tech.kayys.wayang.a2ui.wayang.http.HttpHeaderValues;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -166,7 +168,7 @@ public final class WayangA2uiHttpEndpointBinding {
                 pathWithoutQuery(rawPath),
                 body,
                 normalizeHeaders(headers),
-                WayangA2uiTransportMaps.copy(attributes));
+                TransportMaps.copy(attributes));
     }
 
     private static String pathWithoutQuery(String rawPath) {
@@ -190,53 +192,12 @@ public final class WayangA2uiHttpEndpointBinding {
         Map<String, Object> normalized = new LinkedHashMap<>();
         headers.forEach((name, value) -> {
             if (name != null) {
-                headerValue(value).ifPresent(headerValue -> normalized.put(String.valueOf(name), headerValue));
+                String headerValue = HttpHeaderValues.joined(value);
+                if (!headerValue.isBlank()) {
+                    normalized.put(String.valueOf(name), headerValue);
+                }
             }
         });
-        return WayangA2uiTransportMaps.freeze(normalized);
-    }
-
-    private static Optional<String> headerValue(Object value) {
-        if (value == null) {
-            return Optional.empty();
-        }
-        if (value instanceof Optional<?> optional) {
-            return optional.flatMap(WayangA2uiHttpEndpointBinding::headerValue);
-        }
-        if (value instanceof Iterable<?> values) {
-            String joined = joinHeaderValues(values);
-            return joined.isBlank() ? Optional.empty() : Optional.of(joined);
-        }
-        Class<?> type = value.getClass();
-        if (type.isArray()) {
-            String joined = joinArrayHeaderValues(value);
-            return joined.isBlank() ? Optional.empty() : Optional.of(joined);
-        }
-        String normalized = String.valueOf(value).trim();
-        return normalized.isBlank() ? Optional.empty() : Optional.of(normalized);
-    }
-
-    private static String joinHeaderValues(Iterable<?> values) {
-        StringBuilder joined = new StringBuilder();
-        for (Object value : values) {
-            headerValue(value).ifPresent(normalized -> appendHeaderValue(joined, normalized));
-        }
-        return joined.toString();
-    }
-
-    private static String joinArrayHeaderValues(Object values) {
-        StringBuilder joined = new StringBuilder();
-        int length = Array.getLength(values);
-        for (int i = 0; i < length; i++) {
-            headerValue(Array.get(values, i)).ifPresent(normalized -> appendHeaderValue(joined, normalized));
-        }
-        return joined.toString();
-    }
-
-    private static void appendHeaderValue(StringBuilder joined, String value) {
-        if (joined.length() > 0) {
-            joined.append(", ");
-        }
-        joined.append(value);
+        return TransportMaps.freeze(normalized);
     }
 }

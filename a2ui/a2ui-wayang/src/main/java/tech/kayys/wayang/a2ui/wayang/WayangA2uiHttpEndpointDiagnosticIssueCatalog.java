@@ -1,5 +1,8 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+import tech.kayys.wayang.a2ui.wayang.support.RecordNumbers;
+
 /**
  * Shared issue taxonomy for mounted A2UI endpoint diagnostics.
  */
@@ -16,13 +19,11 @@ public final class WayangA2uiHttpEndpointDiagnosticIssueCatalog {
     public static final String ERROR_HTTP_STATUS_PREFIX = "http_status_";
 
     public static String normalizeCategory(String category) {
-        return category == null || category.isBlank() ? CATEGORY_HTTP_STATUS : category.trim();
+        return RecordValues.textOrDefault(category, CATEGORY_HTTP_STATUS);
     }
 
     public static String normalizeErrorCode(String errorCode) {
-        return errorCode == null || errorCode.isBlank()
-                ? ERROR_ENDPOINT_DIAGNOSTIC_ISSUE
-                : errorCode.trim();
+        return RecordValues.textOrDefault(errorCode, ERROR_ENDPOINT_DIAGNOSTIC_ISSUE);
     }
 
     public static String category(
@@ -55,7 +56,7 @@ public final class WayangA2uiHttpEndpointDiagnosticIssueCatalog {
     }
 
     public static String httpStatusErrorCode(int statusCode) {
-        return ERROR_HTTP_STATUS_PREFIX + Math.max(0, statusCode);
+        return ERROR_HTTP_STATUS_PREFIX + RecordNumbers.nonNegative(statusCode);
     }
 
     private WayangA2uiHttpEndpointDiagnosticIssueCatalog() {

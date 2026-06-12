@@ -1,70 +1,60 @@
 package tech.kayys.wayang.agent.adapter;
 
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import tech.kayys.wayang.agent.spi.skills.audit.AuditService as GollekAuditService;
-import tech.kayys.wayang.agent.spi.skills.audit.AuditEventType;
-import tech.kayys.wayang.agent.spi.skills.audit.AuditStatus;
-import tech.kayys.wayang.agent.spi.AgentAuditService;
+import io.smallrye.mutiny.Uni;
+import tech.kayys.wayang.agent.spi.audit.AgentArtifact;
+import tech.kayys.wayang.agent.spi.audit.AgentAuditService;
 
-import java.util.Map;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 /**
- * Adapter that wraps gollek audit service for backward compatibility.
- * 
- * @deprecated Use {@link GollekAuditService} directly
+ * Small in-memory {@link AgentAuditService} adapter for standalone runtimes and
+ * tests.
+ *
+ * <p>
+ * This class is intentionally not a CDI bean. Production runtimes can bind a
+ * durable audit implementation without this module creating a second competing
+ * {@link AgentAuditService} bean.
  */
-@ApplicationScoped
-@Deprecated
 public class AgentAuditServiceAdapter implements AgentAuditService {
 
-    private static final Logger log = LoggerFactory.getLogger(AgentAuditServiceAdapter.class);
-
-    @Inject
-    GollekAuditService gollekAuditService;
+    private final ConcurrentMap<String, AgentArtifact> artifacts = new ConcurrentHashMap<>();
 
     @Override
-    public void logEvent(String eventType, String userId, String skillId, String action, String status) {
-        AuditEventType auditEventType = mapEventType(eventType);
-        AuditStatus auditStatus = mapStatus(status);
-        
-        gollekAuditService.log(auditEventType, userId, skillId, action, auditStatus);
+    public Uni<Void> saveArtifact(AgentArtifact artifact) {
+        if (artifact == null) {
+            return Uni.createFrom().failure(new IllegalArgumentException("Artifact must not be null"));
+        }
+        artifacts.put(key(artifact.tenantId(), artifact.id()), artifact);
+        return Uni.createFrom().voidItem();
     }
 
     @Override
-    public void logSuccess(String eventType, String userId, String skillId, String action) {
-        gollekAuditService.logSuccess(mapEventType(eventType), userId, skillId, action);
+    public Uni<AgentArtifact> getArtifact(String artifactId, String tenantId) {
+        return Uni.createFrom().item(() -> artifacts.get(key(tenantId, artifactId)));
     }
 
     @Override
-    public void logFailure(String eventType, String userId, String skillId, String action, String error) {
-        gollekAuditService.logFailure(mapEventType(eventType), userId, skillId, action, error);
+    public Uni<List<AgentArtifact>> getArtifactsByRun(String runId, String tenantId) {
+        return Uni.createFrom().item(() -> artifacts.values().stream()
+                .filter(artifact -> Objects.equals(tenantId, artifact.tenantId()))
+                .filter(artifact -> Objects.equals(runId, artifact.runId()))
+                .sorted(Comparator.comparing(AgentArtifact::createdAt))
+                .toList());
     }
 
-    @Override
-    public void logAccessDenied(String userId, String skillId, String reason) {
-        gollekAuditService.logAccessDenied(userId, skillId, reason);
+    public int size() {
+        return artifacts.size();
     }
 
-    private AuditEventType mapEventType(String eventType) {
-        // Map wayang event types to gollek event types
-        return switch (eventType.toUpperCase()) {
-            case "SKILL_CREATED" -> AuditEventType.SKILL_CREATED;
-            case "SKILL_UPDATED" -> AuditEventType.SKILL_UPDATED;
-            case "SKILL_DELETED" -> AuditEventType.SKILL_DELETED;
-            case "SKILL_EXECUTED" -> AuditEventType.SKILL_READ;
-            default -> AuditEventType.SYSTEM_ERROR;
-        };
+    public void clear() {
+        artifacts.clear();
     }
 
-    private AuditStatus mapStatus(String status) {
-        return switch (status.toUpperCase()) {
-            case "SUCCESS" -> AuditStatus.SUCCESS;
-            case "FAILURE" -> AuditStatus.FAILURE;
-            case "DENIED" -> AuditStatus.DENIED;
-            default -> AuditStatus.SUCCESS;
-        };
+    private String key(String tenantId, String artifactId) {
+        return (tenantId == null ? "" : tenantId) + ":" + (artifactId == null ? "" : artifactId);
     }
 }

@@ -1,0 +1,165 @@
+package tech.kayys.wayang.rag.core;
+
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.Uni;
+import org.junit.jupiter.api.Test;
+import tech.kayys.gamelan.engine.execution.ExecutionToken;
+import tech.kayys.gamelan.engine.node.NodeExecutionTask;
+import tech.kayys.gamelan.engine.node.NodeId;
+import tech.kayys.gamelan.engine.run.RetryPolicy;
+import tech.kayys.gamelan.engine.workflow.WorkflowRunId;
+import tech.kayys.wayang.agent.spi.InferenceBackend;
+import tech.kayys.wayang.agent.spi.InferenceRequest;
+import tech.kayys.wayang.agent.spi.InferenceResponse;
+import tech.kayys.wayang.agent.spi.InferenceTypes;
+
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class ResponseGenerationExecutorTest {
+
+    @Test
+    void generatesResponseThroughActiveInferenceBackend() {
+        RecordingInferenceBackend backend = new RecordingInferenceBackend();
+        ResponseGenerationExecutor executor = executor(backend);
+
+        var result = executor.execute(task(Map.of(
+                "query", "Which deployment environment should I use?",
+                "contexts", List.of("Use the blue environment for deployment rehearsals."),
+                "metadata", List.of(Map.of("sourcePath", "runbook.md")),
+                "provider", "gollek",
+                "model", "qwen-test",
+                "apiKey", "test-key",
+                "includeCitations", true,
+                "useCache", false)))
+                .await().indefinitely();
+
+        assertThat(backend.calls).isEqualTo(1);
+        assertThat(backend.lastRequest.model()).isEqualTo("qwen-test");
+        assertThat(backend.lastRequest.metadata())
+                .containsEntry("preferredProvider", "gollek")
+                .containsEntry("apiKey", "test-key")
+                .containsEntry("ragTemplateId", "default");
+        assertThat(backend.lastRequest.messages())
+                .hasSize(2)
+                .extracting(InferenceTypes.ChatMessage::role)
+                .containsExactly("system", "user");
+        assertThat(backend.lastRequest.messages().get(1).content())
+                .contains("Context:")
+                .contains("[1] Use the blue environment")
+                .contains("Question: Which deployment environment should I use?");
+
+        assertThat(result.output())
+                .containsEntry("cached", false)
+                .containsEntry("model", "qwen-test")
+                .containsEntry("tokensUsed", 20);
+        assertThat((String) result.output().get("response"))
+                .contains("blue environment")
+                .contains("[REDACTED-EMAIL]")
+                .contains("[1]");
+        assertThat(citations(result.output())).hasSize(1);
+    }
+
+    @Test
+    void cachesGeneratedResponseByQueryContextAndModel() {
+        RecordingInferenceBackend backend = new RecordingInferenceBackend();
+        ResponseGenerationExecutor executor = executor(backend);
+        Map<String, Object> context = Map.of(
+                "query", "What changed?",
+                "contexts", List.of("The module now uses active inference."),
+                "provider", "gollek",
+                "model", "qwen-test",
+                "apiKey", "test-key",
+                "includeCitations", false,
+                "useCache", true);
+
+        var first = executor.execute(task(context)).await().indefinitely();
+        var second = executor.execute(task(context)).await().indefinitely();
+
+        assertThat(backend.calls).isEqualTo(1);
+        assertThat(first.output()).containsEntry("cached", false);
+        assertThat(second.output()).containsEntry("cached", true);
+        assertThat(second.output()).containsEntry("response", first.output().get("response"));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Citation> citations(Map<String, Object> output) {
+        return (List<Citation>) output.get("citations");
+    }
+
+    private ResponseGenerationExecutor executor(RecordingInferenceBackend backend) {
+        ResponseGenerationExecutor executor = new ResponseGenerationExecutor();
+        executor.inferenceBackend = backend;
+        executor.promptTemplateService = new PromptTemplateService();
+        executor.citationService = new CitationService();
+        executor.guardrailEngine = new ResponseGuardrailEngine();
+        executor.cacheService = new ResponseCacheService();
+        executor.metricsCollector = new GenerationMetricsCollector();
+        executor.defaultProvider = "gollek";
+        executor.defaultModel = "qwen-test";
+        executor.defaultTemperature = 0.7;
+        executor.defaultMaxTokens = 1000;
+        executor.defaultIncludeCitations = true;
+        executor.defaultUseCache = true;
+        executor.timeoutSeconds = 60;
+        return executor;
+    }
+
+    private NodeExecutionTask task(Map<String, Object> context) {
+        WorkflowRunId runId = WorkflowRunId.generate();
+        NodeId nodeId = NodeId.of("rag-generation-node");
+        return new NodeExecutionTask(
+                runId,
+                nodeId,
+                1,
+                ExecutionToken.create(runId, nodeId, 1, Duration.ofMinutes(1)),
+                context,
+                RetryPolicy.none());
+    }
+
+    private static final class RecordingInferenceBackend implements InferenceBackend {
+        private int calls;
+        private InferenceRequest lastRequest;
+
+        @Override
+        public String name() {
+            return "recording";
+        }
+
+        @Override
+        public String version() {
+            return "test";
+        }
+
+        @Override
+        public Uni<InferenceResponse> infer(InferenceRequest request) {
+            calls++;
+            lastRequest = request;
+            return Uni.createFrom().item(InferenceResponse.builder()
+                    .requestId(request.requestId())
+                    .model(request.model())
+                    .content("Use the blue environment [1]. Contact release@example.com.")
+                    .usage(InferenceTypes.TokenUsage.of(12, 8))
+                    .durationMs(3)
+                    .build());
+        }
+
+        @Override
+        public Multi<InferenceTypes.StreamingChunk> stream(InferenceRequest request) {
+            return Multi.createFrom().empty();
+        }
+
+        @Override
+        public List<InferenceTypes.ProviderInfo> listProviders() {
+            return List.of();
+        }
+
+        @Override
+        public boolean isHealthy() {
+            return true;
+        }
+    }
+}

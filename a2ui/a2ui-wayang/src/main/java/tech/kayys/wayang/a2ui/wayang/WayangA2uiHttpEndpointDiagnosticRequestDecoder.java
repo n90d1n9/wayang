@@ -1,5 +1,10 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.DecodeValues;
+
 import java.util.Map;
 
 /**
@@ -9,31 +14,31 @@ public final class WayangA2uiHttpEndpointDiagnosticRequestDecoder {
 
     public static WayangA2uiHttpEndpointDiagnosticRequest fromMap(Map<?, ?> values) {
         if (values == null || values.isEmpty()) {
-            return WayangA2uiHttpEndpointDiagnosticRequest.get("/");
+            return WayangA2uiHttpEndpointDiagnosticRequest.defaultRequest();
         }
-        Map<String, Object> request = WayangA2uiTransportMaps.copy(values);
+        Map<String, Object> request = TransportMaps.copy(values);
         return WayangA2uiHttpEndpointDiagnosticRequest.of(
-                WayangA2uiDecodeValues.text(request.get(WayangA2uiHttpEndpointDiagnosticRequest.KEY_METHOD)),
+                DecodeValues.text(request.get(WayangA2uiHttpEndpointDiagnosticRequest.KEY_METHOD)),
                 path(request),
-                WayangA2uiDecodeValues.text(request.get(WayangA2uiHttpEndpointDiagnosticRequest.KEY_BODY)),
-                WayangA2uiTransportMaps.copyMap(
+                DecodeValues.rawText(request.get(WayangA2uiHttpEndpointDiagnosticRequest.KEY_BODY)),
+                TransportMaps.copyMap(
                         request.get(WayangA2uiHttpEndpointDiagnosticRequest.KEY_HEADERS)),
-                WayangA2uiTransportMaps.copyMap(
+                TransportMaps.copyMap(
                         request.get(WayangA2uiHttpEndpointDiagnosticRequest.KEY_ATTRIBUTES)));
     }
 
     public static WayangA2uiHttpEndpointDiagnosticRequest fromJson(String json) {
-        return fromMap(WayangA2uiTransportJson.map(
+        return fromMap(TransportJson.map(
                 json,
                 "A2UI HTTP endpoint diagnostic request JSON must not be blank",
                 "Unable to decode A2UI HTTP endpoint diagnostic request JSON"));
     }
 
     private static String path(Map<String, Object> values) {
-        String rawPath = WayangA2uiDecodeValues.text(
+        String rawPath = DecodeValues.text(
                 values.get(WayangA2uiHttpEndpointDiagnosticRequest.KEY_RAW_PATH));
         return rawPath.isBlank()
-                ? WayangA2uiDecodeValues.text(values.get(WayangA2uiHttpEndpointDiagnosticRequest.KEY_PATH))
+                ? DecodeValues.text(values.get(WayangA2uiHttpEndpointDiagnosticRequest.KEY_PATH))
                 : rawPath;
     }
 

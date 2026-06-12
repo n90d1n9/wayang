@@ -1,6 +1,9 @@
 package tech.kayys.wayang.a2ui.wayang;
 
-import java.util.ArrayList;
+import tech.kayys.wayang.a2ui.wayang.http.HttpBindingReportProjection;
+import tech.kayys.wayang.a2ui.wayang.support.ProjectionCollections;
+import tech.kayys.wayang.a2ui.wayang.support.DecodeCollections;
+
 import java.util.List;
 import java.util.Map;
 
@@ -30,7 +33,7 @@ public record WayangA2uiHttpBindingReport(
                 .map(WayangA2uiHttpRoute::operation)
                 .distinct()
                 .toList();
-        List<String> registeredHandlerOperations = dispatcher == null ? List.of() : dispatcher.operations();
+        List<String> registeredHandlerOperations = dispatcher == null ? null : dispatcher.operations();
         List<String> handlerOperations = orderedHandlerOperations(routeOperations, registeredHandlerOperations);
         List<String> missingHandlers = routeOperations.stream()
                 .filter(operation -> !handlerOperations.contains(operation))
@@ -58,27 +61,18 @@ public record WayangA2uiHttpBindingReport(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpBindingReportProjection.report(this);
+        return HttpBindingReportProjection.report(this);
     }
 
     private static List<String> normalize(List<String> values) {
-        return WayangA2uiDecodeCollections.distinctNonBlankTexts(values);
+        return DecodeCollections.distinctNonBlankTexts(values);
     }
 
     private static List<String> orderedHandlerOperations(
             List<String> routeOperations,
             List<String> registeredHandlerOperations) {
-        if (registeredHandlerOperations == null || registeredHandlerOperations.isEmpty()) {
-            return List.of();
-        }
-        List<String> ordered = new ArrayList<>();
-        routeOperations.stream()
-                .filter(registeredHandlerOperations::contains)
-                .forEach(ordered::add);
-        registeredHandlerOperations.stream()
-                .filter(operation -> !routeOperations.contains(operation))
-                .sorted()
-                .forEach(ordered::add);
-        return List.copyOf(ordered);
+        return ProjectionCollections.referenceOrderThenSortedRemainder(
+                routeOperations,
+                registeredHandlerOperations);
     }
 }

@@ -1,0 +1,19 @@
+{
+  "targetId": "broken-exchange",
+  "expectationId": "a2ui-http-scenario-pass",
+  "passed": false,
+  "issueCount": 1,
+  "validationIssues": [
+    {
+      "targetId": "broken-exchange",
+      "field": "statusCodes",
+      "expected": "[200]",
+      "actual": "[400]",
+      "message": "Expected statusCodes to match exactly.",
+      "attributes": {}
+    }
+  ],
+  "attributes": {
+    "source": "contract"
+  }
+}

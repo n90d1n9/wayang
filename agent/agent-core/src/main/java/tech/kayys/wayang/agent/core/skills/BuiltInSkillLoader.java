@@ -6,6 +6,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.kayys.wayang.agent.spi.skills.SkillDefinition;
+import tech.kayys.wayang.agent.spi.skills.SkillMetadataKeys;
+import tech.kayys.wayang.agent.spi.skills.SkillRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -88,7 +91,7 @@ public class BuiltInSkillLoader {
                     .id((String) json.get("id"))
                     .name((String) json.get("name"))
                     .description((String) json.get("description"))
-                    .category((String) json.getOrDefault("category", "built-in"))
+                    .category((String) json.getOrDefault(SkillMetadataKeys.KEY_CATEGORY, "built-in"))
                     .systemPrompt((String) json.get("systemPrompt"));
 
             // Sub-skill prompts

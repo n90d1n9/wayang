@@ -1,0 +1,52 @@
+{
+  "passed": false,
+  "exitCode": 1,
+  "scenarioResult": {
+    "scenarioId": "a2a.jsonrpc.contract",
+    "passed": false,
+    "exchangeCount": 1,
+    "issueCount": 1,
+    "exchanges": [
+      {
+        "index": 0,
+        "requestId": "error",
+        "method": "UnknownMethod",
+        "statusCode": 200,
+        "successful": false,
+        "contentType": "application/json",
+        "error": {
+          "code": -32601,
+          "message": "Method not found: UnknownMethod"
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "jsonrpc": "2.0",
+          "id": "error",
+          "error": {
+            "code": -32601,
+            "message": "Method not found: UnknownMethod"
+          }
+        }
+      }
+    ],
+    "issues": [
+      {
+        "scenarioId": "a2a.jsonrpc.contract",
+        "exchangeIndex": 0,
+        "requestId": "error",
+        "method": "UnknownMethod",
+        "statusCode": 200,
+        "code": "-32601",
+        "message": "Method not found: UnknownMethod"
+      }
+    ],
+    "attributes": {}
+  },
+  "attributes": {
+    "source": "contract",
+    "scenarioId": "a2a.jsonrpc.contract",
+    "exchangeCount": 1
+  }
+}

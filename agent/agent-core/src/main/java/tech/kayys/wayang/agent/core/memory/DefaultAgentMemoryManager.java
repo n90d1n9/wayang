@@ -9,6 +9,7 @@ import tech.kayys.wayang.embedding.EmbeddingException;
 import tech.kayys.wayang.embedding.EmbeddingRequest;
 import tech.kayys.wayang.embedding.EmbeddingResponse;
 import tech.kayys.wayang.embedding.EmbeddingService;
+import tech.kayys.wayang.agent.spi.memory.AgentMemoryManager;
 import tech.kayys.wayang.memory.model.Memory;
 import tech.kayys.wayang.memory.service.VectorMemoryStore;
 

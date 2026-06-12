@@ -19,12 +19,9 @@ public class AdminApiKeyResponseFilter implements ContainerResponseFilter {
     @Override
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext)
             throws IOException {
-        Object slot = requestContext.getProperty(AdminApiKeyFilter.ADMIN_KEY_SLOT_PROPERTY);
-        if (slot == null) {
-            return;
-        }
-        String value = String.valueOf(slot);
-        if (value.isBlank()) {
+        String value = AdminApiKeyAccess.responseSlot(
+                requestContext.getProperty(AdminApiKeyFilter.ADMIN_KEY_SLOT_PROPERTY));
+        if (value == null) {
             return;
         }
         responseContext.getHeaders().putSingle(AdminApiKeyFilter.ADMIN_KEY_SLOT_HEADER, value);

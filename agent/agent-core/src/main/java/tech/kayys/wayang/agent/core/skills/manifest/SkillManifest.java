@@ -1,5 +1,7 @@
 package tech.kayys.wayang.agent.core.skills.manifest;
 
+import tech.kayys.wayang.agent.spi.skills.SkillMetadataKeys;
+
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.*;
@@ -36,6 +38,7 @@ public final class SkillManifest {
     private final String emoji;
     private final String homepage;
     private final List<String> requiredBins;
+    private final Map<String, Object> metadata;
 
     // ── Content ───────────────────────────────────────────────────
 
@@ -66,6 +69,9 @@ public final class SkillManifest {
         this.requiredBins = b.requiredBins != null
                 ? Collections.unmodifiableList(new ArrayList<>(b.requiredBins))
                 : List.of();
+        this.metadata = b.metadata != null
+                ? deepImmutableMap(b.metadata)
+                : Map.of();
         this.bodyContent = b.bodyContent != null ? b.bodyContent : "";
         this.sourceDirectory = b.sourceDirectory;
         this.references = b.references != null
@@ -131,6 +137,10 @@ public final class SkillManifest {
         return requiredBins;
     }
 
+    public Map<String, Object> getRawMetadata() {
+        return metadata;
+    }
+
     // ── Content ───────────────────────────────────────────────────
 
     public String getBodyContent() {
@@ -143,6 +153,19 @@ public final class SkillManifest {
 
     public Map<String, String> getReferences() {
         return references;
+    }
+
+    public Map<String, Object> getMetadata() {
+        Map<String, Object> merged = new LinkedHashMap<>(metadata);
+        merged.putIfAbsent(SkillMetadataKeys.KEY_VERSION, version);
+        merged.putIfAbsent("userInvocable", userInvocable);
+        merged.putIfAbsent("author", author);
+        merged.putIfAbsent("metadataVersion", metadataVersion);
+        merged.putIfAbsent("emoji", emoji);
+        merged.putIfAbsent("homepage", homepage);
+        merged.putIfAbsent("requiredBins", requiredBins);
+        merged.putIfAbsent("allowedTools", allowedTools);
+        return Collections.unmodifiableMap(merged);
     }
 
     // ── Installation Tracking ────────────────────────────────────
@@ -209,6 +232,7 @@ public final class SkillManifest {
         private String emoji;
         private String homepage;
         private List<String> requiredBins;
+        private Map<String, Object> metadata;
         private String bodyContent;
         private Path sourceDirectory;
         private Map<String, String> references;
@@ -280,6 +304,11 @@ public final class SkillManifest {
             return this;
         }
 
+        public Builder metadata(Map<String, Object> v) {
+            metadata = v;
+            return this;
+        }
+
         public Builder bodyContent(String v) {
             bodyContent = v;
             return this;
@@ -319,6 +348,26 @@ public final class SkillManifest {
         }
         int lastSlash = clean.lastIndexOf('/');
         return lastSlash >= 0 ? clean.substring(lastSlash + 1) : clean;
+    }
+
+    private static Map<String, Object> deepImmutableMap(Map<String, Object> source) {
+        Map<String, Object> copy = new LinkedHashMap<>();
+        source.forEach((key, value) -> copy.put(key, deepImmutableValue(value)));
+        return Collections.unmodifiableMap(copy);
+    }
+
+    private static Object deepImmutableValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> copy = new LinkedHashMap<>();
+            map.forEach((key, nestedValue) -> copy.put(String.valueOf(key), deepImmutableValue(nestedValue)));
+            return Collections.unmodifiableMap(copy);
+        }
+        if (value instanceof List<?> list) {
+            return list.stream()
+                    .map(SkillManifest::deepImmutableValue)
+                    .toList();
+        }
+        return value;
     }
 
     @Override

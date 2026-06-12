@@ -1,6 +1,8 @@
 package tech.kayys.wayang.a2ui.wayang;
 
-import java.util.Map;
+import tech.kayys.wayang.a2ui.wayang.http.HttpMetricExchange;
+import tech.kayys.wayang.a2ui.wayang.support.RecordNumbers;
+
 import java.util.Objects;
 
 /**
@@ -9,10 +11,10 @@ import java.util.Objects;
 public record WayangA2uiHttpScenarioExchange(
         int index,
         WayangA2uiHttpRequest request,
-        WayangA2uiHttpResponse response) {
+        WayangA2uiHttpResponse response) implements HttpMetricExchange {
 
     public WayangA2uiHttpScenarioExchange {
-        index = Math.max(1, index);
+        index = RecordNumbers.oneBased(index);
         request = Objects.requireNonNull(request, "request");
         response = Objects.requireNonNull(response, "response");
     }
@@ -27,17 +29,5 @@ public record WayangA2uiHttpScenarioExchange(
 
     public WayangA2uiTransportResponse transportResponse() {
         return WayangA2uiTransportResponse.fromJson(response.body());
-    }
-
-    public WayangA2uiTransportOutcome outcome() {
-        return transportResponse().outcome();
-    }
-
-    public boolean transportError() {
-        return transportResponse().transportError().isPresent();
-    }
-
-    public Map<String, Object> responseEnvelope() {
-        return transportResponse().toMap();
     }
 }

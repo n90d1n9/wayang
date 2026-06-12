@@ -1,5 +1,7 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.surface.SurfaceProjection;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -46,6 +48,6 @@ public record WayangA2uiSurfaceCatalog(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiSurfaceProjection.catalog(this);
+        return SurfaceProjection.catalog(this);
     }
 }

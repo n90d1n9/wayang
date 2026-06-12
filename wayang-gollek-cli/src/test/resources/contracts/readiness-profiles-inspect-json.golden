@@ -1,0 +1,1 @@
+{"product":"Wayang","profileId":"minimal","profile":{"profileId":"minimal","description":"Smallest startup profile for storage and contract-integrity checks.","defaultProfile":false,"productionProfile":false,"componentCount":2,"readinessIds":["wayang.storage.readiness","wayang.contract.integrity.readiness"]}}

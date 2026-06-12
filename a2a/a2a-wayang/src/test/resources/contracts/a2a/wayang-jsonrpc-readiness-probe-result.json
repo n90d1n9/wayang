@@ -1,0 +1,478 @@
+{
+  "bindingReportPassed": true,
+  "routeCatalogPassed": true,
+  "bindingReportProbe": {
+    "endpointPath": "/a2a/rpc",
+    "specComplianceReportEnabled": true,
+    "routeCatalogPath": "/a2a/jsonrpc/route-catalog",
+    "contentType": "application/json",
+    "smokeEnabled": false,
+    "routeCatalogEnabled": true,
+    "specComplianceReportPath": "/a2a/jsonrpc/spec-compliance",
+    "allow": "GET, OPTIONS",
+    "headers": {
+      "X-Wayang-A2A-Protocol-Version": "1.0",
+      "Content-Type": "application/json",
+      "X-Wayang-A2A-Route-Operation": "JsonRpcBindingReport",
+      "Allow": "GET, OPTIONS",
+      "A2A-Version": "1.0"
+    },
+    "diagnosticsReportPath": "/a2a/jsonrpc/diagnostics",
+    "httpSuccessful": true,
+    "statusCode": 200,
+    "issues": [],
+    "complete": true,
+    "readinessEnabled": true,
+    "issueCount": 0,
+    "smokePath": "/internal/a2a/smoke",
+    "streamingMethods": [
+      "SendStreamingMessage",
+      "SubscribeToTask"
+    ],
+    "passed": true,
+    "jsonContent": true,
+    "bindingReportRoute": true,
+    "readinessPath": "/a2a/jsonrpc/readiness",
+    "methodCount": 11,
+    "streamingMethodCount": 2,
+    "readinessIssueSummaryEnabled": true,
+    "bindingReportEnabled": true,
+    "diagnosticHandlersComplete": true,
+    "diagnosticRouteKeyCount": 7,
+    "diagnosticHandlerKeyCount": 7,
+    "diagnosticRouteKeys": [
+      "smoke",
+      "routeCatalog",
+      "diagnosticsReport",
+      "specComplianceReport",
+      "bindingReport",
+      "readiness",
+      "readinessIssueSummary"
+    ],
+    "diagnosticHandlerKeys": [
+      "smoke",
+      "routeCatalog",
+      "diagnosticsReport",
+      "specComplianceReport",
+      "bindingReport",
+      "readiness",
+      "readinessIssueSummary"
+    ],
+    "missingDiagnosticHandlerKeys": [],
+    "orphanDiagnosticHandlerKeys": [],
+    "body": {
+      "methodCount": 11,
+      "bindingReport": {
+        "enabled": true,
+        "httpMethod": "GET",
+        "responseMediaType": "application/json",
+        "path": "/a2a/jsonrpc/binding-report",
+        "allow": "GET, OPTIONS"
+      },
+      "protocolVersion": "1.0",
+      "readiness": {
+        "enabled": true,
+        "httpMethod": "GET",
+        "responseMediaType": "application/json",
+        "path": "/a2a/jsonrpc/readiness",
+        "allow": "GET, OPTIONS"
+      },
+      "diagnosticsReport": {
+        "enabled": true,
+        "httpMethod": "GET",
+        "responseMediaType": "application/json",
+        "path": "/a2a/jsonrpc/diagnostics",
+        "allow": "GET, OPTIONS"
+      },
+      "diagnosticHandlers": {
+        "complete": true,
+        "routeKeyCount": 7,
+        "handlerKeyCount": 7,
+        "routeKeys": [
+          "smoke",
+          "routeCatalog",
+          "diagnosticsReport",
+          "specComplianceReport",
+          "bindingReport",
+          "readiness",
+          "readinessIssueSummary"
+        ],
+        "handlerKeys": [
+          "smoke",
+          "routeCatalog",
+          "diagnosticsReport",
+          "specComplianceReport",
+          "bindingReport",
+          "readiness",
+          "readinessIssueSummary"
+        ],
+        "missingHandlerKeys": [],
+        "orphanHandlerKeys": []
+      },
+      "config": {
+        "smokeEnabled": false,
+        "specComplianceReportPath": "/a2a/jsonrpc/spec-compliance",
+        "bindingReportPath": "/a2a/jsonrpc/binding-report",
+        "readinessEnabled": true,
+        "readinessPath": "/a2a/jsonrpc/readiness",
+        "diagnosticsReportEnabled": true,
+        "endpointPath": "/a2a/rpc",
+        "routeCatalogEnabled": true,
+        "readinessIssueSummaryPath": "/a2a/jsonrpc/readiness/issues",
+        "readinessIssueSummaryEnabled": true,
+        "bindingReportEnabled": true,
+        "specComplianceReportEnabled": true,
+        "diagnosticsReportPath": "/a2a/jsonrpc/diagnostics",
+        "smokePath": "/internal/a2a/smoke",
+        "routeCatalogPath": "/a2a/jsonrpc/route-catalog"
+      },
+      "streamingMethods": [
+        "SendStreamingMessage",
+        "SubscribeToTask"
+      ],
+      "methods": [
+        {
+          "responseMediaType": "application/json",
+          "httpMethod": "POST",
+          "streaming": false,
+          "endpointPath": "/a2a/rpc",
+          "requestMediaType": "application/json",
+          "operation": "SendMessage",
+          "method": "SendMessage"
+        },
+        {
+          "responseMediaType": "text/event-stream",
+          "httpMethod": "POST",
+          "streaming": true,
+          "endpointPath": "/a2a/rpc",
+          "requestMediaType": "application/json",
+          "operation": "SendStreamingMessage",
+          "method": "SendStreamingMessage"
+        },
+        {
+          "responseMediaType": "application/json",
+          "httpMethod": "POST",
+          "streaming": false,
+          "endpointPath": "/a2a/rpc",
+          "requestMediaType": "application/json",
+          "operation": "GetTask",
+          "method": "GetTask"
+        },
+        {
+          "responseMediaType": "application/json",
+          "httpMethod": "POST",
+          "streaming": false,
+          "endpointPath": "/a2a/rpc",
+          "requestMediaType": "application/json",
+          "operation": "ListTasks",
+          "method": "ListTasks"
+        },
+        {
+          "responseMediaType": "application/json",
+          "httpMethod": "POST",
+          "streaming": false,
+          "endpointPath": "/a2a/rpc",
+          "requestMediaType": "application/json",
+          "operation": "CancelTask",
+          "method": "CancelTask"
+        },
+        {
+          "responseMediaType": "text/event-stream",
+          "httpMethod": "POST",
+          "streaming": true,
+          "endpointPath": "/a2a/rpc",
+          "requestMediaType": "application/json",
+          "operation": "SubscribeToTask",
+          "method": "SubscribeToTask"
+        },
+        {
+          "responseMediaType": "application/json",
+          "httpMethod": "POST",
+          "streaming": false,
+          "endpointPath": "/a2a/rpc",
+          "requestMediaType": "application/json",
+          "operation": "CreateTaskPushNotificationConfig",
+          "method": "CreateTaskPushNotificationConfig"
+        },
+        {
+          "responseMediaType": "application/json",
+          "httpMethod": "POST",
+          "streaming": false,
+          "endpointPath": "/a2a/rpc",
+          "requestMediaType": "application/json",
+          "operation": "GetTaskPushNotificationConfig",
+          "method": "GetTaskPushNotificationConfig"
+        },
+        {
+          "responseMediaType": "application/json",
+          "httpMethod": "POST",
+          "streaming": false,
+          "endpointPath": "/a2a/rpc",
+          "requestMediaType": "application/json",
+          "operation": "ListTaskPushNotificationConfigs",
+          "method": "ListTaskPushNotificationConfigs"
+        },
+        {
+          "responseMediaType": "application/json",
+          "httpMethod": "POST",
+          "streaming": false,
+          "endpointPath": "/a2a/rpc",
+          "requestMediaType": "application/json",
+          "operation": "DeleteTaskPushNotificationConfig",
+          "method": "DeleteTaskPushNotificationConfig"
+        },
+        {
+          "responseMediaType": "application/json",
+          "httpMethod": "POST",
+          "streaming": false,
+          "endpointPath": "/a2a/rpc",
+          "requestMediaType": "application/json",
+          "operation": "GetExtendedAgentCard",
+          "method": "GetExtendedAgentCard"
+        }
+      ],
+      "readinessIssueSummary": {
+        "enabled": true,
+        "httpMethod": "GET",
+        "responseMediaType": "application/json",
+        "path": "/a2a/jsonrpc/readiness/issues",
+        "allow": "GET, OPTIONS"
+      },
+      "endpoint": {
+        "allow": "POST, OPTIONS",
+        "responseMediaTypes": [
+          "application/json",
+          "text/event-stream"
+        ],
+        "httpMethod": "POST",
+        "path": "/a2a/rpc",
+        "requestMediaType": "application/json"
+      },
+      "binding": "JSONRPC",
+      "routeCatalog": {
+        "enabled": true,
+        "httpMethod": "GET",
+        "responseMediaType": "application/json",
+        "path": "/a2a/jsonrpc/route-catalog",
+        "allow": "GET, OPTIONS"
+      },
+      "smoke": {
+        "enabled": false,
+        "httpMethod": "GET",
+        "responseMediaType": "application/json",
+        "path": "/internal/a2a/smoke",
+        "allow": "GET, OPTIONS"
+      },
+      "specComplianceReport": {
+        "enabled": true,
+        "httpMethod": "GET",
+        "responseMediaType": "application/json",
+        "path": "/a2a/jsonrpc/spec-compliance",
+        "allow": "GET, OPTIONS"
+      }
+    },
+    "diagnosticsReportEnabled": true,
+    "protocolVersion": "1.0",
+    "bindingReportPath": "/a2a/jsonrpc/binding-report",
+    "routeOperation": "JsonRpcBindingReport",
+    "readinessIssueSummaryPath": "/a2a/jsonrpc/readiness/issues"
+  },
+  "routeCatalogProbe": {
+    "httpSuccessful": true,
+    "jsonContent": true,
+    "routeCatalogDescriptor": true,
+    "readinessDescriptor": true,
+    "issues": [],
+    "allow": "GET, OPTIONS",
+    "bindingReportDescriptor": true,
+    "enabledRouteCount": 7,
+    "endpointDescriptor": true,
+    "contentType": "application/json",
+    "passed": true,
+    "statusCode": 200,
+    "smokeDescriptor": true,
+    "routeCatalogRoute": true,
+    "headers": {
+      "X-Wayang-A2A-Protocol-Version": "1.0",
+      "Content-Type": "application/json",
+      "X-Wayang-A2A-Route-Operation": "JsonRpcRouteCatalog",
+      "Allow": "GET, OPTIONS",
+      "A2A-Version": "1.0"
+    },
+    "issueCount": 0,
+    "body": {
+      "enabledRouteCount": 7,
+      "routeCount": 8,
+      "routes": [
+        {
+          "requestMediaType": "application/json",
+          "httpMethod": "POST",
+          "operation": "JsonRpc",
+          "allowedMethods": [
+            "POST",
+            "OPTIONS"
+          ],
+          "allow": "POST, OPTIONS",
+          "responseMediaTypes": [
+            "application/json",
+            "text/event-stream"
+          ],
+          "requestBodyRequired": true,
+          "path": "/a2a/rpc",
+          "enabled": true
+        },
+        {
+          "requestMediaType": "",
+          "httpMethod": "GET",
+          "operation": "JsonRpcSmoke",
+          "allowedMethods": [
+            "GET",
+            "OPTIONS"
+          ],
+          "allow": "GET, OPTIONS",
+          "responseMediaTypes": [
+            "application/json"
+          ],
+          "requestBodyRequired": false,
+          "path": "/internal/a2a/smoke",
+          "enabled": false
+        },
+        {
+          "requestMediaType": "",
+          "httpMethod": "GET",
+          "operation": "JsonRpcRouteCatalog",
+          "allowedMethods": [
+            "GET",
+            "OPTIONS"
+          ],
+          "allow": "GET, OPTIONS",
+          "responseMediaTypes": [
+            "application/json"
+          ],
+          "requestBodyRequired": false,
+          "path": "/a2a/jsonrpc/route-catalog",
+          "enabled": true
+        },
+        {
+          "requestMediaType": "",
+          "httpMethod": "GET",
+          "operation": "JsonRpcDiagnostics",
+          "allowedMethods": [
+            "GET",
+            "OPTIONS"
+          ],
+          "allow": "GET, OPTIONS",
+          "responseMediaTypes": [
+            "application/json"
+          ],
+          "requestBodyRequired": false,
+          "path": "/a2a/jsonrpc/diagnostics",
+          "enabled": true
+        },
+        {
+          "requestMediaType": "",
+          "httpMethod": "GET",
+          "operation": "JsonRpcSpecCompliance",
+          "allowedMethods": [
+            "GET",
+            "OPTIONS"
+          ],
+          "allow": "GET, OPTIONS",
+          "responseMediaTypes": [
+            "application/json"
+          ],
+          "requestBodyRequired": false,
+          "path": "/a2a/jsonrpc/spec-compliance",
+          "enabled": true
+        },
+        {
+          "requestMediaType": "",
+          "httpMethod": "GET",
+          "operation": "JsonRpcBindingReport",
+          "allowedMethods": [
+            "GET",
+            "OPTIONS"
+          ],
+          "allow": "GET, OPTIONS",
+          "responseMediaTypes": [
+            "application/json"
+          ],
+          "requestBodyRequired": false,
+          "path": "/a2a/jsonrpc/binding-report",
+          "enabled": true
+        },
+        {
+          "requestMediaType": "",
+          "httpMethod": "GET",
+          "operation": "JsonRpcReadiness",
+          "allowedMethods": [
+            "GET",
+            "OPTIONS"
+          ],
+          "allow": "GET, OPTIONS",
+          "responseMediaTypes": [
+            "application/json"
+          ],
+          "requestBodyRequired": false,
+          "path": "/a2a/jsonrpc/readiness",
+          "enabled": true
+        },
+        {
+          "requestMediaType": "",
+          "httpMethod": "GET",
+          "operation": "JsonRpcReadinessIssueSummary",
+          "allowedMethods": [
+            "GET",
+            "OPTIONS"
+          ],
+          "allow": "GET, OPTIONS",
+          "responseMediaTypes": [
+            "application/json"
+          ],
+          "requestBodyRequired": false,
+          "path": "/a2a/jsonrpc/readiness/issues",
+          "enabled": true
+        }
+      ],
+      "binding": "JSONRPC",
+      "protocolVersion": "1.0"
+    },
+    "protocolVersion": "1.0",
+    "diagnosticsReportDescriptor": true,
+    "routeOperation": "JsonRpcRouteCatalog",
+    "specComplianceReportDescriptor": true,
+    "complete": true,
+    "readinessIssueSummaryDescriptor": true,
+    "routeCount": 8
+  },
+  "passed": true,
+  "smokePassed": true,
+  "smokeRequired": false,
+  "exitCode": 0,
+  "routeCatalogRequired": true,
+  "issueCount": 0,
+  "smokeProbe": {
+    "smokeRoute": false,
+    "routeOperation": "",
+    "passed": false,
+    "protocolVersion": "",
+    "contentType": "",
+    "summary": {
+      "issueCount": 0,
+      "passed": false,
+      "exitCode": 1,
+      "issues": [],
+      "exchangeCount": 0,
+      "attributes": {},
+      "successfulExit": false,
+      "smokeResult": false,
+      "scenarioId": "",
+      "body": {}
+    },
+    "statusCode": 0,
+    "headers": {},
+    "httpSuccessful": false,
+    "exitCode": 1
+  },
+  "issues": []
+}

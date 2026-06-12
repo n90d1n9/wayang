@@ -55,6 +55,10 @@ public record SkillContext(
         return inputs;
     }
 
+    public SkillMetadata metadata() {
+        return SkillContextKeys.metadata(agentContext).orElse(null);
+    }
+
     public static Builder builder() {
         return new Builder();
     }

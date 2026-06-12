@@ -3,9 +3,10 @@ package tech.kayys.wayang.agent.core.core;
 import io.smallrye.mutiny.Uni;
 import org.jboss.logging.Logger;
 import tech.kayys.wayang.agent.spi.*;
-import tech.kayys.wayang.agent.spi.*;
+import tech.kayys.wayang.agent.core.registry.BackendRegistry;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -71,6 +72,7 @@ public class AgentClient {
     private final InferenceBackend inferenceBackend;
     private final WorkflowBackend workflowBackend;
     private final AgentConfig config;
+    private final Map<String, AgentOrchestrator> orchestrators;
 
     /**
      * Create agent client with explicit backends.
@@ -82,6 +84,7 @@ public class AgentClient {
             "inferenceBackend is required. Call BackendRegistry.initialize() or provide explicitly.");
         this.workflowBackend = builder.workflowBackend;  // Optional
         this.config = builder.config != null ? builder.config : AgentConfig.defaults();
+        this.orchestrators = Map.copyOf(builder.orchestrators);
     }
 
     /**
@@ -157,6 +160,10 @@ public class AgentClient {
      */
     private AgentOrchestrator resolveOrchestrator(AgentRequest request) {
         String strategyId = request.strategy().id;
+        AgentOrchestrator registered = orchestrators.get(strategyId);
+        if (registered != null) {
+            return registered;
+        }
 
         // Try to get orchestrator from BackendRegistry or default implementations
         // This is a simplified implementation - in production, you'd have an
@@ -165,19 +172,10 @@ public class AgentClient {
     }
 
     /**
-     * Create default orchestrator for strategy ID.
-     * In production, this would delegate to an OrchestratorRegistry.
+     * Create a backend-backed orchestrator for strategy ID.
      */
     private AgentOrchestrator createDefaultOrchestrator(String strategyId) {
-        return switch (strategyId.toLowerCase()) {
-            case "react" -> new tech.kayys.wayang.agent.core.orchestrator.ReActOrchestrator();
-            case "plan_and_execute", "plan-and-execute" ->
-                new tech.kayys.wayang.agent.core.orchestrator.PlanAndExecuteOrchestrator();
-            case "reflexion" ->
-                new tech.kayys.wayang.agent.core.orchestrator.ReflexionOrchestrator();
-            default ->
-                new tech.kayys.wayang.agent.core.orchestrator.ReActOrchestrator();  // Default to ReAct
-        };
+        return new BackendBackedAgentOrchestrator(strategyId, inferenceBackend);
     }
 
     // ── Builder ──────────────────────────────────────────────────────────
@@ -192,6 +190,7 @@ public class AgentClient {
         private InferenceBackend inferenceBackend;
         private WorkflowBackend workflowBackend;
         private AgentConfig config;
+        private final Map<String, AgentOrchestrator> orchestrators = new LinkedHashMap<>();
 
         private Builder() {
             // Private constructor — use AgentClient.builder()
@@ -227,6 +226,45 @@ public class AgentClient {
          */
         public Builder config(AgentConfig config) {
             this.config = config;
+            return this;
+        }
+
+        /**
+         * Register an orchestrator by its own {@link AgentOrchestrator#strategyId()}.
+         *
+         * @param orchestrator orchestrator to route matching requests to
+         * @return builder for chaining
+         */
+        public Builder orchestrator(AgentOrchestrator orchestrator) {
+            Objects.requireNonNull(orchestrator, "orchestrator");
+            return orchestrator(orchestrator.strategyId(), orchestrator);
+        }
+
+        /**
+         * Register an orchestrator under an explicit strategy ID.
+         *
+         * @param strategyId strategy ID, usually {@link OrchestrationStrategy#id}
+         * @param orchestrator orchestrator to route matching requests to
+         * @return builder for chaining
+         */
+        public Builder orchestrator(String strategyId, AgentOrchestrator orchestrator) {
+            if (strategyId == null || strategyId.isBlank()) {
+                throw new IllegalArgumentException("strategyId is required");
+            }
+            this.orchestrators.put(strategyId, Objects.requireNonNull(orchestrator, "orchestrator"));
+            return this;
+        }
+
+        /**
+         * Register multiple orchestrators by strategy ID.
+         *
+         * @param orchestrators orchestrator registry to copy
+         * @return builder for chaining
+         */
+        public Builder orchestrators(Map<String, AgentOrchestrator> orchestrators) {
+            if (orchestrators != null) {
+                orchestrators.forEach(this::orchestrator);
+            }
             return this;
         }
 

@@ -1,9 +1,11 @@
 package tech.kayys.wayang.rag.embedding;
 
 import tech.kayys.wayang.rag.core.RagChunk;
+import tech.kayys.wayang.rag.core.RagMetadata;
 import tech.kayys.wayang.rag.core.store.VectorSearchHit;
 import tech.kayys.wayang.rag.core.store.VectorStore;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -73,7 +75,7 @@ class OwnedRagEmbeddingStoreAdapter implements RagEmbeddingStore {
                             + "': expected " + embeddingDimension + " but got " + embedding.length);
         }
 
-        Map<String, Object> safeMetadata = metadata == null ? Map.of() : Map.copyOf(metadata);
+        Map<String, Object> safeMetadata = RagMetadata.copy(metadata);
         validateMetadataContract(safeMetadata);
         Map<String, Object> enrichedMetadata = enrichMetadata(safeMetadata);
         RagChunk chunk = toRagChunk(id, text == null ? "" : text, enrichedMetadata);
@@ -97,9 +99,9 @@ class OwnedRagEmbeddingStoreAdapter implements RagEmbeddingStore {
                             + "': expected " + embeddingDimension + " but got " + queryEmbedding.length);
         }
         try {
-            Map<String, Object> safeFilters = filters == null ? Map.of() : Map.copyOf(filters);
+            Map<String, Object> safeFilters = RagMetadata.copy(filters);
             validateFiltersContract(safeFilters);
-            Map<String, Object> strictFilters = new java.util.HashMap<>(safeFilters);
+            Map<String, Object> strictFilters = new HashMap<>(safeFilters);
             strictFilters.put("tenantId", namespace);
             strictFilters.put("embeddingModel", embeddingModel);
             strictFilters.put("embeddingDimension", embeddingDimension);
@@ -147,12 +149,12 @@ class OwnedRagEmbeddingStoreAdapter implements RagEmbeddingStore {
     }
 
     private Map<String, Object> enrichMetadata(Map<String, Object> metadata) {
-        Map<String, Object> enriched = new java.util.HashMap<>(metadata);
+        Map<String, Object> enriched = new HashMap<>(metadata);
         enriched.put("tenantId", namespace);
         enriched.put("embeddingModel", embeddingModel);
         enriched.put("embeddingDimension", embeddingDimension);
         enriched.put("embeddingVersion", embeddingVersion);
-        return Map.copyOf(enriched);
+        return RagMetadata.copy(enriched);
     }
 
     private void validateMetadataContract(Map<String, Object> metadata) {

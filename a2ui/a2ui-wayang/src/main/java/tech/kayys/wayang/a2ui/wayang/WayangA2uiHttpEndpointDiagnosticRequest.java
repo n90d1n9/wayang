@@ -1,5 +1,9 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpEndpointDiagnosticPlanProjection;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
 import java.util.Map;
 
 /**
@@ -23,8 +27,8 @@ public record WayangA2uiHttpEndpointDiagnosticRequest(
         method = WayangA2uiHttpRequest.normalizeMethod(method);
         rawPath = normalizeRawPath(rawPath);
         body = body == null ? "" : body;
-        headers = WayangA2uiTransportMaps.copy(headers);
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        headers = TransportMaps.copy(headers);
+        attributes = TransportMaps.copy(attributes);
     }
 
     public static WayangA2uiHttpEndpointDiagnosticRequest of(String method, String rawPath) {
@@ -41,8 +45,8 @@ public record WayangA2uiHttpEndpointDiagnosticRequest(
                 method,
                 rawPath,
                 body,
-                WayangA2uiTransportMaps.copy(headers),
-                WayangA2uiTransportMaps.copy(attributes));
+                TransportMaps.copy(headers),
+                TransportMaps.copy(attributes));
     }
 
     public static WayangA2uiHttpEndpointDiagnosticRequest fromMap(Map<?, ?> values) {
@@ -51,6 +55,10 @@ public record WayangA2uiHttpEndpointDiagnosticRequest(
 
     public static WayangA2uiHttpEndpointDiagnosticRequest fromJson(String json) {
         return WayangA2uiHttpEndpointDiagnosticRequestDecoder.fromJson(json);
+    }
+
+    public static WayangA2uiHttpEndpointDiagnosticRequest defaultRequest() {
+        return get("/");
     }
 
     public static WayangA2uiHttpEndpointDiagnosticRequest get(String rawPath) {
@@ -74,7 +82,7 @@ public record WayangA2uiHttpEndpointDiagnosticRequest(
                 method,
                 rawPath,
                 body,
-                WayangA2uiTransportMetadata.merge(headers, WayangA2uiTransportMaps.copy(extraHeaders)),
+                WayangA2uiTransportMetadata.merge(headers, TransportMaps.copy(extraHeaders)),
                 attributes);
     }
 
@@ -87,15 +95,15 @@ public record WayangA2uiHttpEndpointDiagnosticRequest(
                 rawPath,
                 body,
                 headers,
-                WayangA2uiTransportMetadata.merge(attributes, WayangA2uiTransportMaps.copy(extraAttributes)));
+                WayangA2uiTransportMetadata.merge(attributes, TransportMaps.copy(extraAttributes)));
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpEndpointDiagnosticPlanProjection.request(this);
+        return HttpEndpointDiagnosticPlanProjection.request(this);
     }
 
     public String toJson() {
-        return WayangA2uiTransportJson.json(toMap(), "Unable to encode A2UI HTTP endpoint diagnostic request");
+        return TransportJson.json(toMap(), "Unable to encode A2UI HTTP endpoint diagnostic request");
     }
 
     private static String normalizeRawPath(String value) {

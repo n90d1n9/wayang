@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- ── Coordinates ─────────────────────────────────────────────────── -->
+  <groupId>tech.kayys.gamelan</groupId>
+  <artifactId>gamelan-extensions</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <name>Gamelan Extensions</name>
+  <description>
+    State-of-the-art agentic AI extensions: 4-layer memory hierarchy,
+    HTN planning, execution sandbox, governance, ABAC audit trail,
+    skill evolution (EvoSkill), token economy, agent communication,
+    cross-domain transfer, and domain-specific intelligence.
+  </description>
+
+  <properties>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+    <!-- Quarkus BOM — must match the parent gamelan-cli version -->
+    <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
+    <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
+    <quarkus.platform.version>3.9.4</quarkus.platform.version>
+
+    <!-- Dependency versions -->
+    <gollek.version>1.0.0-SNAPSHOT</gollek.version>
+    <jackson.version>2.17.1</jackson.version>
+    <snakeyaml.version>2.2</snakeyaml.version>
+    <assertj.version>3.26.3</assertj.version>
+    <mockito.version>5.12.0</mockito.version>
+  </properties>
+
+  <!-- ── BOM import ──────────────────────────────────────────────────── -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>${quarkus.platform.group-id}</groupId>
+        <artifactId>${quarkus.platform.artifact-id}</artifactId>
+        <version>${quarkus.platform.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <!-- ── Dependencies ───────────────────────────────────────────────── -->
+  <dependencies>
+
+    <!-- ── Parent project (gamelan-cli) ─────────────────────────────── -->
+    <dependency>
+      <groupId>tech.kayys.gamelan</groupId>
+      <artifactId>gamelan-cli</artifactId>
+      <version>1.0.0-SNAPSHOT</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <!-- ── Quarkus CDI ───────────────────────────────────────────────── -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-arc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-picocli</artifactId>
+    </dependency>
+
+    <!-- ── Gollek SDK ─────────────────────────────────────────────────── -->
+    <dependency>
+      <groupId>tech.kayys.gollek</groupId>
+      <artifactId>gollek-sdk-core</artifactId>
+      <version>${gollek.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>tech.kayys.gollek</groupId>
+      <artifactId>gollek-sdk-java-local</artifactId>
+      <version>${gollek.version}</version>
+    </dependency>
+
+    <!-- ── JSON ──────────────────────────────────────────────────────── -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.datatype</groupId>
+      <artifactId>jackson-datatype-jsr310</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+
+    <!-- ── YAML ──────────────────────────────────────────────────────── -->
+    <dependency>
+      <groupId>org.yaml</groupId>
+      <artifactId>snakeyaml</artifactId>
+      <version>${snakeyaml.version}</version>
+    </dependency>
+
+    <!-- ── Logging ───────────────────────────────────────────────────── -->
+    <dependency>
+      <groupId>org.jboss.logging</groupId>
+      <artifactId>jboss-logging</artifactId>
+    </dependency>
+
+    <!-- ── Tests ─────────────────────────────────────────────────────── -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-junit5</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <version>${assertj.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-params</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-junit-jupiter</artifactId>
+      <version>${mockito.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>${mockito.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+  </dependencies>
+
+  <!-- ── Build ──────────────────────────────────────────────────────── -->
+  <build>
+    <plugins>
+
+      <!-- Compiler: Java 21 + preview features -->
+      <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <configuration>
+          <source>21</source>
+          <target>21</target>
+          <release>21</release>
+          <compilerArgs>
+            <arg>--enable-preview</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+
+      <!-- Surefire: enable preview + parallel test execution -->
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+        <configuration>
+          <argLine>--enable-preview</argLine>
+          <parallel>methods</parallel>
+          <threadCount>4</threadCount>
+          <forkCount>1</forkCount>
+        </configuration>
+      </plugin>
+
+      <!-- Source jar for IDE navigation -->
+      <plugin>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>3.3.1</version>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+            <goals><goal>jar-no-fork</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+
+    </plugins>
+  </build>
+
+  <!-- ── Profiles ───────────────────────────────────────────────────── -->
+  <profiles>
+
+    <!-- Skip integration tests by default; run with -Pintegration -->
+    <profile>
+      <id>integration</id>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <version>3.2.5</version>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>integration-test</goal>
+                  <goal>verify</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <!-- Native compilation with GraalVM -->
+    <profile>
+      <id>native</id>
+      <properties>
+        <quarkus.package.type>native</quarkus.package.type>
+      </properties>
+    </profile>
+
+  </profiles>
+
+</project>

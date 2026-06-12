@@ -1,5 +1,7 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,14 +24,14 @@ public final class WayangA2uiHttpEndpointDiagnostics {
     private final WayangA2uiHttpEndpointDiagnosticConfig config;
 
     public WayangA2uiHttpEndpointDiagnostics(WayangA2uiHttpEndpointBinding endpoint) {
-        this(endpoint, WayangA2uiHttpEndpointDiagnosticConfig.defaults());
+        this(endpoint, WayangA2uiHttpEndpointDiagnosticConfig.defaultConfig());
     }
 
     public WayangA2uiHttpEndpointDiagnostics(
             WayangA2uiHttpEndpointBinding endpoint,
             WayangA2uiHttpEndpointDiagnosticConfig config) {
         this.endpoint = Objects.requireNonNull(endpoint, "endpoint");
-        this.config = config == null ? WayangA2uiHttpEndpointDiagnosticConfig.defaults() : config;
+        this.config = config == null ? WayangA2uiHttpEndpointDiagnosticConfig.defaultConfig() : config;
     }
 
     public static WayangA2uiHttpEndpointDiagnostics of(WayangA2uiHttpEndpointBinding endpoint) {
@@ -120,7 +122,7 @@ public final class WayangA2uiHttpEndpointDiagnostics {
         return new WayangA2uiHttpEndpointDiagnosticResult(
                 diagnosticsId,
                 exchanges,
-                WayangA2uiTransportMaps.copy(attributes));
+                TransportMaps.copy(attributes));
     }
 
     public List<WayangA2uiHttpEndpointDiagnosticRequest> defaultRequests() {
@@ -185,13 +187,13 @@ public final class WayangA2uiHttpEndpointDiagnostics {
         attributes.put(ATTRIBUTE_DIAGNOSTIC_KIND, "endpoint-default");
         attributes.put(ATTRIBUTE_ROUTE_COUNT, endpoint.routes().size());
         attributes.put("diagnosticConfig", config.toMap());
-        return WayangA2uiTransportMaps.freeze(attributes);
+        return TransportMaps.freeze(attributes);
     }
 
     private static Map<String, Object> merge(Map<String, Object> defaults, Map<String, Object> values) {
         Map<String, Object> merged = new LinkedHashMap<>(defaults);
         merged.putAll(values);
-        return WayangA2uiTransportMaps.freeze(merged);
+        return TransportMaps.freeze(merged);
     }
 
     private static String string(Object value) {

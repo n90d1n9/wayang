@@ -22,7 +22,7 @@ public class SourceDocument {
         this.title = title;
         this.content = content;
         this.sourceUri = sourceUri;
-        this.metadata = metadata != null ? metadata : Map.of();
+        this.metadata = RagMetadata.copyStrings(metadata);
         this.similarityScore = similarityScore;
         this.pageNumber = pageNumber;
         this.sectionTitle = sectionTitle;

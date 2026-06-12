@@ -5,8 +5,9 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>tech.kayys.wayang</groupId>
-        <artifactId>wayang-executor-parent</artifactId>
-        <version>0.1.0</version>
+        <artifactId>wayang-agentic-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>wayang-prompt</artifactId>
@@ -17,6 +18,7 @@
         <!-- Dependency versions -->
         <pebble.version>3.2.2</pebble.version>
         <freemarker.version>2.3.32</freemarker.version>
+        <junit.jupiter.version>6.0.3</junit.jupiter.version>
         <quarkus.version>${quarkus.platform.version}</quarkus.version>
     </properties>
 
@@ -56,7 +58,6 @@
         <dependency>
             <groupId>org.jboss.logging</groupId>
             <artifactId>jboss-logging</artifactId>
-            <version>3.5.3.Final</version>
         </dependency>
         <dependency>
             <groupId>tech.kayys.wayang</groupId>
@@ -133,21 +134,21 @@
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-api</artifactId>
-            <version>5.10.0</version>
+            <version>${junit.jupiter.version}</version>
             <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
-            <version>5.10.0</version>
+            <version>${junit.jupiter.version}</version>
             <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-params</artifactId>
-            <version>5.10.0</version>
+            <version>${junit.jupiter.version}</version>
             <scope>test</scope>
         </dependency>
 

@@ -8,6 +8,8 @@ import tech.kayys.gollek.spi.inference.InferenceResponse;
 import tech.kayys.gollek.spi.Message;
 import tech.kayys.gollek.spi.provider.LLMProvider;
 import tech.kayys.gollek.spi.provider.ProviderRequest;
+import tech.kayys.wayang.agent.spi.tools.ToolSelector;
+import tech.kayys.wayang.agent.spi.tools.ToolSelector.ToolDefinition;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -57,8 +59,8 @@ public class LLMToolSelector implements ToolSelector {
                     UUID.randomUUID().toString(),
                     "default",
                     messages,
-                    Map.of("max_tokens", 500),
-                    List.of(),
+                    Map.<String, Object>of("max_tokens", 500),
+                    List.<tech.kayys.gollek.spi.tool.ToolDefinition>of(),
                     null,
                     false,
                     null,
@@ -66,7 +68,8 @@ public class LLMToolSelector implements ToolSelector {
                     null,
                     null,
                     null,
-                    Map.of()
+                    Map.of(),
+                    null
             );
 
             // Call LLM synchronously (blocking)

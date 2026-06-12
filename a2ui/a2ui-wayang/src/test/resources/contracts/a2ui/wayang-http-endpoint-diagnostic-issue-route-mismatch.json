@@ -1,0 +1,18 @@
+{
+  "diagnosticsId": "contract-report",
+  "exchangeIndex": 2,
+  "method": "GET",
+  "path": "/api/a2ui/exchange",
+  "knownPath": true,
+  "matched": false,
+  "statusCode": 405,
+  "routeOperation": "a2ui.exchange",
+  "allow": "POST, OPTIONS",
+  "outcome": "TRANSPORT_ERROR",
+  "category": "route-mismatch",
+  "errorCode": "method_not_allowed",
+  "message": "A2UI HTTP route /api/a2ui/exchange only supports POST.",
+  "attributes": {
+    "traceId": "trace-2"
+  }
+}

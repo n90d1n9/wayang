@@ -1,5 +1,14 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.session.SessionConfigLoadResult;
+import tech.kayys.wayang.a2ui.wayang.session.SessionConfigRequestContext;
+import tech.kayys.wayang.a2ui.wayang.session.SessionConfigRequestDiagnostics;
+import tech.kayys.wayang.a2ui.wayang.session.SessionConfigRequestDiagnosticsSummary;
+import tech.kayys.wayang.a2ui.wayang.session.SessionConfigSourceDiagnostics;
+import tech.kayys.wayang.a2ui.wayang.session.SessionConfigSourceRegistry;
+import tech.kayys.wayang.a2ui.wayang.session.SessionConfigSourceSpec;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
 import tech.kayys.wayang.a2ui.core.A2uiClientCapabilities;
 import tech.kayys.wayang.a2ui.core.A2uiDataPart;
 import tech.kayys.wayang.a2ui.core.A2uiProtocol;
@@ -21,6 +30,7 @@ public final class WayangA2ui {
     public static final String CLIENT_CAPABILITIES_KEY = "clientCapabilities";
     public static final String DATA_PARTS_KEY = "dataParts";
     public static final String SESSION_CONFIG_KEY = "sessionConfig";
+    public static final String SESSION_CONFIG_SOURCE_KEY = "sessionConfigSource";
 
     private WayangA2ui() {
     }
@@ -32,7 +42,7 @@ public final class WayangA2ui {
         extension.put("description", "Ability to render A2UI");
         extension.put("required", false);
         extension.put("params", resolved.toParams());
-        return WayangA2uiTransportMaps.freeze(extension);
+        return TransportMaps.freeze(extension);
     }
 
     public static Map<String, Object> dataPart(A2uiServerMessage message) {
@@ -76,21 +86,104 @@ public final class WayangA2ui {
         return withContextValue(
                 request,
                 SESSION_CONFIG_KEY,
-                (config == null ? WayangA2uiSessionConfig.inspectOnly() : config).toMap());
+                (config == null ? WayangA2uiSessionConfig.defaultConfig() : config).toMap());
+    }
+
+    public static AgentRequest withSessionConfigJson(
+            AgentRequest request,
+            String configJson) {
+        if (configJson == null || configJson.isBlank()) {
+            throw new IllegalArgumentException("configJson must not be blank");
+        }
+        return withContextValue(request, SESSION_CONFIG_KEY, configJson);
+    }
+
+    public static AgentRequest withSessionConfigSource(
+            AgentRequest request,
+            Map<?, ?> sourceSpec) {
+        if (sourceSpec == null) {
+            throw new IllegalArgumentException("sourceSpec must not be null");
+        }
+        return withContextValue(
+                request,
+                SESSION_CONFIG_SOURCE_KEY,
+                TransportMaps.copy(sourceSpec));
+    }
+
+    public static AgentRequest withSessionConfigSourceJson(
+            AgentRequest request,
+            String sourceSpecJson) {
+        if (sourceSpecJson == null || sourceSpecJson.isBlank()) {
+            throw new IllegalArgumentException("sourceSpecJson must not be blank");
+        }
+        return withContextValue(request, SESSION_CONFIG_SOURCE_KEY, sourceSpecJson);
+    }
+
+    public static AgentRequest withSessionConfigSource(
+            AgentRequest request,
+            SessionConfigSourceSpec sourceSpec) {
+        if (sourceSpec == null) {
+            throw new IllegalArgumentException("sourceSpec must not be null");
+        }
+        return withSessionConfigSource(request, sourceSpec.toMap());
     }
 
     public static Optional<WayangA2uiSessionConfig> sessionConfig(AgentRequest request) {
-        if (request == null) {
-            return Optional.empty();
-        }
-        Object rawA2ui = request.context().get(CONTEXT_KEY);
-        if (rawA2ui instanceof Map<?, ?> a2ui) {
-            Object rawConfig = a2ui.get(SESSION_CONFIG_KEY);
-            if (rawConfig instanceof Map<?, ?> config) {
-                return Optional.of(WayangA2uiSessionConfig.fromMap(config));
-            }
-        }
-        return Optional.empty();
+        return sessionConfig(request, SessionConfigSourceRegistry.standard());
+    }
+
+    public static SessionConfigLoadResult sessionConfigLoadResult(AgentRequest request) {
+        return sessionConfigLoadResult(request, SessionConfigSourceRegistry.standard());
+    }
+
+    public static SessionConfigLoadResult sessionConfigLoadResult(
+            AgentRequest request,
+            SessionConfigSourceRegistry sourceRegistry) {
+        return sessionRequestContext(sourceRegistry).loadResult(request);
+    }
+
+    public static Optional<SessionConfigSourceDiagnostics> sessionConfigSourceDiagnostics(AgentRequest request) {
+        return sessionConfigSourceDiagnostics(request, SessionConfigSourceRegistry.standard());
+    }
+
+    public static Optional<SessionConfigSourceDiagnostics> sessionConfigSourceDiagnostics(
+            AgentRequest request,
+            SessionConfigSourceRegistry sourceRegistry) {
+        return sessionRequestContext(sourceRegistry).sourceDiagnostics(request);
+    }
+
+    public static SessionConfigRequestDiagnostics sessionConfigDiagnostics(AgentRequest request) {
+        return sessionConfigDiagnostics(request, SessionConfigSourceRegistry.standard());
+    }
+
+    public static SessionConfigRequestDiagnostics sessionConfigDiagnostics(
+            AgentRequest request,
+            SessionConfigSourceRegistry sourceRegistry) {
+        return sessionRequestContext(sourceRegistry).requestDiagnostics(request);
+    }
+
+    public static SessionConfigRequestDiagnosticsSummary sessionConfigDiagnosticsSummary(AgentRequest request) {
+        return sessionConfigDiagnosticsSummary(request, SessionConfigSourceRegistry.standard());
+    }
+
+    public static SessionConfigRequestDiagnosticsSummary sessionConfigDiagnosticsSummary(
+            AgentRequest request,
+            SessionConfigSourceRegistry sourceRegistry) {
+        return sessionConfigDiagnostics(request, sourceRegistry).summary();
+    }
+
+    public static Optional<WayangA2uiSessionConfig> sessionConfig(
+            AgentRequest request,
+            SessionConfigSourceRegistry sourceRegistry) {
+        return sessionRequestContext(sourceRegistry).config(request);
+    }
+
+    private static SessionConfigRequestContext sessionRequestContext(SessionConfigSourceRegistry sourceRegistry) {
+        return new SessionConfigRequestContext(
+                CONTEXT_KEY,
+                SESSION_CONFIG_KEY,
+                SESSION_CONFIG_SOURCE_KEY,
+                sourceRegistry);
     }
 
     @SuppressWarnings("unchecked")
@@ -109,7 +202,7 @@ public final class WayangA2ui {
             });
         }
         a2ui.put(key, value);
-        context.put(CONTEXT_KEY, WayangA2uiTransportMaps.freeze(a2ui));
+        context.put(CONTEXT_KEY, TransportMaps.freeze(a2ui));
         return new AgentRequest(
                 request.requestId(),
                 request.prompt(),

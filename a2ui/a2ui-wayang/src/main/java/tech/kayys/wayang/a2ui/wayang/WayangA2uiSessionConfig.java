@@ -1,5 +1,11 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.projection.SessionProjection;
+import tech.kayys.wayang.a2ui.wayang.session.SessionConfigDecoder;
+import tech.kayys.wayang.a2ui.wayang.session.SessionConfigSource;
+import tech.kayys.wayang.a2ui.wayang.session.SessionConfigSources;
+import tech.kayys.wayang.a2ui.wayang.session.SessionProfiles;
+
 import java.util.Map;
 
 /**
@@ -16,40 +22,48 @@ public record WayangA2uiSessionConfig(
     public static final String KEY_ALLOWED_RUN_IDS = "allowedRunIds";
     public static final String KEY_REQUIRED_CONTEXT = "requiredContext";
 
-    public static final String MODE_INSPECT_ONLY = "inspect-only";
-    public static final String MODE_READ_ONLY = "read-only";
-    public static final String MODE_RUN_LIFECYCLE = "run-lifecycle";
-    public static final String MODE_CUSTOM = "custom";
+    public static final String MODE_INSPECT_ONLY = SessionProfiles.MODE_INSPECT_ONLY;
+    public static final String MODE_READ_ONLY = SessionProfiles.MODE_READ_ONLY;
+    public static final String MODE_RUN_LIFECYCLE = SessionProfiles.MODE_RUN_LIFECYCLE;
+    public static final String MODE_CUSTOM = SessionProfiles.MODE_CUSTOM;
 
     public WayangA2uiSessionConfig {
-        actionPolicy = actionPolicy == null ? WayangA2uiActionPolicy.inspectOnly() : actionPolicy;
+        actionPolicy = actionPolicy == null ? WayangA2uiActionPolicy.defaultPolicy() : actionPolicy;
     }
 
     public static WayangA2uiSessionConfig inspectOnly() {
-        return new WayangA2uiSessionConfig(true, WayangA2uiActionPolicy.inspectOnly());
+        return SessionProfiles.config(MODE_INSPECT_ONLY);
+    }
+
+    public static WayangA2uiSessionConfig defaultConfig() {
+        return inspectOnly();
     }
 
     public static WayangA2uiSessionConfig runLifecycle() {
-        return new WayangA2uiSessionConfig(true, WayangA2uiActionPolicy.runLifecycle());
+        return SessionProfiles.config(MODE_RUN_LIFECYCLE);
     }
 
     public static WayangA2uiSessionConfig readOnly() {
-        return new WayangA2uiSessionConfig(true, WayangA2uiActionPolicy.readOnly());
+        return SessionProfiles.config(MODE_READ_ONLY);
     }
 
     public static WayangA2uiSessionConfig disabled() {
-        return new WayangA2uiSessionConfig(false, WayangA2uiActionPolicy.inspectOnly());
+        return SessionProfiles.config(MODE_INSPECT_ONLY, false);
     }
 
     public static WayangA2uiSessionConfig fromMap(Map<?, ?> values) {
-        return WayangA2uiSessionConfigDecoder.fromMap(values);
+        return SessionConfigDecoder.fromMap(values);
     }
 
     public static WayangA2uiSessionConfig fromJson(String json) {
-        return WayangA2uiSessionConfigDecoder.fromJson(json);
+        return SessionConfigDecoder.fromJson(json);
+    }
+
+    public static WayangA2uiSessionConfig fromSource(SessionConfigSource source) {
+        return SessionConfigSources.loadOrDefault(source);
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiSessionProjection.config(this);
+        return SessionProjection.config(this);
     }
 }

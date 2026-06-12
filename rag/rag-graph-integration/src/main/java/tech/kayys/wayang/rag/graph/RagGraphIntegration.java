@@ -2,6 +2,7 @@ package tech.kayys.wayang.rag.graph;
 
 import tech.kayys.wayang.graph.*;
 import tech.kayys.wayang.rag.core.*;
+import tech.kayys.wayang.rag.core.spi.Retriever;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -13,9 +14,9 @@ import java.util.stream.Collectors;
 public class RagGraphIntegration {
 
     private final GraphStore graphStore;
-    private final RetrievalExecutor vectorRetriever;
+    private final Retriever vectorRetriever;
 
-    public RagGraphIntegration(GraphStore graphStore, RetrievalExecutor vectorRetriever) {
+    public RagGraphIntegration(GraphStore graphStore, Retriever vectorRetriever) {
         this.graphStore = graphStore;
         this.vectorRetriever = vectorRetriever;
     }
@@ -25,21 +26,26 @@ public class RagGraphIntegration {
      */
     public RagResult retrieveHybrid(String query, int vectorTopK, int graphHops) {
         // 1. Vector retrieval for semantic similarity
-        RagQuery vectorQuery = RagQuery.builder()
-                .query(query)
-                .topK(vectorTopK)
-                .build();
-        RagResult vectorResult = vectorRetriever.retrieve(vectorQuery);
+        RagQuery vectorQuery = new RagQuery(query, vectorTopK, 0.0, Map.of());
+        List<RagScoredChunk> vectorChunks = vectorRetriever.retrieve(vectorQuery);
 
         // 2. Graph retrieval for relationship expansion
-        List<RagChunk> graphChunks = retrieveFromGraph(query, graphHops);
+        List<RagScoredChunk> graphChunks = retrieveFromGraph(query, graphHops).stream()
+                .map(chunk -> new RagScoredChunk(chunk, 0.5))
+                .collect(Collectors.toList());
 
         // 3. Combine results
-        List<RagChunk> combined = new ArrayList<>();
-        combined.addAll(vectorResult.getChunks());
+        List<RagScoredChunk> combined = new ArrayList<>();
+        combined.addAll(vectorChunks);
         combined.addAll(graphChunks);
 
-        return new RagResult(query, combined, vectorResult.getMetadata());
+        return new RagResult(
+                vectorQuery,
+                combined,
+                "",
+                Map.of(
+                        "vectorCount", vectorChunks.size(),
+                        "graphCount", graphChunks.size()));
     }
 
     /**
@@ -113,10 +119,9 @@ public class RagGraphIntegration {
 
         return relationships.stream()
                 .filter(r -> relationshipType == null || r.getType().equals(relationshipType))
-                .map(r -> graphStore.getNode(r.getEndNodeId()))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .map(node -> nodeToRagChunk(node, r.getType()))
+                .flatMap(r -> graphStore.getNode(r.getEndNodeId())
+                        .map(node -> nodeToRagChunk(node, r.getType()))
+                        .stream())
                 .collect(Collectors.toList());
     }
 
@@ -124,15 +129,20 @@ public class RagGraphIntegration {
      * Convert Node to RagChunk.
      */
     private RagChunk nodeToRagChunk(Node node, String relationshipType) {
-        return RagChunk.builder()
-                .content(node.getProperty("content").toString())
-                .metadata(Map.ofEntries(
-                        Map.entry("nodeId", node.getId()),
-                        Map.entry("label", node.getLabel()),
-                        Map.entry("relationship", relationshipType)
-                ))
-                .source("graph:" + node.getLabel())
-                .build();
+        Object content = node.getProperty("content");
+        String text = content != null ? content.toString() : node.getProperties().toString();
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("nodeId", node.getId());
+        metadata.put("label", node.getLabel());
+        metadata.put("relationship", relationshipType);
+        metadata.put("source", "graph:" + node.getLabel());
+
+        return RagChunk.of(
+                "graph:" + node.getId(),
+                0,
+                text,
+                metadata);
     }
 
     /**

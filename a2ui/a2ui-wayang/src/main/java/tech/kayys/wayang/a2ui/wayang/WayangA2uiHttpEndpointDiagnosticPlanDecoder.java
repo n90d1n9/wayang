@@ -1,5 +1,10 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.DecodeValues;
+
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -11,29 +16,29 @@ public final class WayangA2uiHttpEndpointDiagnosticPlanDecoder {
 
     public static WayangA2uiHttpEndpointDiagnosticPlan fromMap(Map<?, ?> values) {
         if (values == null || values.isEmpty()) {
-            return WayangA2uiHttpEndpointDiagnosticPlan.defaults();
+            return WayangA2uiHttpEndpointDiagnosticPlan.defaultPlan();
         }
-        Map<String, Object> plan = WayangA2uiTransportMaps.copy(values);
+        Map<String, Object> plan = TransportMaps.copy(values);
         return new WayangA2uiHttpEndpointDiagnosticPlan(
                 diagnosticsId(plan),
                 config(plan),
                 requests(plan.get(WayangA2uiHttpEndpointDiagnosticPlan.KEY_REQUESTS)),
-                WayangA2uiTransportMaps.copyMap(
+                TransportMaps.copyMap(
                         plan.get(WayangA2uiHttpEndpointDiagnosticPlan.KEY_ATTRIBUTES)));
     }
 
     public static WayangA2uiHttpEndpointDiagnosticPlan fromJson(String json) {
-        return fromMap(WayangA2uiTransportJson.map(
+        return fromMap(TransportJson.map(
                 json,
                 "A2UI HTTP endpoint diagnostic plan JSON must not be blank",
                 "Unable to decode A2UI HTTP endpoint diagnostic plan JSON"));
     }
 
     private static String diagnosticsId(Map<String, Object> values) {
-        String diagnosticsId = WayangA2uiDecodeValues.text(
+        String diagnosticsId = DecodeValues.text(
                 values.get(WayangA2uiHttpEndpointDiagnosticPlan.KEY_DIAGNOSTICS_ID));
         return diagnosticsId.isBlank()
-                ? WayangA2uiDecodeValues.text(values.get(WayangA2uiHttpEndpointDiagnosticPlan.KEY_ID))
+                ? DecodeValues.text(values.get(WayangA2uiHttpEndpointDiagnosticPlan.KEY_ID))
                 : diagnosticsId;
     }
 
@@ -53,7 +58,7 @@ public final class WayangA2uiHttpEndpointDiagnosticPlanDecoder {
         copyIfPresent(config, values, WayangA2uiHttpEndpointDiagnosticConfig.KEY_DEFAULT_ATTRIBUTES);
         copyIfPresent(config, values, "headers");
         return config.isEmpty()
-                ? WayangA2uiHttpEndpointDiagnosticConfig.defaults()
+                ? WayangA2uiHttpEndpointDiagnosticConfig.defaultConfig()
                 : WayangA2uiHttpEndpointDiagnosticConfig.fromMap(config);
     }
 

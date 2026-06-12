@@ -1,5 +1,7 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
 import java.util.Map;
 import java.util.Objects;
 
@@ -12,7 +14,7 @@ public record WayangA2uiBridgeRequest(
 
     public WayangA2uiBridgeRequest {
         transportRequest = Objects.requireNonNull(transportRequest, "transportRequest");
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        attributes = TransportMaps.copy(attributes);
     }
 
     public static WayangA2uiBridgeRequest of(WayangA2uiTransportRequest request) {
@@ -20,7 +22,7 @@ public record WayangA2uiBridgeRequest(
     }
 
     public static WayangA2uiBridgeRequest of(WayangA2uiTransportRequest request, Map<?, ?> attributes) {
-        return new WayangA2uiBridgeRequest(request, WayangA2uiTransportMaps.copy(attributes));
+        return new WayangA2uiBridgeRequest(request, TransportMaps.copy(attributes));
     }
 
     public static WayangA2uiBridgeRequest envelope(Map<?, ?> requestEnvelope) {
@@ -45,6 +47,6 @@ public record WayangA2uiBridgeRequest(
         }
         return new WayangA2uiBridgeRequest(
                 transportRequest,
-                WayangA2uiTransportMetadata.merge(attributes, WayangA2uiTransportMaps.copy(extraAttributes)));
+                WayangA2uiTransportMetadata.merge(attributes, TransportMaps.copy(extraAttributes)));
     }
 }

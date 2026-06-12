@@ -6,21 +6,28 @@
     <parent>
         <groupId>tech.kayys.wayang</groupId>
         <artifactId>wayang-memory-parent</artifactId>
-        <version>0.1.0</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>gollek-memory-short</artifactId>
+    <artifactId>wayang-memory-short</artifactId>
+    <name>Wayang Short-Term Memory</name>
+    <description>Short-term memory executor and node provider over active Wayang memory contracts.</description>
 
     <dependencies>
-        <dependency>
-            <groupId>tech.kayys.gollek</groupId>
-            <artifactId>gollek-spi</artifactId>
-            <version>${project.version}</version>
-        </dependency>
         <dependency>
             <groupId>tech.kayys.wayang</groupId>
             <artifactId>wayang-memory-core</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>tech.kayys.gamelan</groupId>
+            <artifactId>gamelan-engine-spi</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>tech.kayys.gamelan</groupId>
+            <artifactId>gamelan-sdk-executor-core</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>tech.kayys.wayang</groupId>
@@ -28,9 +35,26 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>tech.kayys.wayang</groupId>
-            <artifactId>wayang-schema-core</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-arc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.smallrye.reactive</groupId>
+            <artifactId>mutiny</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

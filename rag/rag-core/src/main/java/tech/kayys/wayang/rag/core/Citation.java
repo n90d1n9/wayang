@@ -13,13 +13,14 @@ public class Citation {
     private final float confidenceScore;
 
     public Citation(String content, String sourceUri, int index, java.util.Map<String, Object> metadata) {
+        java.util.Map<String, Object> safeMetadata = RagMetadata.copy(metadata);
         this.index = index;
         this.content = content;
         this.sourceUri = sourceUri;
-        this.title = (String) metadata.getOrDefault("title", "");
+        this.title = (String) safeMetadata.getOrDefault("title", "");
 
         int pNum = -1;
-        Object pageNumObj = metadata.get("pageNumber");
+        Object pageNumObj = safeMetadata.get("pageNumber");
         if (pageNumObj instanceof Number n) {
             pNum = n.intValue();
         } else if (pageNumObj instanceof String s) {
@@ -31,10 +32,10 @@ public class Citation {
         }
         this.pageNumber = pNum;
 
-        this.sectionTitle = (String) metadata.getOrDefault("sectionTitle", "");
+        this.sectionTitle = (String) safeMetadata.getOrDefault("sectionTitle", "");
 
         float cScore = 1.0f;
-        Object scoreObj = metadata.get("confidenceScore");
+        Object scoreObj = safeMetadata.get("confidenceScore");
         if (scoreObj instanceof Number n) {
             cScore = n.floatValue();
         } else if (scoreObj instanceof String s) {

@@ -1,5 +1,9 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.DecodeValues;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -27,7 +31,7 @@ public record WayangA2uiHttpResponse(
                 ? WayangA2uiTransportContent.MIME_JSON
                 : contentType.trim();
         body = body == null ? "" : body;
-        headers = WayangA2uiTransportMaps.copy(headers);
+        headers = TransportMaps.copy(headers);
     }
 
     public static WayangA2uiHttpResponse fromBridge(WayangA2uiBridgeResponse response) {
@@ -57,12 +61,16 @@ public record WayangA2uiHttpResponse(
         return statusCode >= 200 && statusCode < 300;
     }
 
+    public String header(String name) {
+        return DecodeValues.rawText(headers.get(name));
+    }
+
     public WayangA2uiHttpResponse withHeaders(Map<?, ?> extraHeaders) {
         if (extraHeaders == null || extraHeaders.isEmpty()) {
             return this;
         }
         Map<String, Object> merged = new LinkedHashMap<>(headers);
-        merged.putAll(WayangA2uiTransportMaps.copy(extraHeaders));
+        merged.putAll(TransportMaps.copy(extraHeaders));
         return new WayangA2uiHttpResponse(statusCode, contentType, body, merged);
     }
 

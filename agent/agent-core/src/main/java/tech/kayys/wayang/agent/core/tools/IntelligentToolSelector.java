@@ -7,15 +7,16 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 import tech.kayys.wayang.agent.core.client.GollekAgentClient;
-import tech.kayys.wayang.agent.spi.SkillDefinition;
-import tech.kayys.wayang.agent.spi.SkillDescriptor;
-import tech.kayys.wayang.agent.spi.SkillRegistry;
+import tech.kayys.wayang.agent.spi.skills.SkillDefinition;
+import tech.kayys.wayang.agent.spi.skills.SkillDescriptor;
+import tech.kayys.wayang.agent.spi.skills.SkillRegistry;
 import tech.kayys.gollek.spi.inference.InferenceRequest;
 import tech.kayys.gollek.spi.inference.InferenceResponse;
 import tech.kayys.gollek.spi.Message;
 import tech.kayys.gollek.spi.tool.ToolDefinition;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -684,7 +685,11 @@ public class IntelligentToolSelector {
         int order,
         Map<String, Object> parameters,
         boolean continueOnError
-    ) {}
+    ) {
+        public String getToolId() { return toolId; }
+        public int getOrder() { return order; }
+        public boolean isContinueOnError() { return continueOnError; }
+    }
 
     /**
      * Tool recommendation with confidence.
@@ -745,6 +750,13 @@ public class IntelligentToolSelector {
         public static ToolExecutionResult failure(String toolId, long durationMs, String error) {
             return new ToolExecutionResult(toolId, false, durationMs, null, error);
         }
+
+        public static ToolExecutionResult failure(String toolId, Exception error) {
+            return new ToolExecutionResult(toolId, false, 0, null, error.getMessage());
+        }
+
+        public boolean isSuccess() { return success; }
+        public long getDurationMs() { return durationMs; }
     }
 
     /**
@@ -765,6 +777,10 @@ public class IntelligentToolSelector {
 
         public boolean isExpired() {
             return Instant.now().isAfter(createdAt.plus(ttl));
+        }
+
+        public ToolChain getChain() {
+            return chain;
         }
     }
 

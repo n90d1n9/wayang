@@ -1,67 +1,123 @@
 package tech.kayys.wayang.agent.adapter;
 
 import io.smallrye.mutiny.Uni;
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
-import tech.kayys.wayang.agent.spi.spi.SkillRegistry as GollekSkillRegistry;
-import tech.kayys.wayang.agent.spi.skills.registry.SkillRegistry;
-import tech.kayys.wayang.agent.spi.skills.registry.SkillDefinition;
+import tech.kayys.wayang.agent.spi.AgentSkill;
+import tech.kayys.wayang.agent.spi.skills.SkillCategory;
+import tech.kayys.wayang.agent.spi.skills.SkillDefinition;
+import tech.kayys.wayang.agent.spi.skills.SkillHealth;
+import tech.kayys.wayang.agent.spi.skills.SkillRegistry;
+import tech.kayys.wayang.agent.spi.skills.SkillResult;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
- * Adapter that wraps gollek SkillRegistry for backward compatibility.
- * 
- * @deprecated Use {@link GollekSkillRegistry} directly
+ * Thin compatibility facade over the active {@link SkillRegistry}.
+ *
+ * <p>
+ * The facade keeps runtime {@link AgentSkill} registrations visible through the
+ * data-oriented {@link SkillDefinition} methods by deriving a definition from
+ * the runtime skill metadata.
  */
-@ApplicationScoped
-@Deprecated
 public class SkillRegistryAdapter implements SkillRegistry {
 
-    @Inject
-    GollekSkillRegistry gollekSkillRegistry;
+    private final SkillRegistry delegate;
 
-    @Override
-    public void register(SkillDefinition skill) {
-        // Convert wayang SkillDefinition to gollek format
-        gollekSkillRegistry.register(convertToGollekSkill(skill));
+    public SkillRegistryAdapter(SkillRegistry delegate) {
+        this.delegate = Objects.requireNonNull(delegate, "delegate");
+    }
+
+    public static SkillRegistryAdapter wrap(SkillRegistry delegate) {
+        return new SkillRegistryAdapter(delegate);
     }
 
     @Override
-    public Optional<SkillDefinition> find(String skillId) {
-        return gollekSkillRegistry.find(skillId)
-                .map(this::convertToWayangSkill);
+    public List<AgentSkill> listAll() {
+        return delegate.listAll();
     }
 
     @Override
-    public boolean hasSkill(String skillId) {
-        return gollekSkillRegistry.find(skillId).isPresent();
+    public Optional<AgentSkill> find(String id) {
+        return delegate.find(id);
     }
 
     @Override
-    public List<SkillDefinition> findAll() {
-        return gollekSkillRegistry.findAll().stream()
-                .map(this::convertToWayangSkill)
-                .toList();
+    public AgentSkill findOrThrow(String id) {
+        return delegate.findOrThrow(id);
     }
 
     @Override
-    public List<SkillDefinition> findByCategory(String category) {
-        return gollekSkillRegistry.findAll().stream()
-                .filter(skill -> skill.category().name().equals(category))
-                .map(this::convertToWayangSkill)
-                .toList();
+    public void register(AgentSkill skill) {
+        delegate.register(skill);
+        delegate.registerSkill(AgentSkillAdapters.toDefinition(skill));
     }
 
-    private tech.kayys.wayang.agent.core.spi.SkillDefinition convertToGollekSkill(SkillDefinition wayangSkill) {
-        // Conversion logic - in production use proper mapping
-        return null; // Placeholder
+    @Override
+    public void unregister(String skillId) {
+        delegate.unregister(skillId);
     }
 
-    private SkillDefinition convertToWayangSkill(tech.kayys.wayang.agent.core.spi.SkillDefinition gollekSkill) {
-        // Conversion logic - in production use proper mapping
-        return null; // Placeholder
+    @Override
+    public List<AgentSkill> findByCategory(SkillCategory category) {
+        return delegate.findByCategory(category);
+    }
+
+    @Override
+    public List<AgentSkill> listAllowed(String tenantId, Set<String> allowedIds) {
+        return delegate.listAllowed(tenantId, allowedIds);
+    }
+
+    @Override
+    public boolean isRegistered(String skillId) {
+        return delegate.isRegistered(skillId);
+    }
+
+    @Override
+    public Map<String, SkillHealth> checkHealth() {
+        return delegate.checkHealth();
+    }
+
+    @Override
+    public int size() {
+        return delegate.size();
+    }
+
+    @Override
+    public Optional<SkillDefinition> getSkill(String skillId) {
+        return delegate.getSkill(skillId);
+    }
+
+    @Override
+    public List<SkillDefinition> listSkills() {
+        return delegate.listSkills();
+    }
+
+    @Override
+    public List<SkillDefinition> listByCategory(String category) {
+        return delegate.listByCategory(category);
+    }
+
+    @Override
+    public void registerSkill(SkillDefinition skill) {
+        delegate.registerSkill(skill);
+    }
+
+    @Override
+    public boolean unregisterSkill(String skillId) {
+        return delegate.unregisterSkill(skillId);
+    }
+
+    public Uni<SkillResult> executeSkill(String skillId, Map<String, Object> input) {
+        Optional<AgentSkill> skill = find(skillId);
+        if (skill.isEmpty()) {
+            return Uni.createFrom().item(SkillResult.failure(skillId, "Skill not found: " + skillId));
+        }
+        long start = System.currentTimeMillis();
+        return skill.get().execute(input == null ? Map.of() : input)
+                .map(result -> AgentSkillAdapters.toSkillResult(skillId, result, System.currentTimeMillis() - start))
+                .onFailure().recoverWithItem(error -> SkillResult.failure(skillId, error));
     }
 }

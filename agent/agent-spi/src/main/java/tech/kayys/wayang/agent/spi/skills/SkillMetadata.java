@@ -25,6 +25,24 @@ public record SkillMetadata(
         customMetadata = customMetadata != null ? Map.copyOf(customMetadata) : Map.of();
     }
 
+    public String version() {
+        return SkillMetadataKeys.version(customMetadata);
+    }
+
+    public java.util.List<String> tags() {
+        java.util.List<String> tags = SkillMetadataKeys.tags(customMetadata);
+        if (!tags.isEmpty()) {
+            return tags;
+        }
+        return SkillMetadataKeys.stringList(
+                Map.of(SkillMetadataKeys.KEY_TAGS, allowedTools == null ? "" : allowedTools),
+                SkillMetadataKeys.KEY_TAGS);
+    }
+
+    public String category() {
+        return SkillMetadataKeys.category(customMetadata);
+    }
+
     public static Builder builder() {
         return new Builder();
     }

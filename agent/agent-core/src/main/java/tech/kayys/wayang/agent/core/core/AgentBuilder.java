@@ -4,6 +4,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 import tech.kayys.wayang.agent.spi.*;
+import tech.kayys.wayang.agent.spi.skills.SkillRegistry;
 import io.smallrye.mutiny.Uni;
 
 import java.time.Duration;
@@ -221,7 +222,7 @@ public class AgentBuilder {
             // Register inline skills if any
             inlineSkills.forEach(skill -> {
                 if (!skillRegistry.find(skill.id()).isPresent()) {
-                    ((DefaultSkillRegistry) skillRegistry).register(skill);
+                    skillRegistry.register(skill);
                 }
             });
             return requestBuilder.build();

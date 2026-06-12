@@ -1,5 +1,11 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+import tech.kayys.wayang.a2ui.wayang.support.RecordNumbers;
+import tech.kayys.wayang.a2ui.wayang.support.DecodeCollections;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -17,17 +23,12 @@ public record WayangA2uiHttpScenarioSuiteExpectation(
         Map<String, Object> attributes) {
 
     public WayangA2uiHttpScenarioSuiteExpectation {
-        id = id == null || id.isBlank() ? "a2ui-http-suite-expectation" : id.trim();
-        expectedScenarioCount = expectedScenarioCount == null ? null : Math.max(0, expectedScenarioCount);
-        expectedIssueCount = expectedIssueCount == null ? null : Math.max(0L, expectedIssueCount);
+        id = RecordValues.textOrDefault(id, "a2ui-http-suite-expectation");
+        expectedScenarioCount = RecordNumbers.nullableNonNegative(expectedScenarioCount);
+        expectedIssueCount = RecordNumbers.nullableNonNegative(expectedIssueCount);
         allowTransportErrors = allowTransportErrors == null ? Boolean.FALSE : allowTransportErrors;
-        expectedScenarioIds = expectedScenarioIds == null
-                ? List.of()
-                : expectedScenarioIds.stream()
-                        .filter(value -> value != null && !value.isBlank())
-                        .map(String::trim)
-                        .toList();
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        expectedScenarioIds = DecodeCollections.nonBlankTexts(expectedScenarioIds);
+        attributes = TransportMaps.copy(attributes);
     }
 
     public static WayangA2uiHttpScenarioSuiteExpectation pass() {

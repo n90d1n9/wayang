@@ -23,16 +23,16 @@ public class PromptRenderException extends Exception {
     private final String templateVersion;
 
     /**
+     * @param message         human-readable description
      * @param variableName    the variable that could not be resolved
      * @param templateId      the template that owns the placeholder
      * @param templateVersion the version of that template
-     * @param message         human-readable description
      */
     public PromptRenderException(
+            String message,
             String variableName,
             String templateId,
-            String templateVersion,
-            String message) {
+            String templateVersion) {
         super(message);
         this.variableName = variableName;
         this.templateId = templateId;

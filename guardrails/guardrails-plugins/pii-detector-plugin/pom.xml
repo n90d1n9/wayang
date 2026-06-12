@@ -7,7 +7,7 @@
     <parent>
         <groupId>tech.kayys.wayang</groupId>
         <artifactId>wayang-guardrails-plugins</artifactId>
-        <version>0.1.0</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>wayang-pii-detector-plugin</artifactId>
@@ -17,7 +17,7 @@
         <dependency>
             <groupId>tech.kayys.wayang</groupId>
             <artifactId>wayang-guardrails-plugin-api</artifactId>
-            <version>0.1.0</version>
+            <version>1.0.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>io.smallrye.reactive</groupId>

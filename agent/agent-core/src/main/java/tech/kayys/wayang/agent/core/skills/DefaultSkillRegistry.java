@@ -3,10 +3,16 @@ package tech.kayys.wayang.agent.core.skills;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.kayys.wayang.agent.spi.AgentSkill;
+import tech.kayys.wayang.agent.spi.skills.SkillCategory;
+import tech.kayys.wayang.agent.spi.skills.SkillDefinition;
+import tech.kayys.wayang.agent.spi.skills.SkillHealth;
+import tech.kayys.wayang.agent.spi.skills.SkillRegistry;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -22,6 +28,71 @@ public class DefaultSkillRegistry implements SkillRegistry {
     private static final Logger log = LoggerFactory.getLogger(DefaultSkillRegistry.class);
 
     private final Map<String, SkillDefinition> skills = new ConcurrentHashMap<>();
+    private final Map<String, AgentSkill> agentSkills = new ConcurrentHashMap<>();
+
+    @Override
+    public List<AgentSkill> listAll() {
+        return List.copyOf(agentSkills.values());
+    }
+
+    @Override
+    public Optional<AgentSkill> find(String id) {
+        return Optional.ofNullable(agentSkills.get(id));
+    }
+
+    @Override
+    public AgentSkill findOrThrow(String id) {
+        return find(id).orElseThrow(() -> new IllegalArgumentException("Skill not registered: " + id));
+    }
+
+    @Override
+    public void register(AgentSkill skill) {
+        if (skill == null) {
+            throw new IllegalArgumentException("Agent skill must not be null");
+        }
+        agentSkills.put(skill.id(), skill);
+        log.info("Registered agent skill: {} ({})", skill.id(), skill.name());
+    }
+
+    @Override
+    public void unregister(String skillId) {
+        agentSkills.remove(skillId);
+        unregisterSkill(skillId);
+    }
+
+    @Override
+    public List<AgentSkill> findByCategory(SkillCategory category) {
+        if (category == null) {
+            return listAll();
+        }
+        return agentSkills.values().stream()
+                .filter(skill -> category.name().equalsIgnoreCase(skill.category()))
+                .toList();
+    }
+
+    @Override
+    public List<AgentSkill> listAllowed(String tenantId, Set<String> allowedIds) {
+        if (allowedIds == null || allowedIds.isEmpty()) {
+            return listAll();
+        }
+        return agentSkills.values().stream()
+                .filter(skill -> allowedIds.contains(skill.id()))
+                .toList();
+    }
+
+    @Override
+    public boolean isRegistered(String skillId) {
+        return agentSkills.containsKey(skillId) || skills.containsKey(skillId);
+    }
+
+    @Override
+    public Map<String, SkillHealth> checkHealth() {
+        Map<String, SkillHealth> health = new ConcurrentHashMap<>();
+        agentSkills.forEach((id, skill) -> health.put(id,
+                skill.isHealthy() ? SkillHealth.healthy(id) : SkillHealth.unhealthy(id, "Skill reported unhealthy")));
+        skills.keySet().forEach(id -> health.putIfAbsent(id, SkillHealth.healthy(id)));
+        return Map.copyOf(health);
+    }
 
     @Override
     public Optional<SkillDefinition> getSkill(String skillId) {
@@ -73,6 +144,6 @@ public class DefaultSkillRegistry implements SkillRegistry {
      * Get the total number of registered skills.
      */
     public int size() {
-        return skills.size();
+        return skills.size() + agentSkills.size();
     }
 }

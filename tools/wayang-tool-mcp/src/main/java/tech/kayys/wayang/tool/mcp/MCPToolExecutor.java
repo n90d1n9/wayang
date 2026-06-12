@@ -2,6 +2,7 @@ package tech.kayys.wayang.tool.mcp;
 
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.kayys.gamelan.engine.node.NodeExecutionResult;
@@ -19,6 +20,25 @@ import java.util.Map;
 public class MCPToolExecutor extends AbstractToolExecutor {
 
     private static final Logger LOG = LoggerFactory.getLogger(MCPToolExecutor.class);
+    private final McpToolCallHistoryService fallbackHistoryService = new McpToolCallHistoryService();
+
+    @Inject
+    McpToolClient client;
+
+    @Inject
+    McpToolCallHistoryService historyService;
+
+    public MCPToolExecutor() {
+    }
+
+    MCPToolExecutor(McpToolClient client) {
+        this.client = client;
+    }
+
+    MCPToolExecutor(McpToolClient client, McpToolCallHistoryService historyService) {
+        this.client = client;
+        this.historyService = historyService;
+    }
 
     @Override
     public String getExecutorType() {
@@ -28,9 +48,9 @@ public class MCPToolExecutor extends AbstractToolExecutor {
     @Override
     public Uni<NodeExecutionResult> execute(NodeExecutionTask task) {
         Instant startedAt = Instant.now();
-        Map<String, Object> context = task.context();
-        String toolId = (String) context.get("toolId");
-        Map<String, Object> arguments = (Map<String, Object>) context.getOrDefault("arguments", Map.of());
+        Map<String, Object> context = McpMaps.copy(task.context());
+        String toolId = McpToolInvocationFields.toolId(context);
+        Map<String, Object> arguments = McpToolInvocationFields.arguments(context);
 
         if (toolId == null || toolId.isBlank()) {
             return Uni.createFrom().item(failure(task, "ToolId is required for MCP execution", startedAt));
@@ -38,12 +58,24 @@ public class MCPToolExecutor extends AbstractToolExecutor {
 
         LOG.info("Invoking MCP tool: {}", toolId);
 
-        // TODO: Implement actual MCP client call
-        return Uni.createFrom().item(success(task, Map.of(
-                "status", "success",
-                "protocol", "mcp",
-                "toolId", toolId,
-                "result", "MCP tool execution result placeholder"
-        ), startedAt));
+        McpToolInvocation invocation = new McpToolInvocation(toolId, arguments, context);
+        return mcpClient().callTool(invocation)
+                .onFailure().recoverWithItem(error -> McpToolCallResult.failure(
+                        error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage(),
+                        0,
+                        McpFailureType.metadata(McpFailureType.TRANSPORT)))
+                .onItem().transformToUni(result -> historyService()
+                        .record(task, toolId, result, startedAt)
+                        .onFailure().recoverWithItem(result))
+                .map(result -> success(task, result.toOutput(toolId), startedAt));
     }
+
+    private McpToolClient mcpClient() {
+        return client == null ? UnsupportedMcpToolClient.INSTANCE : client;
+    }
+
+    private McpToolCallHistoryService historyService() {
+        return historyService == null ? fallbackHistoryService : historyService;
+    }
+
 }

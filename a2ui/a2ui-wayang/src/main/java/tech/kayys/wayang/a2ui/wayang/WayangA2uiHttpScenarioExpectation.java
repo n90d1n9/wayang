@@ -1,5 +1,12 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+import tech.kayys.wayang.a2ui.wayang.support.RecordNumbers;
+import tech.kayys.wayang.a2ui.wayang.support.RecordCollections;
+import tech.kayys.wayang.a2ui.wayang.support.DecodeCollections;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -19,14 +26,14 @@ public record WayangA2uiHttpScenarioExpectation(
         Map<String, Object> attributes) {
 
     public WayangA2uiHttpScenarioExpectation {
-        id = id == null || id.isBlank() ? "a2ui-http-scenario-expectation" : id.trim();
-        expectedExchangeCount = expectedExchangeCount == null ? null : Math.max(0, expectedExchangeCount);
-        expectedIssueCount = expectedIssueCount == null ? null : Math.max(0L, expectedIssueCount);
+        id = RecordValues.textOrDefault(id, "a2ui-http-scenario-expectation");
+        expectedExchangeCount = RecordNumbers.nullableNonNegative(expectedExchangeCount);
+        expectedIssueCount = RecordNumbers.nullableNonNegative(expectedIssueCount);
         allowTransportErrors = allowTransportErrors == null ? Boolean.FALSE : allowTransportErrors;
-        expectedStatusCodes = expectedStatusCodes == null ? List.of() : List.copyOf(expectedStatusCodes);
-        expectedOutcomes = WayangA2uiDecodeCollections.nonBlankTexts(expectedOutcomes);
-        expectedRouteOperations = WayangA2uiDecodeCollections.nonBlankTexts(expectedRouteOperations);
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        expectedStatusCodes = RecordCollections.copyList(expectedStatusCodes);
+        expectedOutcomes = DecodeCollections.nonBlankTexts(expectedOutcomes);
+        expectedRouteOperations = DecodeCollections.nonBlankTexts(expectedRouteOperations);
+        attributes = TransportMaps.copy(attributes);
     }
 
     public static WayangA2uiHttpScenarioExpectation pass() {

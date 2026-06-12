@@ -1,5 +1,8 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -33,8 +36,8 @@ public record WayangA2uiTransportResponse(
                 ? WayangA2uiTransportContent.ENCODING_JSONL
                 : bodyEncoding.trim();
         body = body == null ? "" : body;
-        dataParts = WayangA2uiTransportMaps.copyMaps(dataParts);
-        metadata = WayangA2uiTransportMaps.copy(metadata);
+        dataParts = TransportMaps.copyMaps(dataParts);
+        metadata = TransportMaps.copy(metadata);
     }
 
     public static WayangA2uiTransportResponse from(WayangA2uiSessionResult result) {
@@ -59,6 +62,18 @@ public record WayangA2uiTransportResponse(
                 0,
                 0,
                 WayangA2uiTransportMetadata.surfaceCatalog(resolved));
+    }
+
+    public static WayangA2uiTransportResponse from(WayangA2uiActionBindingReport report) {
+        WayangA2uiActionBindingReport resolved = Objects.requireNonNull(report, "report");
+        return new WayangA2uiTransportResponse(
+                WayangA2uiTransportContent.MIME_JSON,
+                WayangA2uiTransportContent.ENCODING_JSON,
+                json(resolved.toMap()),
+                List.of(),
+                resolved.complete() ? 1 : 0,
+                resolved.complete() ? 0 : 1,
+                WayangA2uiTransportMetadata.actionBindingReport(resolved));
     }
 
     public static WayangA2uiTransportResponse from(WayangA2uiHttpRouteCatalog catalog) {
@@ -115,7 +130,7 @@ public record WayangA2uiTransportResponse(
 
     public static WayangA2uiTransportResponse error(WayangA2uiTransportError error) {
         WayangA2uiTransportError resolved = error == null
-                ? WayangA2uiTransportError.of(null, null)
+                ? WayangA2uiTransportError.defaultError()
                 : error;
         return new WayangA2uiTransportResponse(
                 WayangA2uiTransportContent.MIME_PROBLEM_JSON,
@@ -200,6 +215,6 @@ public record WayangA2uiTransportResponse(
     }
 
     private static String json(Map<String, Object> payload) {
-        return WayangA2uiTransportJson.json(payload, "Unable to encode A2UI transport response");
+        return TransportJson.json(payload, "Unable to encode A2UI transport response");
     }
 }

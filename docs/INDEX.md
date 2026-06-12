@@ -57,6 +57,24 @@
    - 10+ code examples
    - **Go here for human-in-the-loop and dynamic prompts**
 
+### Operations & Diagnostics
+
+**[HTTP_DIAGNOSTICS_PROBES.md](HTTP_DIAGNOSTICS_PROBES.md)**
+- A2UI HTTP route catalog, binding-report, smoke, and readiness probes
+- A2A JSON-RPC smoke, binding-report, and readiness probes
+- Configurable diagnostic paths and operator pass/fail semantics
+- Golden contract fixtures and focused Maven verification commands
+
+**[A2UI_SURFACE_ARCHITECTURE.md](A2UI_SURFACE_ARCHITECTURE.md)**
+- A2UI Wayang surface facade, renderer, registry, and helper ownership
+- Extension rules for adding model-to-surface renderers without giant classes
+- Focused surface test map and verification commands
+
+**[A2UI_SESSION_CONFIG_SOURCES.md](A2UI_SESSION_CONFIG_SOURCES.md)**
+- Inline, file, classpath, database, S3, RustFS, and fallback source specs
+- Provider registration and storage-specific validation hooks
+- Request-level source overrides and load diagnostics
+
 ### Summaries
 
 8. **[README_AGENT_MEMORY_INTEGRATION.md](README_AGENT_MEMORY_INTEGRATION.md)** (12KB)
@@ -111,6 +129,15 @@
 **Configure for production**
 → Configuration sections in each guide
 
+**Diagnose A2UI/A2A HTTP adapters**
+→ HTTP_DIAGNOSTICS_PROBES.md
+
+**Extend A2UI model-to-surface rendering**
+→ A2UI_SURFACE_ARCHITECTURE.md
+
+**Configure A2UI session behavior dynamically**
+→ A2UI_SESSION_CONFIG_SOURCES.md
+
 ## 📊 Content by Topic
 
 ### Memory
@@ -131,6 +158,20 @@
 - COMPLETE_PLATFORM_INTEGRATION.md
 - README_COMPLETE_INTEGRATION.md
 - INTEGRATION_STATUS.md (at repo root)
+
+### HTTP Diagnostics
+- HTTP_DIAGNOSTICS_PROBES.md
+- A2UI and A2A contract fixtures under `a2ui/*/contracts` and
+  `a2a/*/contracts`
+
+### A2UI Surfaces
+- A2UI_SURFACE_ARCHITECTURE.md
+- Source: a2ui/a2ui-wayang surface facade, registry, and renderer classes
+
+### A2UI Session Config Sources
+- A2UI_SESSION_CONFIG_SOURCES.md
+- Source: a2ui/a2ui-wayang session source specs, registry, providers, and
+  load-result diagnostics
 
 ## 🔍 Search by Use Case
 
@@ -156,6 +197,24 @@
 1. COMPLETE_PLATFORM_INTEGRATION.md
 2. README_COMPLETE_INTEGRATION.md
 3. All guide files combined
+
+### I want to validate A2UI or A2A HTTP adapters
+1. HTTP_DIAGNOSTICS_PROBES.md
+2. Source: a2ui/a2ui-wayang and a2a/a2a-wayang probe classes
+3. Fixtures: a2ui/a2ui-wayang/src/test/resources/contracts and
+   a2a/a2a-wayang/src/test/resources/contracts
+
+### I want to add or change A2UI surfaces
+1. A2UI_SURFACE_ARCHITECTURE.md
+2. Source: a2ui/a2ui-wayang/src/main/java/tech/kayys/wayang/a2ui/wayang
+3. Tests: WayangA2ui*SurfaceTest, WayangA2uiSurfaceContractTest, and
+   WayangA2uiSurfaceRegistryTest
+
+### I want dynamic A2UI session config from database or object storage
+1. A2UI_SESSION_CONFIG_SOURCES.md
+2. Source: a2ui/a2ui-wayang/src/main/java/tech/kayys/wayang/a2ui/wayang/session
+3. Tests: SessionConfigSourceSpecTest, SessionConfigSourceRegistryTest, and
+   SessionConfigSourcesTest
 
 ## 📁 File Organization
 
@@ -184,6 +243,8 @@ wayang-gollek/
 │           └── ToolEnabledAgentExecutor.java
 │
 ├── COMPLETE_PLATFORM_INTEGRATION.md
+├── HTTP_DIAGNOSTICS_PROBES.md
+├── A2UI_SURFACE_ARCHITECTURE.md
 ├── AGENT_MEMORY_INTEGRATION_SUMMARY.md
 ├── TOOLS_INTEGRATION_SUMMARY.md
 ├── README_AGENT_MEMORY_INTEGRATION.md
@@ -198,8 +259,8 @@ Root of wayang-platform/:
 
 | Aspect | Detail |
 |--------|--------|
-| **Total Documentation** | 80KB+ |
-| **Number of Files** | 10 guides |
+| **Total Documentation** | 90KB+ |
+| **Number of Files** | 11+ guides |
 | **Code Examples** | 30+ |
 | **Test Examples** | 15+ |
 | **Java Classes** | 7 |
@@ -277,9 +338,9 @@ Root of wayang-platform/:
 
 ---
 
-**Total Documentation**: 80KB+ across 10 files  
-**Status**: ✅ Complete & Production Ready  
-**Updated**: April 2, 2026  
+**Total Documentation**: 90KB+ across 11+ files
+**Status**: ✅ Complete & Production Ready
+**Updated**: June 2, 2026
 **Version**: 1.0
 
 ---

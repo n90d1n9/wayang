@@ -1,8 +1,6 @@
 package tech.kayys.wayang.agent.core.recovery;
 
-import tech.kayys.wayang.agent.core.Agent;
-import tech.kayys.wayang.agent.core.AgentContext;
-import tech.kayys.wayang.agent.core.AgentResponse;
+import tech.kayys.wayang.agent.spi.AgentResponse;
 
 import java.time.Duration;
 import java.util.*;
@@ -12,6 +10,18 @@ import java.util.*;
  * Enables resilient multi-agent systems with automatic retry and fallback capabilities.
  */
 public interface FailureRecoveryStrategy {
+
+    interface Agent {
+        String getName();
+
+        AgentResponse execute(String query, AgentContext context);
+    }
+
+    record AgentContext(Map<String, Object> values) {
+        public AgentContext {
+            values = values != null ? Map.copyOf(values) : Map.of();
+        }
+    }
 
     /**
      * Attempt recovery from agent failure.
@@ -157,9 +167,9 @@ public interface FailureRecoveryStrategy {
 
         private AgentResponse createFallbackResponse(Agent agent, String fallbackAnswer) {
             return AgentResponse.builder()
-                    .agentName(agent.getName())
-                    .finalAnswer(fallbackAnswer)
-                    .metadata(Map.of("circuit_breaker_fallback", true))
+                    .answer(fallbackAnswer)
+                    .successful(true)
+                    .strategy("circuit_breaker_fallback")
                     .build();
         }
     }

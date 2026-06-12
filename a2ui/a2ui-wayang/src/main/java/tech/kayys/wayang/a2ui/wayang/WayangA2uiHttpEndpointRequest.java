@@ -1,5 +1,8 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpEndpointProjection;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -15,7 +18,7 @@ public record WayangA2uiHttpEndpointRequest(
 
     public WayangA2uiHttpEndpointRequest {
         request = Objects.requireNonNull(request, "request");
-        route = WayangA2uiTransportMaps.copy(route);
+        route = TransportMaps.copy(route);
         knownPath = knownPath || !route.isEmpty();
         matched = matched && knownPath;
     }
@@ -83,7 +86,7 @@ public record WayangA2uiHttpEndpointRequest(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpEndpointProjection.request(this);
+        return HttpEndpointProjection.request(this);
     }
 
     private Optional<String> routeValue(String key) {

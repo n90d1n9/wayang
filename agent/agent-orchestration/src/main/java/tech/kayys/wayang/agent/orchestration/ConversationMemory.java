@@ -1,42 +1,26 @@
 package tech.kayys.wayang.agent.orchestration;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import tech.kayys.wayang.agent.spi.InferenceTypes.AssistantMessage;
+import tech.kayys.wayang.agent.spi.InferenceTypes.ChatMessage;
+import tech.kayys.wayang.agent.spi.InferenceTypes.ToolResultMessage;
+import tech.kayys.wayang.agent.spi.InferenceTypes.UserMessage;
 
-import java.nio.file.*;
-import java.time.*;
-import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.List;
 
 /**
  * Conversation memory with intelligent windowing, token estimation, and disk persistence.
  */
 public class ConversationMemory {
 
-    private static final Logger log = LoggerFactory.getLogger(ConversationMemory.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper()
-            .enable(SerializationFeature.INDENT_OUTPUT);
-
     private static final int CHARS_PER_TOKEN = 4;
 
     private final int     maxMessages;
     private final int     maxTokenBudget;
-    private final Deque<Turn> turns = new ArrayDeque<>();
-
-    public record Turn(
-            String role,
-            Object content,
-            long   timestampMs,
-            int    estimatedTokens
-    ) {
-        @SuppressWarnings("unchecked")
-        public List<Map<String, Object>> messages() {
-            if (content instanceof List) return (List<Map<String, Object>>) content;
-            return List.of(Map.of("role", role, "content", content));
-        }
-    }
+    private final Deque<ChatMessage> messages = new ArrayDeque<>();
 
     public ConversationMemory(int maxMessages) {
         this(maxMessages, 0);
@@ -48,17 +32,16 @@ public class ConversationMemory {
     }
 
     public void addUser(String text) {
-        add("user", List.of(Map.of("type", "text", "text", text)), estimate(text));
+        ChatMessage msg = new UserMessage(text);
+        add(msg, estimate(text));
     }
 
-    public void addAssistant(List<Map<String, Object>> contentBlocks) {
-        int tokens = contentBlocks.stream()
-                .mapToInt(b -> estimate(b.toString()))
-                .sum();
-        add("assistant", contentBlocks, tokens);
+    public void addAssistant(String content) {
+        ChatMessage msg = new AssistantMessage(content);
+        add(msg, estimate(content));
     }
 
-    public void addToolResult(String toolUseId, String result) {
+    public void addToolResult(String toolCallId, String result) {
         String stored = result;
         if (result != null && result.length() > 6000) {
             stored = result.substring(0, 3000)
@@ -66,34 +49,29 @@ public class ConversationMemory {
                     + result.substring(result.length() - 1500);
         }
 
-        List<Map<String, Object>> content = List.of(Map.of(
-                "type",        "tool_result",
-                "tool_use_id", toolUseId,
-                "content",     stored != null ? stored : ""
-        ));
-        add("user", content, estimate(stored));
+        ChatMessage msg = new ToolResultMessage(toolCallId, null, stored);
+        add(msg, estimate(stored));
     }
 
-    public List<Map<String, Object>> getMessages() {
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (Turn t : turns) {
-            Map<String, Object> msg = new LinkedHashMap<>();
-            msg.put("role",    t.role());
-            msg.put("content", t.content());
-            result.add(msg);
+    public List<ChatMessage> getMessages() {
+        return Collections.unmodifiableList(new ArrayList<>(messages));
+    }
+
+    public void clear() { messages.clear(); }
+    public int size() { return messages.size(); }
+    public int estimatedTokens() { 
+        return messages.stream()
+                .mapToInt(m -> estimate(m.content()))
+                .sum(); 
+    }
+
+    private void add(ChatMessage message, int estimatedTokens) {
+        messages.addLast(message);
+        while (messages.size() > maxMessages && messages.size() > 1) {
+            messages.pollFirst();
         }
-        return Collections.unmodifiableList(result);
-    }
-
-    public void clear() { turns.clear(); }
-    public int size() { return turns.size(); }
-    public int estimatedTokens() { return turns.stream().mapToInt(Turn::estimatedTokens).sum(); }
-
-    private void add(String role, Object content, int estimatedTokens) {
-        Turn turn = new Turn(role, content, System.currentTimeMillis(), estimatedTokens);
-        turns.addLast(turn);
-        while (turns.size() > maxMessages && turns.size() > 1) {
-            turns.pollFirst();
+        while (maxTokenBudget > 0 && estimatedTokens() > maxTokenBudget && messages.size() > 1) {
+            messages.pollFirst();
         }
     }
 

@@ -1,8 +1,13 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpScenarioSuiteMetrics;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+import tech.kayys.wayang.a2ui.wayang.support.RecordCollections;
+
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Captured result of an HTTP scenario suite run.
@@ -13,86 +18,61 @@ public record WayangA2uiHttpScenarioSuiteResult(
         Map<String, Object> attributes) {
 
     public WayangA2uiHttpScenarioSuiteResult {
-        suiteId = suiteId == null || suiteId.isBlank() ? "a2ui-http-suite" : suiteId.trim();
-        scenarioResults = scenarioResults == null
-                ? List.of()
-                : scenarioResults.stream()
-                        .filter(Objects::nonNull)
-                        .toList();
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        suiteId = RecordValues.textOrDefault(suiteId, "a2ui-http-suite");
+        scenarioResults = RecordCollections.nonNullList(scenarioResults);
+        attributes = TransportMaps.copy(attributes);
     }
 
     public int scenarioCount() {
-        return scenarioResults.size();
+        return HttpScenarioSuiteMetrics.scenarioCount(scenarioResults);
     }
 
     public long passedScenarioCount() {
-        return scenarioResults.stream()
-                .map(WayangA2uiHttpScenarioResult::report)
-                .filter(WayangA2uiHttpScenarioReport::passed)
-                .count();
+        return HttpScenarioSuiteMetrics.passedScenarioCount(scenarioResults);
     }
 
     public long failedScenarioCount() {
-        return scenarioCount() - passedScenarioCount();
+        return HttpScenarioSuiteMetrics.failedScenarioCount(scenarioResults);
     }
 
     public long exchangeCount() {
-        return scenarioResults.stream()
-                .mapToLong(WayangA2uiHttpScenarioResult::exchangeCount)
-                .sum();
+        return HttpScenarioSuiteMetrics.exchangeCount(scenarioResults);
     }
 
     public long successfulCount() {
-        return scenarioResults.stream()
-                .mapToLong(WayangA2uiHttpScenarioResult::successfulCount)
-                .sum();
+        return HttpScenarioSuiteMetrics.successfulCount(scenarioResults);
     }
 
     public long clientErrorCount() {
-        return scenarioResults.stream()
-                .mapToLong(WayangA2uiHttpScenarioResult::clientErrorCount)
-                .sum();
+        return HttpScenarioSuiteMetrics.clientErrorCount(scenarioResults);
     }
 
     public long serverErrorCount() {
-        return scenarioResults.stream()
-                .mapToLong(WayangA2uiHttpScenarioResult::serverErrorCount)
-                .sum();
+        return HttpScenarioSuiteMetrics.serverErrorCount(scenarioResults);
     }
 
     public long handledCount() {
-        return scenarioResults.stream()
-                .mapToLong(WayangA2uiHttpScenarioResult::handledCount)
-                .sum();
+        return HttpScenarioSuiteMetrics.handledCount(scenarioResults);
     }
 
     public long rejectedCount() {
-        return scenarioResults.stream()
-                .mapToLong(WayangA2uiHttpScenarioResult::rejectedCount)
-                .sum();
+        return HttpScenarioSuiteMetrics.rejectedCount(scenarioResults);
     }
 
     public boolean hasTransportErrors() {
-        return scenarioResults.stream().anyMatch(WayangA2uiHttpScenarioResult::hasTransportErrors);
+        return HttpScenarioSuiteMetrics.hasTransportErrors(scenarioResults);
     }
 
     public long issueCount() {
-        return reports().stream()
-                .mapToLong(WayangA2uiHttpScenarioReport::issueCount)
-                .sum();
+        return HttpScenarioSuiteMetrics.issueCount(reports());
     }
 
     public List<String> scenarioIds() {
-        return scenarioResults.stream()
-                .map(WayangA2uiHttpScenarioResult::scenarioId)
-                .toList();
+        return HttpScenarioSuiteMetrics.scenarioIds(scenarioResults);
     }
 
     public List<WayangA2uiHttpScenarioReport> reports() {
-        return scenarioResults.stream()
-                .map(WayangA2uiHttpScenarioResult::report)
-                .toList();
+        return HttpScenarioSuiteMetrics.reports(scenarioResults);
     }
 
     public WayangA2uiHttpScenarioSuiteReport report() {

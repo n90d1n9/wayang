@@ -11,4 +11,12 @@ public record MemoryEntry(
         String content,
         Instant timestamp,
         Map<String, Object> metadata) {
+
+    public String getContent() {
+        return content;
+    }
+
+    public Map<String, Object> getMetadata() {
+        return metadata;
+    }
 }

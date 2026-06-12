@@ -8,8 +8,10 @@ import org.slf4j.LoggerFactory;
 import tech.kayys.wayang.agent.core.memory.AgentMemoryService;
 import tech.kayys.wayang.memory.spi.MemoryEntry;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Human-in-the-Loop Service with Memory Integration
@@ -54,6 +56,10 @@ public class AgentHitlService {
     @Inject
     AgentMemoryService memoryService;
 
+    private final Map<String, HitlRequest> requests = new ConcurrentHashMap<>();
+    private final Map<String, HitlDecision> decisions = new ConcurrentHashMap<>();
+    private final Map<String, EscalationResult> escalations = new ConcurrentHashMap<>();
+
     /**
      * Request human decision on agent action
      *
@@ -61,25 +67,26 @@ public class AgentHitlService {
      * @return Reactive human decision
      */
     public Uni<HitlDecision> requestDecision(HitlRequest request) {
-        LOG.info("Requesting HITL decision for agent {}, task {}", 
+        Objects.requireNonNull(request, "request");
+        requests.put(request.requestId(), request);
+
+        HitlDecision pendingDecision = new HitlDecision(
+                request.requestId(),
+                request.agentId(),
+                request.taskId(),
+                HitlDecision.Status.PENDING,
+                "Awaiting human review",
+                Map.of(),
+                request.createdAt(),
+                null
+        );
+        decisions.put(request.requestId(), pendingDecision);
+
+        LOG.info("Requesting HITL decision for agent {}, task {}",
                 request.agentId(), request.taskId());
 
-        // Store request in memory for audit trail
         return storeHitlRequest(request)
-                .flatMap(__ -> {
-                    // In production: Route to human workflow (HITL system)
-                    // For now: Return placeholder
-                    return Uni.createFrom().item(new HitlDecision(
-                            request.requestId(),
-                            request.agentId(),
-                            request.taskId(),
-                            HitlDecision.Status.PENDING,
-                            "Awaiting human review",
-                            Map.of(),
-                            Instant.now(),
-                            null
-                    ));
-                });
+                .replaceWith(pendingDecision);
     }
 
     /**
@@ -99,22 +106,21 @@ public class AgentHitlService {
 
         LOG.info("Submitting HITL decision for request {}: {}", requestId, status);
 
-        return Uni.createFrom().item(() -> {
-            HitlDecision decision = new HitlDecision(
-                    requestId,
-                    "agent-id",  // Would be from stored request
-                    "task-id",   // Would be from stored request
-                    status,
-                    feedback,
-                    modifications,
-                    Instant.now(),
-                    Instant.now()
-            );
-
-            // Store decision in memory
-            storeHitlDecision(decision).await().indefinitely();
-            return decision;
-        });
+        return lookupRequest(requestId)
+                .flatMap(request -> {
+                    HitlDecision decision = new HitlDecision(
+                            request.requestId(),
+                            request.agentId(),
+                            request.taskId(),
+                            status,
+                            feedback,
+                            modifications,
+                            request.createdAt(),
+                            Instant.now()
+                    );
+                    decisions.put(request.requestId(), decision);
+                    return storeHitlDecision(decision).replaceWith(decision);
+                });
     }
 
     /**
@@ -124,11 +130,7 @@ public class AgentHitlService {
      * @return Reactive decision if available
      */
     public Uni<HitlDecision> getDecision(String requestId) {
-        return Uni.createFrom().item(() -> {
-            // In production: Query HITL system for decision
-            LOG.debug("Retrieving decision for request {}", requestId);
-            return null;  // Would be from HITL system
-        });
+        return Uni.createFrom().item(() -> decisions.get(normalizeId(requestId)));
     }
 
     /**
@@ -140,7 +142,16 @@ public class AgentHitlService {
     public Uni<List<HitlRequest>> getPendingRequests(String agentId) {
         return Uni.createFrom().item(() -> {
             LOG.debug("Getting pending HITL requests for agent {}", agentId);
-            return new ArrayList<>();  // Would query HITL system
+            return requests.values().stream()
+                    .filter(request -> !hasText(agentId) || request.agentId().equals(agentId.trim()))
+                    .filter(request -> {
+                        HitlDecision decision = decisions.get(request.requestId());
+                        return decision == null || decision.needsApproval();
+                    })
+                    .sorted(Comparator
+                            .comparing(HitlRequest::createdAt)
+                            .thenComparing(HitlRequest::requestId))
+                    .toList();
         });
     }
 
@@ -159,13 +170,30 @@ public class AgentHitlService {
 
         LOG.info("Escalating request {} to {}", requestId, suggestedApprover);
 
-        return Uni.createFrom().item(new EscalationResult(
-                requestId,
-                "escalated",
-                reason,
-                suggestedApprover,
-                Instant.now()
-        ));
+        return lookupRequest(requestId)
+                .flatMap(request -> {
+                    EscalationResult escalation = new EscalationResult(
+                            request.requestId(),
+                            "escalated",
+                            reason,
+                            suggestedApprover,
+                            Instant.now()
+                    );
+                    escalations.put(request.requestId(), escalation);
+
+                    HitlDecision decision = new HitlDecision(
+                            request.requestId(),
+                            request.agentId(),
+                            request.taskId(),
+                            HitlDecision.Status.ESCALATED,
+                            escalation.reason(),
+                            Map.of("approver", escalation.approver()),
+                            request.createdAt(),
+                            escalation.escalatedAt()
+                    );
+                    decisions.put(request.requestId(), decision);
+                    return storeHitlDecision(decision).replaceWith(escalation);
+                });
     }
 
     /**
@@ -176,14 +204,30 @@ public class AgentHitlService {
      */
     public Uni<HitlMetrics> getMetrics(String agentId) {
         return Uni.createFrom().item(() -> {
-            // In production: Calculate from HITL system + memory
+            String normalizedAgentId = normalizeAgentId(agentId);
+            List<HitlRequest> agentRequests = requests.values().stream()
+                    .filter(request -> request.agentId().equals(normalizedAgentId))
+                    .toList();
+            List<HitlDecision> agentDecisions = decisions.values().stream()
+                    .filter(decision -> decision.agentId().equals(normalizedAgentId))
+                    .toList();
+            List<HitlDecision> terminalDecisions = agentDecisions.stream()
+                    .filter(decision -> !decision.needsApproval())
+                    .toList();
+            int approvedCount = (int) terminalDecisions.stream()
+                    .filter(HitlDecision::isApproved)
+                    .count();
+            int rejectedCount = (int) terminalDecisions.stream()
+                    .filter(decision -> decision.status() == HitlDecision.Status.REJECTED)
+                    .count();
+            long avgDecisionTimeMs = averageDecisionTimeMs(terminalDecisions);
             return new HitlMetrics(
-                    agentId,
-                    0,
-                    0,
-                    0,
-                    0.0,
-                    0L,
+                    normalizedAgentId,
+                    agentRequests.size(),
+                    approvedCount,
+                    rejectedCount,
+                    terminalDecisions.isEmpty() ? 0.0 : (double) approvedCount / terminalDecisions.size(),
+                    avgDecisionTimeMs,
                     Instant.now()
             );
         });
@@ -192,6 +236,9 @@ public class AgentHitlService {
     // Helper methods
 
     private Uni<Void> storeHitlRequest(HitlRequest request) {
+        if (!hasMemory()) {
+            return Uni.createFrom().voidItem();
+        }
         MemoryEntry entry = new MemoryEntry(
                 request.requestId(),
                 "HITL Request: " + request.action() + " | Context: " + request.context(),
@@ -207,10 +254,13 @@ public class AgentHitlService {
 
         return memoryService.vectorAgentMemory()
                 .store(request.agentId(), entry)
-                .onFailure().recoverWithVoid();
+                .onFailure().recoverWithItem((Void) null);
     }
 
     private Uni<Void> storeHitlDecision(HitlDecision decision) {
+        if (!hasMemory()) {
+            return Uni.createFrom().voidItem();
+        }
         MemoryEntry entry = new MemoryEntry(
                 decision.requestId(),
                 "HITL Decision: " + decision.status() + " | Feedback: " + decision.feedback(),
@@ -226,7 +276,95 @@ public class AgentHitlService {
 
         return memoryService.vectorAgentMemory()
                 .store(decision.agentId(), entry)
-                .onFailure().recoverWithVoid();
+                .onFailure().recoverWithItem((Void) null);
+    }
+
+    private Uni<HitlRequest> lookupRequest(String requestId) {
+        return Uni.createFrom().item(() -> {
+            String normalizedRequestId = normalizeId(requestId);
+            if (!hasText(normalizedRequestId)) {
+                throw new IllegalArgumentException("HITL request ID must not be blank");
+            }
+            HitlRequest request = requests.get(normalizedRequestId);
+            if (request == null) {
+                throw new IllegalArgumentException("HITL request not found: " + normalizedRequestId);
+            }
+            return request;
+        });
+    }
+
+    private boolean hasMemory() {
+        return memoryService != null && memoryService.vectorAgentMemory() != null;
+    }
+
+    private static long averageDecisionTimeMs(List<HitlDecision> terminalDecisions) {
+        return Math.round(terminalDecisions.stream()
+                .filter(decision -> decision.requestedAt() != null && decision.decidedAt() != null)
+                .mapToLong(decision -> Math.max(0, Duration.between(
+                        decision.requestedAt(),
+                        decision.decidedAt()).toMillis()))
+                .average()
+                .orElse(0.0));
+    }
+
+    private static String normalizeId(String value) {
+        return value == null ? "" : value.trim();
+    }
+
+    private static String normalizeAgentId(String agentId) {
+        return hasText(agentId) ? agentId.trim() : "unknown-agent";
+    }
+
+    private static String normalizeTaskId(String taskId) {
+        return hasText(taskId) ? taskId.trim() : "unknown-task";
+    }
+
+    private static String normalizeAction(String action) {
+        return hasText(action) ? action.trim() : "unknown-action";
+    }
+
+    private static String normalizePriority(String priority) {
+        return hasText(priority) ? priority.trim() : "NORMAL";
+    }
+
+    private static String normalizeFeedback(String feedback) {
+        return feedback == null ? "" : feedback.trim();
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private static Map<String, Object> copyMap(Map<String, Object> values) {
+        if (values == null || values.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> copied = new LinkedHashMap<>();
+        values.forEach((key, value) -> {
+            if (hasText(key) && value != null) {
+                copied.put(key.trim(), snapshotValue(value));
+            }
+        });
+        return copied.isEmpty() ? Map.of() : Map.copyOf(copied);
+    }
+
+    private static Object snapshotValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> copied = new LinkedHashMap<>();
+            map.forEach((key, item) -> {
+                if (key != null && hasText(String.valueOf(key)) && item != null) {
+                    copied.put(String.valueOf(key).trim(), snapshotValue(item));
+                }
+            });
+            return copied.isEmpty() ? Map.of() : Map.copyOf(copied);
+        }
+        if (value instanceof List<?> list) {
+            return List.copyOf(list.stream()
+                    .filter(Objects::nonNull)
+                    .map(AgentHitlService::snapshotValue)
+                    .toList());
+        }
+        return value;
     }
 
     /**
@@ -244,13 +382,13 @@ public class AgentHitlService {
         public HitlRequest(String requestId, String agentId, String taskId,
                          String action, Map<String, Object> context,
                          String priority, Instant createdAt) {
-            this.requestId = requestId;
-            this.agentId = agentId;
-            this.taskId = taskId;
-            this.action = action;
-            this.context = context;
-            this.priority = priority;
-            this.createdAt = createdAt;
+            this.requestId = hasText(requestId) ? requestId.trim() : UUID.randomUUID().toString();
+            this.agentId = normalizeAgentId(agentId);
+            this.taskId = normalizeTaskId(taskId);
+            this.action = normalizeAction(action);
+            this.context = copyMap(context);
+            this.priority = normalizePriority(priority);
+            this.createdAt = createdAt == null ? Instant.now() : createdAt;
         }
 
         public String requestId() { return requestId; }
@@ -324,6 +462,16 @@ public class AgentHitlService {
             Instant requestedAt,
             Instant decidedAt) {
 
+        public HitlDecision {
+            requestId = hasText(requestId) ? requestId.trim() : "unknown-request";
+            agentId = normalizeAgentId(agentId);
+            taskId = normalizeTaskId(taskId);
+            status = status == null ? Status.PENDING : status;
+            feedback = normalizeFeedback(feedback);
+            modifications = copyMap(modifications);
+            requestedAt = requestedAt == null ? Instant.now() : requestedAt;
+        }
+
         public enum Status {
             PENDING, APPROVED, REJECTED, MODIFIED, ESCALATED
         }
@@ -346,6 +494,13 @@ public class AgentHitlService {
             String reason,
             String approver,
             Instant escalatedAt) {
+        public EscalationResult {
+            requestId = hasText(requestId) ? requestId.trim() : "unknown-request";
+            status = hasText(status) ? status.trim() : "escalated";
+            reason = normalizeFeedback(reason);
+            approver = hasText(approver) ? approver.trim() : "unassigned";
+            escalatedAt = escalatedAt == null ? Instant.now() : escalatedAt;
+        }
     }
 
     /**
@@ -359,6 +514,13 @@ public class AgentHitlService {
             double approvalRate,
             long avgDecisionTimeMs,
             Instant recordedAt) {
+
+        public HitlMetrics {
+            agentId = normalizeAgentId(agentId);
+            approvalRate = Math.max(0.0, Math.min(1.0, approvalRate));
+            avgDecisionTimeMs = Math.max(0L, avgDecisionTimeMs);
+            recordedAt = recordedAt == null ? Instant.now() : recordedAt;
+        }
 
         public boolean isHighApprovalRate() {
             return approvalRate > 0.8;

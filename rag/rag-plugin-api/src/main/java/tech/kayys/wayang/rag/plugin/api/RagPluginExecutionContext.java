@@ -16,7 +16,7 @@ public record RagPluginExecutionContext(
         boolean retrievalOnly) {
 
     public RagPluginExecutionContext {
-        filters = filters == null ? Map.of() : Map.copyOf(filters);
+        filters = RagPluginMetadata.copy(filters);
     }
 
     public RagPluginExecutionContext withQuery(String updatedQuery) {

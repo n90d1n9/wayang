@@ -95,6 +95,7 @@ public final class SkillManifestParser {
         // Parse metadata sub-object (extended fields)
         Object metadataObj = frontmatter.get("metadata");
         if (metadataObj instanceof Map<?, ?> metadata) {
+            builder.metadata(toStringKeyMap(metadata));
             builder.author(getNestedString(metadata, "author"));
             builder.metadataVersion(getNestedString(metadata, "version"));
 
@@ -257,6 +258,12 @@ public final class SkillManifestParser {
     private static String getNestedString(Map<?, ?> map, String key) {
         Object val = map.get(key);
         return val != null ? val.toString() : null;
+    }
+
+    private static Map<String, Object> toStringKeyMap(Map<?, ?> source) {
+        Map<String, Object> copy = new LinkedHashMap<>();
+        source.forEach((key, value) -> copy.put(String.valueOf(key), value));
+        return copy;
     }
 
     private static Map<String, String> loadReferences(Path skillDir) {

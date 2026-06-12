@@ -1,0 +1,36 @@
+{
+  "scenarioId": "route-report",
+  "passed": true,
+  "exchangeCount": 1,
+  "successfulCount": 1,
+  "clientErrorCount": 0,
+  "serverErrorCount": 0,
+  "handledCount": 0,
+  "rejectedCount": 0,
+  "transportErrors": false,
+  "statusCodes": [
+    200
+  ],
+  "outcomes": [
+    "SUCCESS"
+  ],
+  "attributes": {
+    "traceId": "trace-1"
+  },
+  "exchanges": [
+    {
+      "index": 1,
+      "request": {
+        "method": "GET",
+        "path": "/a2ui/route-catalog"
+      },
+      "response": {
+        "statusCode": 200,
+        "routeOperation": "a2ui.routeCatalog",
+        "outcome": "SUCCESS"
+      }
+    }
+  ],
+  "issueCount": 0,
+  "issues": []
+}

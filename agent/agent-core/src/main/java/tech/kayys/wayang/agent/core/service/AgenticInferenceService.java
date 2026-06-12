@@ -6,7 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 import tech.kayys.wayang.agent.core.client.GollekAgentClient;
-import tech.kayys.wayang.agent.registry.AgentProviderRegistry;
+import tech.kayys.wayang.agent.core.registry.AgentProviderRegistry;
 import tech.kayys.gollek.spi.Message;
 import tech.kayys.gollek.spi.inference.InferenceRequest;
 import tech.kayys.gollek.spi.inference.InferenceResponse;
@@ -126,7 +126,7 @@ public class AgenticInferenceService {
         String systemPrompt = getSystemPromptForStrategy(strategy);
         
         InferenceRequest request = createBaseRequest(prompt, modelId)
-            .message(0, Message.system(systemPrompt))
+            .messages(List.of(Message.system(systemPrompt), Message.user(prompt)))
             .build();
         
         return agentClient.infer(request);

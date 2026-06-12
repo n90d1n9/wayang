@@ -48,6 +48,10 @@ public class AgentMemoryService {
     @Inject
     VectorMemoryStore vectorMemoryStore;
 
+    public VectorAgentMemory vectorAgentMemory() {
+        return vectorAgentMemory;
+    }
+
     /**
      * Retrieve context for agent reasoning as a formatted prompt segment
      *
@@ -152,7 +156,7 @@ public class AgentMemoryService {
                 .onFailure().invoke(ex -> {
                     LOG.warn("Failed to store interaction for agent {}: {}", agentId, ex.getMessage());
                 })
-                .onFailure().recoverWithVoid();
+                .onFailure().recoverWithItem((Void) null);
     }
 
     /**
@@ -216,7 +220,7 @@ public class AgentMemoryService {
                 .onFailure().invoke(ex -> {
                     LOG.warn("Failed to clear memory for agent {}: {}", agentId, ex.getMessage());
                 })
-                .onFailure().recoverWithVoid();
+                .onFailure().recoverWithItem((Void) null);
     }
 
     /**
@@ -262,7 +266,7 @@ public class AgentMemoryService {
         );
 
         return vectorAgentMemory.store(agentId, skillEntry)
-                .onFailure().recoverWithVoid();
+                .onFailure().recoverWithItem((Void) null);
     }
 
     /**

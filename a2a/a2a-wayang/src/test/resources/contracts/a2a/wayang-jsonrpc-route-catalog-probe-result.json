@@ -1,0 +1,168 @@
+{
+  "httpSuccessful": true,
+  "jsonContent": true,
+  "routeCatalogDescriptor": true,
+  "readinessDescriptor": true,
+  "issues": [],
+  "allow": "GET, OPTIONS",
+  "bindingReportDescriptor": true,
+  "enabledRouteCount": 7,
+  "endpointDescriptor": true,
+  "contentType": "application/json",
+  "passed": true,
+  "statusCode": 200,
+  "smokeDescriptor": true,
+  "routeCatalogRoute": true,
+  "headers": {
+    "X-Wayang-A2A-Protocol-Version": "1.0",
+    "Content-Type": "application/json",
+    "X-Wayang-A2A-Route-Operation": "JsonRpcRouteCatalog",
+    "Allow": "GET, OPTIONS",
+    "A2A-Version": "1.0"
+  },
+  "issueCount": 0,
+  "body": {
+    "enabledRouteCount": 7,
+    "routeCount": 8,
+    "routes": [
+      {
+        "requestMediaType": "application/json",
+        "httpMethod": "POST",
+        "operation": "JsonRpc",
+        "allowedMethods": [
+          "POST",
+          "OPTIONS"
+        ],
+        "allow": "POST, OPTIONS",
+        "responseMediaTypes": [
+          "application/json",
+          "text/event-stream"
+        ],
+        "requestBodyRequired": true,
+        "path": "/a2a/rpc",
+        "enabled": true
+      },
+      {
+        "requestMediaType": "",
+        "httpMethod": "GET",
+        "operation": "JsonRpcSmoke",
+        "allowedMethods": [
+          "GET",
+          "OPTIONS"
+        ],
+        "allow": "GET, OPTIONS",
+        "responseMediaTypes": [
+          "application/json"
+        ],
+        "requestBodyRequired": false,
+        "path": "/internal/a2a/smoke",
+        "enabled": false
+      },
+      {
+        "requestMediaType": "",
+        "httpMethod": "GET",
+        "operation": "JsonRpcRouteCatalog",
+        "allowedMethods": [
+          "GET",
+          "OPTIONS"
+        ],
+        "allow": "GET, OPTIONS",
+        "responseMediaTypes": [
+          "application/json"
+        ],
+        "requestBodyRequired": false,
+        "path": "/a2a/jsonrpc/route-catalog",
+        "enabled": true
+      },
+      {
+        "requestMediaType": "",
+        "httpMethod": "GET",
+        "operation": "JsonRpcDiagnostics",
+        "allowedMethods": [
+          "GET",
+          "OPTIONS"
+        ],
+        "allow": "GET, OPTIONS",
+        "responseMediaTypes": [
+          "application/json"
+        ],
+        "requestBodyRequired": false,
+        "path": "/a2a/jsonrpc/diagnostics",
+        "enabled": true
+      },
+      {
+        "requestMediaType": "",
+        "httpMethod": "GET",
+        "operation": "JsonRpcSpecCompliance",
+        "allowedMethods": [
+          "GET",
+          "OPTIONS"
+        ],
+        "allow": "GET, OPTIONS",
+        "responseMediaTypes": [
+          "application/json"
+        ],
+        "requestBodyRequired": false,
+        "path": "/a2a/jsonrpc/spec-compliance",
+        "enabled": true
+      },
+      {
+        "requestMediaType": "",
+        "httpMethod": "GET",
+        "operation": "JsonRpcBindingReport",
+        "allowedMethods": [
+          "GET",
+          "OPTIONS"
+        ],
+        "allow": "GET, OPTIONS",
+        "responseMediaTypes": [
+          "application/json"
+        ],
+        "requestBodyRequired": false,
+        "path": "/a2a/jsonrpc/binding-report",
+        "enabled": true
+      },
+      {
+        "requestMediaType": "",
+        "httpMethod": "GET",
+        "operation": "JsonRpcReadiness",
+        "allowedMethods": [
+          "GET",
+          "OPTIONS"
+        ],
+        "allow": "GET, OPTIONS",
+        "responseMediaTypes": [
+          "application/json"
+        ],
+        "requestBodyRequired": false,
+        "path": "/a2a/jsonrpc/readiness",
+        "enabled": true
+      },
+      {
+        "requestMediaType": "",
+        "httpMethod": "GET",
+        "operation": "JsonRpcReadinessIssueSummary",
+        "allowedMethods": [
+          "GET",
+          "OPTIONS"
+        ],
+        "allow": "GET, OPTIONS",
+        "responseMediaTypes": [
+          "application/json"
+        ],
+        "requestBodyRequired": false,
+        "path": "/a2a/jsonrpc/readiness/issues",
+        "enabled": true
+      }
+    ],
+    "binding": "JSONRPC",
+    "protocolVersion": "1.0"
+  },
+  "protocolVersion": "1.0",
+  "diagnosticsReportDescriptor": true,
+  "routeOperation": "JsonRpcRouteCatalog",
+  "specComplianceReportDescriptor": true,
+  "complete": true,
+  "readinessIssueSummaryDescriptor": true,
+  "routeCount": 8
+}

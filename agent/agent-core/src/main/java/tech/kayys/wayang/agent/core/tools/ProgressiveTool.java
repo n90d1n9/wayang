@@ -6,10 +6,10 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
-import tech.kayys.wayang.agent.spi.SkillContext;
-import tech.kayys.wayang.agent.spi.SkillDescriptor;
-import tech.kayys.wayang.agent.spi.SkillResult;
-import tech.kayys.wayang.agent.spi.SkillCategory;
+import tech.kayys.wayang.agent.spi.skills.SkillContext;
+import tech.kayys.wayang.agent.spi.skills.SkillDescriptor;
+import tech.kayys.wayang.agent.spi.skills.SkillResult;
+import tech.kayys.wayang.agent.spi.skills.SkillCategory;
 import tech.kayys.wayang.agent.core.tools.ToolCacheManager;
 
 import java.time.Duration;
@@ -78,7 +78,7 @@ import java.util.function.Supplier;
     name = "Progressive Tool Executor",
     description = "Execute long-running tools with progress tracking, streaming results, and cancellation support",
     version = "1.0.0",
-    category = SkillCategory.UTILITIES
+    category = SkillCategory.EXECUTION
 )
 public class ProgressiveTool {
 
@@ -265,7 +265,7 @@ public class ProgressiveTool {
             state.getProgressPercent(),
             ExecutionStatus.CANCELLED,
             "Cancelled by user",
-            state.getStartTime(),
+            Instant.ofEpochMilli(state.getStartTime()),
             Instant.now(),
             state.getCheckpoints()
         ));
@@ -607,7 +607,7 @@ public class ProgressiveTool {
      * Execute the actual tool.
      */
     private Uni<SkillResult> executeTool(ExecutionState state) {
-        return Uni.createFrom().completionStage(() -> {
+        return Uni.createFrom().item(() -> {
             // Simulate tool execution (actual implementation would use SkillRegistry)
             // This is a placeholder for the actual tool execution logic
 
@@ -619,13 +619,6 @@ public class ProgressiveTool {
 
                 // Execute tool logic here
                 SkillResult result = executeToolLogic(state);
-
-                // Stream partial results if available
-                if (result instanceof ProgressiveSkillResult progressive) {
-                    progressive.getPartialResults().forEach(partial -> 
-                        state.emitPartialResult(partial)
-                    );
-                }
 
                 return result;
 
@@ -902,7 +895,7 @@ public class ProgressiveTool {
     /**
      * Progressive skill result with partial results.
      */
-    public interface ProgressiveSkillResult extends SkillResult {
+    public interface ProgressiveSkillResult {
         List<PartialResult> getPartialResults();
     }
 
@@ -946,8 +939,8 @@ public class ProgressiveTool {
 
         private final List<Checkpoint> checkpoints;
         private final List<PartialResult> partialResults;
-        private final io.smallrye.mutiny.processors.MultiProcessor<PartialResult> resultProcessor;
-        private final UniProcessor<SkillResult> completionProcessor;
+        private volatile SkillResult completedResult;
+        private volatile Throwable failure;
 
         private int retryAttempt;
         private int maxRetries;
@@ -968,8 +961,6 @@ public class ProgressiveTool {
             this.statusMessage = "Starting...";
             this.checkpoints = new ArrayList<>();
             this.partialResults = new ArrayList<>();
-            this.resultProcessor = new io.smallrye.mutiny.processors.MultiProcessor<>();
-            this.completionProcessor = new io.smallrye.mutiny.processors.UniProcessor<>();
             this.retryAttempt = 0;
             this.maxRetries = MAX_RETRY_ATTEMPTS;
         }
@@ -994,7 +985,6 @@ public class ProgressiveTool {
 
         public void cancel() {
             this.cancelled = true;
-            this.resultProcessor.onComplete();
         }
 
         public void updateProgress(double percent, ExecutionStatus status, String message) {
@@ -1009,20 +999,16 @@ public class ProgressiveTool {
 
         public void emitPartialResult(PartialResult result) {
             this.partialResults.add(result);
-            this.resultProcessor.onNext(result);
-            if (result.isLast()) {
-                this.resultProcessor.onComplete();
-            }
         }
 
         public void complete(SkillResult result) {
             this.completed = true;
-            this.completionProcessor.onItem(result);
+            this.completedResult = result;
         }
 
         public void fail(Throwable error) {
             this.completed = true;
-            this.completionProcessor.onFailure(error);
+            this.failure = error;
         }
 
         public ToolProgress getCurrentProgress() {
@@ -1038,11 +1024,14 @@ public class ProgressiveTool {
         }
 
         public Multi<PartialResult> getResultStream() {
-            return resultProcessor;
+            return Multi.createFrom().iterable(partialResults);
         }
 
         public Uni<SkillResult> getCompletionUni() {
-            return completionProcessor;
+            if (failure != null) {
+                return Uni.createFrom().failure(failure);
+            }
+            return Uni.createFrom().item(completedResult);
         }
 
         public void restoreFromCheckpoint(Checkpoint checkpoint) {
@@ -1052,7 +1041,6 @@ public class ProgressiveTool {
 
         public void cleanup() {
             // Cleanup resources
-            this.resultProcessor.onComplete();
         }
     }
 }

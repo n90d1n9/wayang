@@ -13,7 +13,7 @@
 
     <artifactId>skill-management</artifactId>
     <name>Skill Management</name>
-    <description>Comprehensive skill management with CRUD, repository switching, and lifecycle management</description>
+    <description>Wayang-native skill lifecycle management around the active agent SPI.</description>
 
     <properties>
         <maven.compiler.source>25</maven.compiler.source>
@@ -21,18 +21,16 @@
     </properties>
 
     <dependencies>
-        <!-- Skill Repository SPI -->
+        <!-- Active agent skill contracts -->
         <dependency>
             <groupId>tech.kayys.wayang</groupId>
-            <artifactId>agent-skills-repo</artifactId>
+            <artifactId>agent-spi</artifactId>
             <version>${project.version}</version>
         </dependency>
-
-        <!-- CDI -->
         <dependency>
-            <groupId>jakarta.enterprise</groupId>
-            <artifactId>jakarta.enterprise.cdi-api</artifactId>
-            <scope>provided</scope>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>wayang-storage-spi</artifactId>
+            <version>${project.version}</version>
         </dependency>
 
         <!-- Mutiny -->
@@ -41,35 +39,16 @@
             <artifactId>mutiny</artifactId>
         </dependency>
 
-        <!-- Jackson -->
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-        </dependency>
-
-        <!-- Validation -->
-        <dependency>
-            <groupId>jakarta.validation</groupId>
-            <artifactId>jakarta.validation-api</artifactId>
-        </dependency>
-
         <!-- Logging -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
         </dependency>
 
-        <!-- Quarkus REST (for REST API) -->
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-resteasy-reactive-jackson</artifactId>
-            <version>3.32.2</version>
-        </dependency>
-
         <!-- Testing -->
         <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-junit</artifactId>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -77,33 +56,5 @@
             <artifactId>assertj-core</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>io.rest-assured</groupId>
-            <artifactId>rest-assured</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.13.0</version>
-            </plugin>
-            <plugin>
-                <groupId>io.smallrye</groupId>
-                <artifactId>jandex-maven-plugin</artifactId>
-                <version>3.1.2</version>
-                <executions>
-                    <execution>
-                        <id>make-index</id>
-                        <goals>
-                            <goal>jandex</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-        </plugins>
-    </build>
 </project>

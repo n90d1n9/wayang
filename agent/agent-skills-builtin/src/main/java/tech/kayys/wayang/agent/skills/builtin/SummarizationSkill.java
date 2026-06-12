@@ -3,185 +3,104 @@ package tech.kayys.wayang.agent.skills.builtin;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.jboss.logging.Logger;
-import tech.kayys.wayang.agent.spi.*;
-import tech.kayys.gollek.engine.inference.InferenceService;
-import tech.kayys.wayang.agent.spi.Message;
-import tech.kayys.wayang.agent.spi.InferenceRequest;
+import tech.kayys.wayang.agent.spi.AgentSkill;
+import tech.kayys.wayang.agent.spi.InferenceBackend;
+import tech.kayys.wayang.agent.spi.skills.SkillCategory;
+import tech.kayys.wayang.agent.spi.skills.SkillDescriptor;
 
-import java.time.Duration;
-import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * Summarises long text using the Gollek inference engine.
- *
- * <h2>Inputs</h2>
- * <table border="1">
- * <tr>
- * <th>Key</th>
- * <th>Required</th>
- * <th>Description</th>
- * </tr>
- * <tr>
- * <td>text</td>
- * <td>yes*</td>
- * <td>Text to summarise</td>
- * </tr>
- * <tr>
- * <td>prompt</td>
- * <td>yes*</td>
- * <td>Alias for {@code text}</td>
- * </tr>
- * <tr>
- * <td>style</td>
- * <td>no</td>
- * <td>bullet | paragraph | executive (default: paragraph)</td>
- * </tr>
- * <tr>
- * <td>max_words</td>
- * <td>no</td>
- * <td>Target summary length in words (default: 150)</td>
- * </tr>
- * <tr>
- * <td>model</td>
- * <td>no</td>
- * <td>Override the default inference model</td>
- * </tr>
- * <tr>
- * <td>focus</td>
- * <td>no</td>
- * <td>Topic/aspect to emphasise in the summary</td>
- * </tr>
- * </table>
- *
- * <p>
- * *At least one of {@code text} or {@code prompt} must be supplied.
- * </p>
- *
- * <h2>Outputs</h2>
- * <ul>
- * <li>{@code summary} – the generated summary text</li>
- * <li>{@code word_count} – approximate word count of the summary</li>
- * <li>{@code model} – model used</li>
- * </ul>
- */
 @ApplicationScoped
-@SkillDescriptor(id = "summarization", name = "Summarization", description = "Condenses long text into concise summaries using the Gollek inference engine.", version = "1.0.0", category = SkillCategory.REASONING, inputs = {
-                @SkillDescriptor.Input(name = "text", description = "Text to summarise"),
-                @SkillDescriptor.Input(name = "prompt", required = false, description = "Alias for text"),
-                @SkillDescriptor.Input(name = "style", required = false, description = "bullet | paragraph | executive"),
-                @SkillDescriptor.Input(name = "max_words", type = "integer", required = false, description = "Target length in words"),
-                @SkillDescriptor.Input(name = "focus", required = false, description = "Topic to emphasize")
+@SkillDescriptor(id = "summarization", name = "Summarization", description = "Condenses long text into concise summaries using the configured inference backend.", version = "1.0.0", category = SkillCategory.REASONING, inputs = {
+        @SkillDescriptor.Input(name = "text", description = "Text to summarize"),
+        @SkillDescriptor.Input(name = "prompt", required = false, description = "Alias for text"),
+        @SkillDescriptor.Input(name = "style", required = false, description = "bullet | paragraph | executive"),
+        @SkillDescriptor.Input(name = "max_words", type = "integer", required = false, description = "Target length in words"),
+        @SkillDescriptor.Input(name = "focus", required = false, description = "Topic to emphasize")
 }, outputs = {
-                @SkillDescriptor.Output(name = "summary", description = "The condensed text"),
-                @SkillDescriptor.Output(name = "word_count", type = "integer", description = "Summary word count")
-}, triggers = { "summarize", "summarise", "tldr", "condense", "brief",
-                "shorten" }, aliases = { "summarize", "tldr", "condense" }, priority = 70)
+        @SkillDescriptor.Output(name = "summary", description = "The condensed text"),
+        @SkillDescriptor.Output(name = "word_count", type = "integer", description = "Summary word count")
+}, triggers = { "summarize", "summarise", "tldr", "condense", "brief", "shorten" }, aliases = { "summarize", "tldr", "condense" }, priority = 70)
 public class SummarizationSkill implements AgentSkill {
 
-        private static final Logger LOG = Logger.getLogger(SummarizationSkill.class);
+    @Inject
+    InferenceBackend inferenceBackend;
 
-        @Inject
-        InferenceService inferenceService;
+    @Override
+    public String id() {
+        return "summarization";
+    }
 
-        @Override
-        public String id() {
-                return "summarization";
+    @Override
+    public String name() {
+        return "Summarization";
+    }
+
+    @Override
+    public String description() {
+        return "Summarizes text using the configured inference backend.";
+    }
+
+    @Override
+    public String category() {
+        return SkillCategory.REASONING.name();
+    }
+
+    @Override
+    public boolean canHandle(Map<String, Object> inputs) {
+        return inputs != null && (inputs.containsKey("text") || inputs.containsKey("prompt"));
+    }
+
+    @Override
+    public Uni<Map<String, Object>> execute(Map<String, Object> context) {
+        Map<String, Object> inputs = context == null ? Map.of() : context;
+        String text = BuiltinSkillSupport.stringInput(inputs, "text",
+                BuiltinSkillSupport.stringInput(inputs, "prompt"));
+        if (text == null || text.isBlank()) {
+            return Uni.createFrom().item(BuiltinSkillSupport.failure("Input 'text' or 'prompt' is required"));
+        }
+        if (inferenceBackend == null) {
+            return Uni.createFrom().item(BuiltinSkillSupport.failure("Inference backend is not configured"));
         }
 
-        @Override
-        public String name() {
-                return "Summarization";
-        }
+        String style = BuiltinSkillSupport.stringInput(inputs, "style", "paragraph");
+        int maxWords = BuiltinSkillSupport.intInput(inputs, "max_words", 150);
+        String focus = BuiltinSkillSupport.stringInput(inputs, "focus");
+        String model = BuiltinSkillSupport.stringInput(inputs, "model");
+        long start = System.currentTimeMillis();
 
-        @Override
-        public String description() {
-                return "Summarises text using the Gollek inference engine.";
-        }
+        return inferenceBackend.infer(BuiltinSkillSupport.textRequest(
+                        "skill-summary-" + java.util.UUID.randomUUID(),
+                        model,
+                        buildSystemPrompt(style, maxWords, focus),
+                        text,
+                        Math.min(maxWords * 5, 1024),
+                        0.3,
+                        BuiltinSkillSupport.stringInput(inputs, "tenantId")))
+                .map(response -> {
+                    String summary = BuiltinSkillSupport.responseContent(response);
+                    int words = summary.isBlank() ? 0 : summary.split("\\s+").length;
+                    Map<String, Object> outputs = new LinkedHashMap<>();
+                    outputs.put("summary", summary);
+                    outputs.put("word_count", words);
+                    outputs.put("model", BuiltinSkillSupport.responseModel(response, model));
+                    outputs.put("durationMs", System.currentTimeMillis() - start);
+                    return BuiltinSkillSupport.success(summary, outputs);
+                })
+                .onFailure().recoverWithItem(BuiltinSkillSupport::error);
+    }
 
-        @Override
-        public String version() {
-                return "1.0.0";
-        }
-
-        @Override
-        public SkillCategory category() {
-                return SkillCategory.REASONING;
-        }
-
-        @Override
-        public boolean canHandle(Map<String, Object> inputs) {
-                return inputs.containsKey("text") || inputs.containsKey("prompt");
-        }
-
-        @Override
-        public Uni<SkillResult> execute(SkillContext ctx) {
-                Instant start = Instant.now();
-                String text = ctx.getStringInput("text",
-                                ctx.getStringInput("prompt", null));
-                if (text == null || text.isBlank()) {
-                        return Uni.createFrom().item(SkillResult.builder()
-                                        .skillId(id())
-                                        .invocationId(ctx.invocationId())
-                                        .status(SkillResult.Status.FAILURE)
-                                        .observation("Input 'text' or 'prompt' is required")
-                                        .build());
-                }
-
-                String style = ctx.getStringInput("style", "paragraph");
-                int maxWords = ctx.getIntInput("max_words", 150);
-                String model = ctx.getStringInput("model", "default");
-                String focus = ctx.getStringInput("focus", null);
-
-                String systemPrompt = buildSystemPrompt(style, maxWords, focus);
-
-                InferenceRequest ir = InferenceRequest.builder()
-                                .requestId(ctx.invocationId())
-                                .model(model)
-                                .message(Message.system(systemPrompt))
-                                .message(Message.user(text))
-                                .parameter("max_tokens", Math.min(maxWords * 5, 1024))
-                                .parameter("temperature", 0.3)
-                                .metadata("tenantId", ctx.tenantId())
-                                .build();
-
-                return inferenceService.inferAsync(ir).map(resp -> {
-                        String summary = resp.getContent();
-                        int words = summary.split("\\s+").length;
-                        long durationMs = Duration.between(start, Instant.now()).toMillis();
-
-                        return SkillResult.builder()
-                                        .skillId(id())
-                                        .invocationId(ctx.invocationId())
-                                        .status(SkillResult.Status.SUCCESS)
-                                        .observation(summary)
-                                        .output("summary", summary)
-                                        .output("word_count", words)
-                                        .output("model", resp.getModel() != null ? resp.getModel() : model)
-                                        .durationMs(durationMs)
-                                        .build();
-                }).onFailure().recoverWithItem(err -> SkillResult.builder()
-                                .skillId(id())
-                                .invocationId(ctx.invocationId())
-                                .status(SkillResult.Status.ERROR)
-                                .observation(err.getMessage())
-                                .error(err)
-                                .build());
-        }
-
-        private String buildSystemPrompt(String style, int maxWords, String focus) {
-                String baseInstruction = switch (style.toLowerCase()) {
-                        case "bullet" ->
-                                "Summarise the text as a concise bullet-point list. Start each point with '- '.";
-                        case "executive" ->
-                                "Produce an executive summary: one sentence of the key takeaway, followed by 2-3 key points.";
-                        default -> "Summarise the following text in a clear, concise paragraph.";
-                };
-                String wordLimit = " Target approximately " + maxWords + " words.";
-                String focusHint = (focus != null && !focus.isBlank())
-                                ? " Emphasise aspects related to: " + focus + "."
-                                : "";
-                return baseInstruction + wordLimit + focusHint + " Do not include preamble like 'Here is a summary:'";
-        }
+    private String buildSystemPrompt(String style, int maxWords, String focus) {
+        String baseInstruction = switch (style.toLowerCase(java.util.Locale.ROOT)) {
+            case "bullet" -> "Summarize the text as a concise bullet-point list. Start each point with '- '.";
+            case "executive" -> "Produce an executive summary with one key takeaway and 2-3 key points.";
+            default -> "Summarize the following text in a clear, concise paragraph.";
+        };
+        String focusHint = focus != null && !focus.isBlank()
+                ? " Emphasize aspects related to: " + focus + "."
+                : "";
+        return baseInstruction + " Target approximately " + maxWords + " words." + focusHint
+                + " Do not include preamble like 'Here is a summary:'.";
+    }
 }

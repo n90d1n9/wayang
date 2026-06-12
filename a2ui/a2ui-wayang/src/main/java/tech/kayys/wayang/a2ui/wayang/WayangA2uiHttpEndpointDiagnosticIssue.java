@@ -1,5 +1,12 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpEndpointDiagnosticProjection;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+import tech.kayys.wayang.a2ui.wayang.support.RecordNumbers;
+
 import java.util.Map;
 import java.util.Optional;
 
@@ -23,22 +30,20 @@ public record WayangA2uiHttpEndpointDiagnosticIssue(
         Map<String, Object> attributes) {
 
     public WayangA2uiHttpEndpointDiagnosticIssue {
-        diagnosticsId = diagnosticsId == null || diagnosticsId.isBlank()
-                ? WayangA2uiHttpEndpointDiagnostics.DEFAULT_ID
-                : diagnosticsId.trim();
-        exchangeIndex = Math.max(1, exchangeIndex);
+        diagnosticsId = RecordValues.textOrDefault(
+                diagnosticsId,
+                WayangA2uiHttpEndpointDiagnostics.DEFAULT_ID);
+        exchangeIndex = RecordNumbers.oneBased(exchangeIndex);
         method = WayangA2uiHttpRequest.normalizeMethod(method);
         path = WayangA2uiHttpRequest.normalizePath(path);
-        statusCode = Math.max(0, statusCode);
-        routeOperation = routeOperation == null ? "" : routeOperation.trim();
-        allow = allow == null ? "" : allow.trim();
-        outcome = outcome == null ? "" : outcome.trim();
+        statusCode = RecordNumbers.nonNegative(statusCode);
+        routeOperation = RecordValues.text(routeOperation);
+        allow = RecordValues.text(allow);
+        outcome = RecordValues.text(outcome);
         category = WayangA2uiHttpEndpointDiagnosticIssueCatalog.normalizeCategory(category);
         errorCode = WayangA2uiHttpEndpointDiagnosticIssueCatalog.normalizeErrorCode(errorCode);
-        message = message == null || message.isBlank()
-                ? defaultMessage(method, path, statusCode)
-                : message.trim();
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        message = RecordValues.textOrDefault(message, defaultMessage(method, path, statusCode));
+        attributes = TransportMaps.copy(attributes);
     }
 
     public static Optional<WayangA2uiHttpEndpointDiagnosticIssue> from(
@@ -72,11 +77,11 @@ public record WayangA2uiHttpEndpointDiagnosticIssue(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpEndpointDiagnosticProjection.issue(this);
+        return HttpEndpointDiagnosticProjection.issue(this);
     }
 
     public String toJson() {
-        return WayangA2uiTransportJson.json(toMap(), "Unable to encode A2UI HTTP endpoint diagnostic issue");
+        return TransportJson.json(toMap(), "Unable to encode A2UI HTTP endpoint diagnostic issue");
     }
 
     private static String category(
@@ -116,6 +121,6 @@ public record WayangA2uiHttpEndpointDiagnosticIssue(
         return "Endpoint diagnostics issue for "
                 + WayangA2uiHttpRequest.normalizeMethod(method) + " "
                 + WayangA2uiHttpRequest.normalizePath(path) + " with status "
-                + Math.max(0, statusCode) + ".";
+                + RecordNumbers.nonNegative(statusCode) + ".";
     }
 }

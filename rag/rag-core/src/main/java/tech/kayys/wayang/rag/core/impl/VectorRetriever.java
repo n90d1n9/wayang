@@ -6,6 +6,7 @@ import tech.kayys.wayang.embedding.EmbeddingRequest;
 import tech.kayys.wayang.embedding.EmbeddingResponse;
 import tech.kayys.wayang.embedding.EmbeddingService;
 import tech.kayys.wayang.rag.core.RagChunk;
+import tech.kayys.wayang.rag.core.RagMetadataKeys;
 import tech.kayys.wayang.rag.core.RagQuery;
 import tech.kayys.wayang.rag.core.RagScoredChunk;
 import tech.kayys.wayang.rag.core.spi.Retriever;
@@ -53,10 +54,11 @@ public class VectorRetriever implements Retriever {
         if (query.filters() != null) {
             strictFilters.putAll(query.filters());
         }
-        strictFilters.put("tenantId", namespace);
-        strictFilters.put("embeddingModel", embeddingModel);
-        strictFilters.put("embeddingDimension", response.dimension());
-        strictFilters.put("embeddingVersion", response.version());
+        strictFilters.putAll(RagMetadataKeys.embeddingScope(
+                namespace,
+                embeddingModel,
+                response.dimension(),
+                response.version()));
 
         List<VectorSearchHit<RagChunk>> hits = vectorStore.search(
                 namespace,

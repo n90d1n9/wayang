@@ -14,6 +14,7 @@ import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * State persistence and recovery manager for agent checkpoint/resume functionality.
@@ -101,11 +102,18 @@ public class AgentCheckpointManager {
 
         // Save to file system
         return Uni.createFrom().voidItem()
-            .invoke(() -> saveToFile(checkpoint))
+            .invoke(() -> {
+                try {
+                    saveToFile(checkpoint);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            })
             .invoke(() -> cleanupOldCheckpoints(runId))
-            .onFailure().recoverWithVoid(err -> {
+            .onFailure().recoverWithItem(err -> {
                 LOG.errorf(err, "Failed to save checkpoint to file system");
                 // Memory cache still has the checkpoint
+                return null;
             });
     }
 
@@ -126,7 +134,13 @@ public class AgentCheckpointManager {
         }
 
         // Try file system
-        return Uni.createFrom().item(() -> loadFromFile(checkpointId))
+        return Uni.createFrom().item(() -> {
+                try {
+                    return loadFromFile(checkpointId);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            })
             .onItem().transformToUni(checkpoint -> {
                 if (checkpoint != null) {
                     // Cache for future access
@@ -187,10 +201,15 @@ public class AgentCheckpointManager {
         return Uni.createFrom().voidItem()
             .invoke(() -> {
                 Path file = checkpointDir.resolve(checkpointId + ".json");
-                Files.deleteIfExists(file);
+                try {
+                    Files.deleteIfExists(file);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
             })
-            .onFailure().recoverWithVoid(err -> {
+            .onFailure().recoverWithItem(err -> {
                 LOG.warnf("Failed to delete checkpoint file: %s", err.getMessage());
+                return null;
             });
     }
 
@@ -250,12 +269,12 @@ public class AgentCheckpointManager {
         LOG.info("Cleaning up expired checkpoints");
         
         Instant cutoff = Instant.now().minusSeconds(CHECKPOINT_TTL_HOURS * 3600);
-        int deleted = 0;
+        AtomicInteger deleted = new AtomicInteger();
 
         for (Map.Entry<String, CheckpointData> entry : memoryCache.entrySet()) {
             if (entry.getValue().createdAt().isBefore(cutoff)) {
                 memoryCache.remove(entry.getKey());
-                deleted++;
+                deleted.incrementAndGet();
             }
         }
 
@@ -270,7 +289,7 @@ public class AgentCheckpointManager {
             }).forEach(path -> {
                 try {
                     Files.delete(path);
-                    deleted++;
+                    deleted.incrementAndGet();
                 } catch (IOException e) {
                     LOG.warnf("Failed to delete expired checkpoint: %s", path);
                 }
@@ -279,7 +298,7 @@ public class AgentCheckpointManager {
             LOG.warnf("Failed to cleanup expired checkpoints: %s", e.getMessage());
         }
 
-        LOG.infof("Cleaned up %d expired checkpoints", deleted);
+        LOG.infof("Cleaned up %d expired checkpoints", deleted.get());
     }
 
     // ═══════════════════════════════════════════════════════════════════════

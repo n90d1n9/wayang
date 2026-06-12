@@ -1,5 +1,10 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.projection.SpecAlignmentProjection;
+import tech.kayys.wayang.a2ui.wayang.support.DecodeValues;
+
 import tech.kayys.wayang.a2ui.core.A2uiBeginRendering;
 import tech.kayys.wayang.a2ui.core.A2uiClientError;
 import tech.kayys.wayang.a2ui.core.A2uiDataModelUpdate;
@@ -10,7 +15,6 @@ import tech.kayys.wayang.a2ui.core.A2uiSurfaceUpdate;
 import tech.kayys.wayang.a2ui.core.A2uiUserAction;
 
 import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,8 +46,12 @@ public record WayangA2uiSpecAlignmentReport(
                         .toList();
     }
 
-    public static WayangA2uiSpecAlignmentReport defaults() {
+    public static WayangA2uiSpecAlignmentReport defaultReport() {
         return from(WayangA2uiHttpRouteCatalog.defaultCatalog());
+    }
+
+    public static WayangA2uiSpecAlignmentReport defaults() {
+        return defaultReport();
     }
 
     public static WayangA2uiSpecAlignmentReport from(WayangA2uiHttpRouteCatalog routeCatalog) {
@@ -103,11 +111,11 @@ public record WayangA2uiSpecAlignmentReport(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiSpecAlignmentProjection.report(this);
+        return SpecAlignmentProjection.report(this);
     }
 
     static Map<String, Object> standardDescriptor() {
-        return WayangA2uiSpecAlignmentProjection.standardDescriptor();
+        return SpecAlignmentProjection.standardDescriptor();
     }
 
     private static WayangA2uiSpecAlignmentRequirement protocolMetadataRequirement() {
@@ -192,8 +200,8 @@ public record WayangA2uiSpecAlignmentReport(
                 "kind", "data",
                 "mimeType", A2uiProtocol.MIME_TYPE);
         Map<String, Object> actual = Map.of(
-                "kind", WayangA2uiDecodeValues.text(dataPart.get("kind")),
-                "mimeType", WayangA2uiDecodeValues.text(metadata.get("mimeType")));
+                "kind", DecodeValues.text(dataPart.get("kind")),
+                "mimeType", DecodeValues.text(metadata.get("mimeType")));
         return requirement(
                 "transport.data_part",
                 "transport",
@@ -213,7 +221,7 @@ public record WayangA2uiSpecAlignmentReport(
                         routeRequirementId(expectedRoute.operation()),
                         "route",
                         "A2UI HTTP route " + expectedRoute.operation(),
-                        WayangA2uiSpecAlignmentProjection.routeExpectation(expectedRoute),
+                        SpecAlignmentProjection.routeExpectation(expectedRoute),
                         Map.of("present", false),
                         "A2UI HTTP route is missing from the local route catalog."));
     }
@@ -221,10 +229,10 @@ public record WayangA2uiSpecAlignmentReport(
     private static WayangA2uiSpecAlignmentRequirement routeRequirement(
             WayangA2uiHttpRoute expectedRoute,
             WayangA2uiHttpRoute actualRoute) {
-        Map<String, Object> expected = WayangA2uiSpecAlignmentProjection.routeExpectation(expectedRoute);
-        Map<String, Object> actual = WayangA2uiSpecAlignmentProjection.routeActual(expectedRoute, actualRoute);
+        Map<String, Object> expected = SpecAlignmentProjection.routeExpectation(expectedRoute);
+        Map<String, Object> actual = SpecAlignmentProjection.routeActual(expectedRoute, actualRoute);
         boolean aligned = expectedRoute.method().equals(actualRoute.method())
-                && WayangA2uiSpecAlignmentProjection.pathSuffixMatches(expectedRoute.path(), actualRoute.path())
+                && SpecAlignmentProjection.pathSuffixMatches(expectedRoute.path(), actualRoute.path())
                 && expectedRoute.requestContentType().equals(actualRoute.requestContentType())
                 && expectedRoute.responseContentType().equals(actualRoute.responseContentType())
                 && expectedRoute.requestBodyRequired() == actualRoute.requestBodyRequired()
@@ -283,32 +291,6 @@ public record WayangA2uiSpecAlignmentReport(
     }
 
     private static Map<String, Object> map(Object value) {
-        return value instanceof Map<?, ?> map ? copy(map) : Map.of();
-    }
-
-    private static Map<String, Object> copy(Map<?, ?> values) {
-        if (values == null || values.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, Object> copy = new LinkedHashMap<>();
-        values.forEach((key, value) -> {
-            if (key != null && value != null) {
-                copy.put(String.valueOf(key), copyValue(value));
-            }
-        });
-        return WayangA2uiTransportMaps.freeze(copy);
-    }
-
-    private static Object copyValue(Object value) {
-        if (value instanceof Map<?, ?> map) {
-            return copy(map);
-        }
-        if (value instanceof List<?> list) {
-            return list.stream()
-                    .filter(Objects::nonNull)
-                    .map(WayangA2uiSpecAlignmentReport::copyValue)
-                    .toList();
-        }
-        return value;
+        return TransportMaps.copyMap(value);
     }
 }

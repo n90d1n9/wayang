@@ -60,10 +60,10 @@ public class GollekInferenceService {
     GollekAgentClient agentClient;  // Enhanced: Use GollekAgentClient instead of GollekSdk
 
     @Inject
-    tech.kayys.wayang.agent.core.memory.AgentMemoryManager memoryService;
+    tech.kayys.wayang.agent.spi.memory.AgentMemoryManager memoryService;
 
     @Inject
-    tech.kayys.wayang.agent.core.tool.ToolRegistry toolRegistry;
+    tech.kayys.wayang.agent.core.tools.ToolRegistry toolRegistry;
 
     // ==================== Synchronous Inference ====================
 
@@ -145,7 +145,8 @@ public class GollekInferenceService {
                 // Build and execute inference request
                 InferenceRequest gollekRequest = buildGollekRequestFromMessages(
                         request, messages, tools);
-                lastResponse = gollekClient.createCompletion(gollekRequest);
+                lastResponse = agentClient.infer(gollekRequest)
+                        .await().atMost(Duration.ofSeconds(30));
 
                 totalInputTokens += lastResponse.getInputTokens();
                 totalOutputTokens += lastResponse.getOutputTokens();
@@ -239,7 +240,7 @@ public class GollekInferenceService {
 
             return response;
 
-        } catch (SdkException e) {
+        } catch (Exception e) {
             log.error("ReAct loop failed: {}", e.getMessage(), e);
             return AgentInferenceResponse.builder()
                     .error(e.getMessage())
@@ -395,9 +396,8 @@ public class GollekInferenceService {
     public List<String> listAvailableProviders() {
         try {
             // Enhanced: Use GollekAgentClient's provider registry
-            return agentClient.getAvailableProviders().stream()
-                    .map(provider -> provider.id())
-                    .toList();
+            return agentClient.getAvailableProviders()
+                    .await().atMost(Duration.ofSeconds(10));
         } catch (Exception e) {
             log.error("Failed to list providers: {}", e.getMessage(), e);
             return List.of();
@@ -422,7 +422,7 @@ public class GollekInferenceService {
     /**
      * List all available models.
      */
-    public List<tech.kayys.gollek.sdk.model.ModelInfo> listModels() {
+    public List<tech.kayys.gollek.spi.model.ModelInfo> listModels() {
         try {
             return agentClient.listModels();
         } catch (Exception e) {

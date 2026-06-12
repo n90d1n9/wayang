@@ -1,8 +1,11 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+import tech.kayys.wayang.a2ui.wayang.support.RecordMaps;
+import tech.kayys.wayang.a2ui.wayang.support.RecordCollections;
+
 import tech.kayys.wayang.a2ui.core.A2uiServerMessage;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -18,11 +21,11 @@ public record WayangA2uiActionResult(
         Map<String, Object> metadata) {
 
     public WayangA2uiActionResult {
-        actionName = normalize(actionName);
-        runId = normalize(runId);
-        message = normalize(message);
-        responseMessages = responseMessages == null ? List.of() : List.copyOf(responseMessages);
-        metadata = copy(metadata);
+        actionName = RecordValues.text(actionName);
+        runId = RecordValues.text(runId);
+        message = RecordValues.text(message);
+        responseMessages = RecordCollections.copyList(responseMessages);
+        metadata = RecordMaps.nullableValues(metadata);
     }
 
     public static WayangA2uiActionResult handled(
@@ -36,22 +39,5 @@ public record WayangA2uiActionResult(
 
     public static WayangA2uiActionResult rejected(String actionName, String runId, String message) {
         return new WayangA2uiActionResult(actionName, runId, false, message, List.of(), Map.of());
-    }
-
-    private static Map<String, Object> copy(Map<String, Object> values) {
-        if (values == null || values.isEmpty()) {
-            return Map.of();
-        }
-        Map<String, Object> copy = new LinkedHashMap<>();
-        values.forEach((key, value) -> {
-            if (key != null) {
-                copy.put(key, value);
-            }
-        });
-        return WayangA2uiTransportMaps.freeze(copy);
-    }
-
-    private static String normalize(String value) {
-        return value == null ? "" : value.trim();
     }
 }

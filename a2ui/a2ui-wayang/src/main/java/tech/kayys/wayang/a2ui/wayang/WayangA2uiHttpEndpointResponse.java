@@ -1,6 +1,9 @@
 package tech.kayys.wayang.a2ui.wayang;
 
-import java.lang.reflect.Array;
+import tech.kayys.wayang.a2ui.wayang.http.HttpEndpointProjection;
+import tech.kayys.wayang.a2ui.wayang.http.HttpHeaderValues;
+import tech.kayys.wayang.a2ui.wayang.support.DecodeValues;
+
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -20,8 +23,8 @@ public record WayangA2uiHttpEndpointResponse(
 
     public WayangA2uiHttpEndpointResponse {
         statusCode = statusCode <= 0 ? 200 : statusCode;
-        contentType = WayangA2uiDecodeValues.text(contentType, WayangA2uiTransportContent.MIME_JSON);
-        body = WayangA2uiDecodeValues.rawText(body);
+        contentType = DecodeValues.text(contentType, WayangA2uiTransportContent.MIME_JSON);
+        body = DecodeValues.rawText(body);
         headers = normalizeHeaders(headers, contentType);
     }
 
@@ -55,7 +58,7 @@ public record WayangA2uiHttpEndpointResponse(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpEndpointProjection.response(this);
+        return HttpEndpointProjection.response(this);
     }
 
     private static Map<String, List<String>> normalizeHeaders(Map<?, ?> values, String contentType) {
@@ -63,7 +66,7 @@ public record WayangA2uiHttpEndpointResponse(
         if (values != null) {
             values.forEach((name, value) -> {
                 if (name != null) {
-                    List<String> headerValues = headerValues(value);
+                    List<String> headerValues = HttpHeaderValues.values(value);
                     if (!headerValues.isEmpty()) {
                         headers.put(String.valueOf(name), headerValues);
                     }
@@ -76,41 +79,6 @@ public record WayangA2uiHttpEndpointResponse(
         return Collections.unmodifiableMap(new LinkedHashMap<>(headers));
     }
 
-    private static List<String> headerValues(Object value) {
-        if (value == null) {
-            return List.of();
-        }
-        if (value instanceof Optional<?> optional) {
-            return optional.map(WayangA2uiHttpEndpointResponse::headerValues).orElse(List.of());
-        }
-        if (value instanceof Iterable<?> values) {
-            return iterableValues(values);
-        }
-        Class<?> type = value.getClass();
-        if (type.isArray()) {
-            return arrayValues(value);
-        }
-        String normalized = WayangA2uiDecodeValues.text(value);
-        return normalized.isBlank() ? List.of() : List.of(normalized);
-    }
-
-    private static List<String> iterableValues(Iterable<?> values) {
-        java.util.ArrayList<String> normalized = new java.util.ArrayList<>();
-        for (Object value : values) {
-            normalized.addAll(headerValues(value));
-        }
-        return List.copyOf(normalized);
-    }
-
-    private static List<String> arrayValues(Object values) {
-        java.util.ArrayList<String> normalized = new java.util.ArrayList<>();
-        int length = Array.getLength(values);
-        for (int i = 0; i < length; i++) {
-            normalized.addAll(headerValues(Array.get(values, i)));
-        }
-        return List.copyOf(normalized);
-    }
-
     private static boolean containsHeader(Map<String, ?> headers, String name) {
         String normalized = normalizeHeaderName(name);
         return headers.keySet().stream()
@@ -119,6 +87,6 @@ public record WayangA2uiHttpEndpointResponse(
     }
 
     private static String normalizeHeaderName(String value) {
-        return WayangA2uiDecodeValues.text(value).toLowerCase(Locale.ROOT);
+        return DecodeValues.text(value).toLowerCase(Locale.ROOT);
     }
 }

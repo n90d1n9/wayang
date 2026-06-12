@@ -42,8 +42,8 @@ public class RetrievalConfig {
         this.numQueryVariations = numQueryVariations;
         this.enableMmr = enableMmr;
         this.mmrLambda = mmrLambda;
-        this.metadataFilters = metadataFilters != null ? metadataFilters : Map.of();
-        this.excludedFields = excludedFields != null ? excludedFields : List.of();
+        this.metadataFilters = RagMetadata.copy(metadataFilters);
+        this.excludedFields = RagCollections.copyList(excludedFields);
         this.enableGrouping = enableGrouping;
         this.enableDeduplication = enableDeduplication;
     }

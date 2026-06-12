@@ -1,0 +1,357 @@
+{
+  "bindingReportPassed": false,
+  "routeCatalogPassed": true,
+  "bindingReportProbe": {
+    "endpointPath": "",
+    "specComplianceReportEnabled": false,
+    "routeCatalogPath": "",
+    "contentType": "application/json",
+    "smokeEnabled": false,
+    "routeCatalogEnabled": false,
+    "specComplianceReportPath": "",
+    "allow": "",
+    "headers": {
+      "X-Wayang-A2A-Protocol-Version": "1.0",
+      "Content-Type": "application/json",
+      "X-Wayang-A2A-Route-Operation": "JsonRpc",
+      "A2A-Version": "1.0"
+    },
+    "diagnosticsReportPath": "",
+    "httpSuccessful": false,
+    "statusCode": 404,
+    "issues": [
+      {
+        "expected": "true",
+        "source": "http",
+        "code": "http_unsuccessful",
+        "message": "A2A JSON-RPC binding report response was not HTTP-successful.",
+        "actual": "false",
+        "field": "httpSuccessful"
+      },
+      {
+        "expected": "JsonRpcBindingReport",
+        "source": "bindingReport",
+        "code": "binding_report_route_mismatch",
+        "message": "A2A JSON-RPC binding report response used an unexpected route operation.",
+        "actual": "JsonRpc",
+        "field": "routeOperation"
+      },
+      {
+        "expected": "> 0",
+        "source": "bindingReport",
+        "code": "method_count_missing",
+        "message": "A2A JSON-RPC binding report did not expose any methods.",
+        "actual": "0",
+        "field": "methodCount"
+      },
+      {
+        "expected": "non-blank",
+        "source": "bindingReport",
+        "code": "endpoint_path_missing",
+        "message": "A2A JSON-RPC binding report did not expose an endpoint path.",
+        "actual": "",
+        "field": "endpointPath"
+      },
+      {
+        "expected": "non-blank",
+        "source": "bindingReport",
+        "code": "smoke_path_missing",
+        "message": "A2A JSON-RPC binding report did not expose a smoke path.",
+        "actual": "",
+        "field": "smokePath"
+      },
+      {
+        "expected": "non-blank",
+        "source": "bindingReport",
+        "code": "binding_report_path_missing",
+        "message": "A2A JSON-RPC binding report did not expose a binding report path.",
+        "actual": "",
+        "field": "bindingReportPath"
+      },
+      {
+        "expected": "non-blank",
+        "source": "bindingReport",
+        "code": "route_catalog_path_missing",
+        "message": "A2A JSON-RPC binding report did not expose a route catalog path.",
+        "actual": "",
+        "field": "routeCatalogPath"
+      },
+      {
+        "expected": "non-blank",
+        "source": "bindingReport",
+        "code": "diagnostics_report_path_missing",
+        "message": "A2A JSON-RPC binding report did not expose a diagnostics report path.",
+        "actual": "",
+        "field": "diagnosticsReportPath"
+      },
+      {
+        "expected": "non-blank",
+        "source": "bindingReport",
+        "code": "spec_compliance_report_path_missing",
+        "message": "A2A JSON-RPC binding report did not expose a spec compliance report path.",
+        "actual": "",
+        "field": "specComplianceReportPath"
+      },
+      {
+        "expected": "non-blank",
+        "source": "bindingReport",
+        "code": "readiness_path_missing",
+        "message": "A2A JSON-RPC binding report did not expose a readiness path.",
+        "actual": "",
+        "field": "readinessPath"
+      },
+      {
+        "expected": "non-blank",
+        "source": "bindingReport",
+        "code": "readiness_issue_summary_path_missing",
+        "message": "A2A JSON-RPC binding report did not expose a readiness issue summary path.",
+        "actual": "",
+        "field": "readinessIssueSummaryPath"
+      },
+      {
+        "expected": "true",
+        "source": "bindingReport",
+        "code": "diagnostic_handler_coverage_incomplete",
+        "message": "A2A JSON-RPC binding report diagnostic handler coverage was incomplete.",
+        "actual": "missing=[], orphan=[]",
+        "field": "diagnosticHandlers.complete"
+      }
+    ],
+    "complete": false,
+    "readinessEnabled": false,
+    "issueCount": 12,
+    "smokePath": "",
+    "streamingMethods": [],
+    "passed": false,
+    "jsonContent": true,
+    "bindingReportRoute": false,
+    "readinessPath": "",
+    "methodCount": 0,
+    "streamingMethodCount": 0,
+    "readinessIssueSummaryEnabled": false,
+    "bindingReportEnabled": false,
+    "diagnosticHandlersComplete": false,
+    "diagnosticRouteKeyCount": 0,
+    "diagnosticHandlerKeyCount": 0,
+    "diagnosticRouteKeys": [],
+    "diagnosticHandlerKeys": [],
+    "missingDiagnosticHandlerKeys": [],
+    "orphanDiagnosticHandlerKeys": [],
+    "body": {
+      "error": {
+        "message": "No A2A JSON-RPC path matches /a2a/jsonrpc/binding-report.",
+        "code": "jsonrpc_path_not_found"
+      }
+    },
+    "diagnosticsReportEnabled": false,
+    "protocolVersion": "1.0",
+    "bindingReportPath": "",
+    "routeOperation": "JsonRpc",
+    "readinessIssueSummaryPath": ""
+  },
+  "routeCatalogProbe": {
+    "httpSuccessful": true,
+    "jsonContent": true,
+    "routeCatalogDescriptor": true,
+    "readinessDescriptor": true,
+    "issues": [],
+    "allow": "GET, OPTIONS",
+    "bindingReportDescriptor": true,
+    "enabledRouteCount": 7,
+    "endpointDescriptor": true,
+    "contentType": "application/json",
+    "passed": true,
+    "statusCode": 200,
+    "smokeDescriptor": true,
+    "routeCatalogRoute": true,
+    "headers": {
+      "X-Wayang-A2A-Protocol-Version": "1.0",
+      "Content-Type": "application/json",
+      "X-Wayang-A2A-Route-Operation": "JsonRpcRouteCatalog",
+      "Allow": "GET, OPTIONS",
+      "A2A-Version": "1.0"
+    },
+    "issueCount": 0,
+    "body": {
+      "enabledRouteCount": 7,
+      "routeCount": 8,
+      "routes": [
+        {
+          "requestMediaType": "application/json",
+          "httpMethod": "POST",
+          "operation": "JsonRpc",
+          "allowedMethods": [
+            "POST",
+            "OPTIONS"
+          ],
+          "allow": "POST, OPTIONS",
+          "responseMediaTypes": [
+            "application/json",
+            "text/event-stream"
+          ],
+          "requestBodyRequired": true,
+          "path": "/",
+          "enabled": true
+        },
+        {
+          "requestMediaType": "",
+          "httpMethod": "GET",
+          "operation": "JsonRpcSmoke",
+          "allowedMethods": [
+            "GET",
+            "OPTIONS"
+          ],
+          "allow": "GET, OPTIONS",
+          "responseMediaTypes": [
+            "application/json"
+          ],
+          "requestBodyRequired": false,
+          "path": "/a2a/jsonrpc/smoke",
+          "enabled": true
+        },
+        {
+          "requestMediaType": "",
+          "httpMethod": "GET",
+          "operation": "JsonRpcRouteCatalog",
+          "allowedMethods": [
+            "GET",
+            "OPTIONS"
+          ],
+          "allow": "GET, OPTIONS",
+          "responseMediaTypes": [
+            "application/json"
+          ],
+          "requestBodyRequired": false,
+          "path": "/a2a/jsonrpc/route-catalog",
+          "enabled": true
+        },
+        {
+          "requestMediaType": "",
+          "httpMethod": "GET",
+          "operation": "JsonRpcDiagnostics",
+          "allowedMethods": [
+            "GET",
+            "OPTIONS"
+          ],
+          "allow": "GET, OPTIONS",
+          "responseMediaTypes": [
+            "application/json"
+          ],
+          "requestBodyRequired": false,
+          "path": "/a2a/jsonrpc/diagnostics",
+          "enabled": true
+        },
+        {
+          "requestMediaType": "",
+          "httpMethod": "GET",
+          "operation": "JsonRpcSpecCompliance",
+          "allowedMethods": [
+            "GET",
+            "OPTIONS"
+          ],
+          "allow": "GET, OPTIONS",
+          "responseMediaTypes": [
+            "application/json"
+          ],
+          "requestBodyRequired": false,
+          "path": "/a2a/jsonrpc/spec-compliance",
+          "enabled": true
+        },
+        {
+          "requestMediaType": "",
+          "httpMethod": "GET",
+          "operation": "JsonRpcBindingReport",
+          "allowedMethods": [
+            "GET",
+            "OPTIONS"
+          ],
+          "allow": "GET, OPTIONS",
+          "responseMediaTypes": [
+            "application/json"
+          ],
+          "requestBodyRequired": false,
+          "path": "/a2a/jsonrpc/binding-report",
+          "enabled": false
+        },
+        {
+          "requestMediaType": "",
+          "httpMethod": "GET",
+          "operation": "JsonRpcReadiness",
+          "allowedMethods": [
+            "GET",
+            "OPTIONS"
+          ],
+          "allow": "GET, OPTIONS",
+          "responseMediaTypes": [
+            "application/json"
+          ],
+          "requestBodyRequired": false,
+          "path": "/a2a/jsonrpc/readiness",
+          "enabled": true
+        },
+        {
+          "requestMediaType": "",
+          "httpMethod": "GET",
+          "operation": "JsonRpcReadinessIssueSummary",
+          "allowedMethods": [
+            "GET",
+            "OPTIONS"
+          ],
+          "allow": "GET, OPTIONS",
+          "responseMediaTypes": [
+            "application/json"
+          ],
+          "requestBodyRequired": false,
+          "path": "/a2a/jsonrpc/readiness/issues",
+          "enabled": true
+        }
+      ],
+      "binding": "JSONRPC",
+      "protocolVersion": "1.0"
+    },
+    "protocolVersion": "1.0",
+    "diagnosticsReportDescriptor": true,
+    "routeOperation": "JsonRpcRouteCatalog",
+    "specComplianceReportDescriptor": true,
+    "complete": true,
+    "readinessIssueSummaryDescriptor": true,
+    "routeCount": 8
+  },
+  "passed": false,
+  "smokePassed": true,
+  "smokeRequired": false,
+  "exitCode": 1,
+  "routeCatalogRequired": true,
+  "issueCount": 1,
+  "smokeProbe": {
+    "smokeRoute": false,
+    "routeOperation": "",
+    "passed": false,
+    "protocolVersion": "",
+    "contentType": "",
+    "summary": {
+      "issueCount": 0,
+      "passed": false,
+      "exitCode": 1,
+      "issues": [],
+      "exchangeCount": 0,
+      "attributes": {},
+      "successfulExit": false,
+      "smokeResult": false,
+      "scenarioId": "",
+      "body": {}
+    },
+    "statusCode": 0,
+    "headers": {},
+    "httpSuccessful": false,
+    "exitCode": 1
+  },
+  "issues": [
+    {
+      "statusCode": 404,
+      "message": "A2A JSON-RPC binding report probe did not pass.",
+      "routeOperation": "JsonRpc",
+      "code": "binding_report_probe_failed"
+    }
+  ]
+}

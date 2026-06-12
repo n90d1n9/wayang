@@ -1,5 +1,8 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpEndpointDiagnosticProjection;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+
 import java.util.Map;
 import java.util.Objects;
 
@@ -42,10 +45,10 @@ public record WayangA2uiHttpEndpointDiagnosticRun(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpEndpointDiagnosticProjection.run(this);
+        return HttpEndpointDiagnosticProjection.run(this);
     }
 
     public String toJson() {
-        return WayangA2uiTransportJson.json(toMap(), "Unable to encode A2UI HTTP endpoint diagnostic run");
+        return TransportJson.json(toMap(), "Unable to encode A2UI HTTP endpoint diagnostic run");
     }
 }

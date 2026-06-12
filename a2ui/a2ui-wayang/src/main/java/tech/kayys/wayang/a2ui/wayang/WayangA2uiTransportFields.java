@@ -29,6 +29,8 @@ public final class WayangA2uiTransportFields {
     public static final String DATA_PART_COUNT = "dataPartCount";
     public static final String SURFACE_KIND_COUNT = "surfaceKindCount";
     public static final String DESCRIPTOR_COUNT = "descriptorCount";
+    public static final String POLICY_ACTION_COUNT = "policyActionCount";
+    public static final String HANDLER_ACTION_COUNT = "handlerActionCount";
     public static final String ROUTE_COUNT = "routeCount";
     public static final String COMPLETE = "complete";
     public static final String ROUTE_OPERATION_COUNT = "routeOperationCount";
@@ -43,6 +45,7 @@ public final class WayangA2uiTransportFields {
 
     public static final String RESPONSE_KIND_SESSION_RESULT = "a2ui-session-result";
     public static final String RESPONSE_KIND_SURFACE_CATALOG = "surface-catalog";
+    public static final String RESPONSE_KIND_ACTION_BINDING_REPORT = "action-binding-report";
     public static final String RESPONSE_KIND_HTTP_ROUTE_CATALOG = "http-route-catalog";
     public static final String RESPONSE_KIND_HTTP_BINDING_REPORT = "http-binding-report";
     public static final String RESPONSE_KIND_HTTP_SMOKE_RESULT = "http-smoke-result";

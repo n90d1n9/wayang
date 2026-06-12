@@ -30,40 +30,35 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- Core agent functionality (will depend on agent-core once complete) -->
-        <!-- <dependency>
-            <groupId>tech.kayys.wayang</groupId>
-            <artifactId>agent-core</artifactId>
-            <version>${project.version}</version>
-        </dependency> -->
-
-        <!-- Inference -->
-        <dependency>
-            <groupId>tech.kayys.wayang</groupId>
-            <artifactId>gollek-sdk</artifactId>
-            <version>0.1.0</version>
-      <scope>provided</scope>
-        </dependency>
-
-        <!-- Embedding -->
+        <!-- Embedding service used by the embedding and RAG skills -->
         <dependency>
             <groupId>tech.kayys.wayang</groupId>
             <artifactId>wayang-embedding-core</artifactId>
             <version>${project.version}</version>
         </dependency>
 
-        <!-- Memory for RAG -->
+        <!-- CDI/config/runtime support -->
         <dependency>
-            <groupId>tech.kayys.wayang</groupId>
-            <artifactId>wayang-memory-core</artifactId>
-            <version>${project.version}</version>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-arc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-vertx</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.smallrye.reactive</groupId>
+            <artifactId>smallrye-mutiny-vertx-web-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.smallrye.reactive</groupId>
+            <artifactId>mutiny</artifactId>
         </dependency>
 
         <!-- Logging -->
         <dependency>
             <groupId>org.jboss.logging</groupId>
             <artifactId>jboss-logging</artifactId>
-            <version>3.5.3.Final</version>
         </dependency>
 
         <!-- Testing -->

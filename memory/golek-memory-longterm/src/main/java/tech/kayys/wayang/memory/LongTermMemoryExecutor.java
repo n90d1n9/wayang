@@ -16,9 +16,7 @@ import tech.kayys.gamelan.sdk.executor.core.Executor;
 import tech.kayys.wayang.memory.model.Memory;
 import tech.kayys.wayang.memory.model.MemoryType;
 import tech.kayys.wayang.memory.service.VectorMemoryStore;
-import tech.kayys.wayang.memory.spi.AgentMemory;
 import tech.kayys.wayang.memory.spi.EmbeddingService;
-import tech.kayys.wayang.memory.spi.MemoryEntry;
 
 import java.time.Instant;
 import java.util.*;
@@ -59,9 +57,6 @@ public class LongTermMemoryExecutor extends AbstractMemoryExecutor {
      */
     @ConfigProperty(name = "wayang.memory.longterm.min.similarity", defaultValue = "0.7")
     float defaultMinSimilarity;
-
-    @Inject
-    AgentMemory agentMemory;
 
     @Inject
     VectorMemoryStore vectorMemoryStore;
@@ -124,7 +119,7 @@ public class LongTermMemoryExecutor extends AbstractMemoryExecutor {
                     Memory memory = Memory.builder()
                             .content(content)
                             .embedding(toFloatArray(embedding))
-                            .type(MemoryType.EPISODIC)
+                            .type(MemoryType.SEMANTIC)
                             .metadata(metadata)
                             .importance(importance)
                             .namespace(agentId)

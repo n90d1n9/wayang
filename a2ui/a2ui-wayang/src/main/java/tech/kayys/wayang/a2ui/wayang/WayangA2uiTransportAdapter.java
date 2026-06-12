@@ -39,6 +39,7 @@ public final class WayangA2uiTransportAdapter {
             case DATA_PART_JSON -> WayangA2uiTransportResponse.from(session.handleDataPart(resolved.body()));
             case DATA_PART_MAP -> WayangA2uiTransportResponse.from(session.handleDataPart(resolved.dataPart()));
             case SURFACE_CATALOG -> WayangA2uiTransportResponse.from(session.surfaceCatalog());
+            case ACTION_BINDING_REPORT -> WayangA2uiTransportResponse.from(session.actionBindingReport());
         };
         return response.withMetadata(WayangA2uiTransportMetadata.request(resolved.kind()));
     }
@@ -103,7 +104,15 @@ public final class WayangA2uiTransportAdapter {
         return exchange(WayangA2uiTransportRequest.surfaceCatalog());
     }
 
+    public WayangA2uiTransportResponse exchangeActionBindingReport() {
+        return exchange(WayangA2uiTransportRequest.actionBindingReport());
+    }
+
     public WayangA2uiSurfaceCatalog surfaceCatalog() {
         return session.surfaceCatalog();
+    }
+
+    public WayangA2uiActionBindingReport actionBindingReport() {
+        return session.actionBindingReport();
     }
 }

@@ -7,6 +7,7 @@
         <groupId>tech.kayys.wayang</groupId>
         <artifactId>agent-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>agent-integration-gamelan</artifactId>
@@ -27,60 +28,57 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- Gamelan workflow engine (when available) -->
-        <!-- <dependency>
+        <!-- Agent core services used by this integration boundary -->
+        <dependency>
             <groupId>tech.kayys.wayang</groupId>
-            <artifactId>wayang-gamelan-engine</artifactId>
+            <artifactId>agent-core</artifactId>
             <version>${project.version}</version>
-        </dependency> -->
+        </dependency>
+
+        <!-- Gamelan SDK client (not engine implementation) -->
+        <dependency>
+            <groupId>tech.kayys.gamelan</groupId>
+            <artifactId>gamelan-sdk-client-core</artifactId>
+            <version>${gamelan.version}</version>
+        </dependency>
+
+        <!-- Optional graph telemetry integration -->
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>wayang-graph-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- CDI integration surface -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-arc</artifactId>
+        </dependency>
 
         <!-- Mutiny for reactive programming -->
         <dependency>
             <groupId>io.smallrye.reactive</groupId>
             <artifactId>mutiny</artifactId>
-            <version>2.1.0</version>
         </dependency>
 
-        <!-- Lombok for code generation -->
+        <!-- Logging -->
         <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <version>1.18.30</version>
-            <scope>provided</scope>
+            <groupId>org.jboss.logging</groupId>
+            <artifactId>jboss-logging</artifactId>
         </dependency>
 
         <!-- Testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
+            <artifactId>junit-jupiter</artifactId>
             <version>5.10.0</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
-            <version>3.24.1</version>
             <scope>test</scope>
         </dependency>
     </dependencies>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.13.0</version>
-                <configuration>
-                    <annotationProcessorPaths>
-                        <path>
-                            <groupId>org.projectlombok</groupId>
-                            <artifactId>lombok</artifactId>
-                            <version>1.18.30</version>
-                        </path>
-                    </annotationProcessorPaths>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
 
 </project>

@@ -103,7 +103,7 @@ class McpRegistryResourceTest {
 
     @Test
     void upsertReturnsOkWhenServiceAcceptsRequest() {
-        RequestContext requestContext = mock(RequestContext.class);
+        ToolRequestContext requestContext = mock(ToolRequestContext.class);
         when(requestContext.getCurrentRequestId()).thenReturn("enterprise");
 
         McpRegistryService service = mock(McpRegistryService.class);

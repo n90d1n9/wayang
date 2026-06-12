@@ -4,62 +4,50 @@ import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import org.jboss.logging.Logger;
 import tech.kayys.gollek.sdk.core.GollekSdk;
-import tech.kayys.gollek.sdk.exception.SdkException;
-import tech.kayys.wayang.agent.spi.inference.StreamingInferenceChunk;
-import tech.kayys.wayang.agent.spi.*;
+import tech.kayys.gollek.spi.Message;
+import tech.kayys.gollek.spi.inference.StreamingInferenceChunk;
+import tech.kayys.wayang.agent.spi.BackendCapabilities;
+import tech.kayys.wayang.agent.spi.InferenceBackend;
+import tech.kayys.wayang.agent.spi.InferenceRequest;
+import tech.kayys.wayang.agent.spi.InferenceResponse;
+import tech.kayys.wayang.agent.spi.InferenceTypes.AssistantMessage;
+import tech.kayys.wayang.agent.spi.InferenceTypes.ChatMessage;
+import tech.kayys.wayang.agent.spi.InferenceTypes.ContentPart;
+import tech.kayys.wayang.agent.spi.InferenceTypes.ImagePart;
+import tech.kayys.wayang.agent.spi.InferenceTypes.ProviderInfo;
+import tech.kayys.wayang.agent.spi.InferenceTypes.StreamingChunk;
+import tech.kayys.wayang.agent.spi.InferenceTypes.SystemMessage;
+import tech.kayys.wayang.agent.spi.InferenceTypes.TextPart;
+import tech.kayys.wayang.agent.spi.InferenceTypes.TokenUsage;
+import tech.kayys.wayang.agent.spi.InferenceTypes.ToolCall;
+import tech.kayys.wayang.agent.spi.InferenceTypes.ToolDefinition;
+import tech.kayys.wayang.agent.spi.InferenceTypes.ToolResultMessage;
+import tech.kayys.wayang.agent.spi.InferenceTypes.UserMessage;
 
-import java.time.Duration;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Backend adapter that wraps Gollek SDK to implement the backend-agnostic
- * {@link InferenceBackend} SPI.
- *
- * <p>
- * This adapter translates between wayang-gollek's backend-agnostic SPI types
- * and Gollek SDK's native types, enabling any code that depends on
- * {@code InferenceBackend} to work with Gollek without direct coupling.
- * </p>
- *
- * <h3>Usage:</h3>
- * <pre>{@code
- * // Programmatic (no Quarkus)
- * GollekSdk sdk = GollekSdk.builder().build();
- * InferenceBackend backend = new GollekBackendAdapter(sdk);
- * backend.initialize(config);
- *
- * Uni<InferenceResponse> response = backend.infer(request);
- * }</pre>
- *
- * <h3>Features:</h3>
- * <ul>
- *   <li>Full inference support (sync + streaming)</li>
- *   <li>Provider discovery and health checking</li>
- *   <li>Capability detection from Gollek provider registry</li>
- *   <li>Graceful lifecycle management</li>
- * </ul>
- *
- * @author Wayang Team
- * @version 1.0.0
- * @since 2026-04-06
+ * Adapts the current Gollek SDK inference API to the backend-agnostic Wayang
+ * {@link InferenceBackend} contract.
  */
 public class GollekBackendAdapter implements InferenceBackend {
 
     private static final Logger LOG = Logger.getLogger(GollekBackendAdapter.class);
 
     private final GollekSdk gollekSdk;
-    private BackendCapabilities capabilities;
-    private volatile boolean initialized = false;
+    private volatile BackendCapabilities capabilities = BackendCapabilities.none();
+    private volatile boolean initialized;
 
-    /**
-     * Create adapter with pre-configured Gollek SDK instance.
-     *
-     * @param gollekSdk configured Gollek SDK instance
-     */
     public GollekBackendAdapter(GollekSdk gollekSdk) {
-        this.gollekSdk = gollekSdk != null ? gollekSdk : GollekSdk.builder().build();
+        this.gollekSdk = Objects.requireNonNull(gollekSdk, "gollekSdk");
     }
 
     @Override
@@ -76,51 +64,54 @@ public class GollekBackendAdapter implements InferenceBackend {
     public Uni<InferenceResponse> infer(InferenceRequest request) {
         ensureInitialized();
 
-        LOG.debugf("Executing inference via Gollek for request %s", request.requestId());
+        tech.kayys.gollek.spi.inference.InferenceRequest gollekRequest = toGollekRequest(request);
+        long startedAt = System.currentTimeMillis();
 
-        tech.kayys.wayang.agent.spi.inference.InferenceRequest gollekRequest = mapToGollekRequest(request);
-
-        return Uni.createFrom().completionStage(
-                gollekSdk.createCompletionAsync(gollekRequest)
-            )
-            .map(this::mapFromGollekResponse)
-            .onFailure().transform(err -> {
-                LOG.errorf(err, "Gollek inference failed for request %s", request.requestId());
-                return new RuntimeException("Gollek inference failed: " + err.getMessage(), err);
-            });
+        return Uni.createFrom()
+                .completionStage(gollekSdk.createCompletionAsync(gollekRequest))
+                .map(response -> fromGollekResponse(request, response, startedAt))
+                .onFailure().transform(error -> {
+                    LOG.errorf(error, "Gollek inference failed for request %s", request.requestId());
+                    return new RuntimeException("Gollek inference failed: " + error.getMessage(), error);
+                });
     }
 
     @Override
     public Multi<StreamingChunk> stream(InferenceRequest request) {
         ensureInitialized();
 
-        LOG.debugf("Streaming inference via Gollek for request %s", request.requestId());
+        tech.kayys.gollek.spi.inference.InferenceRequest gollekRequest = toGollekRequest(
+                new InferenceRequest(
+                        request.requestId(),
+                        request.model(),
+                        request.messages(),
+                        request.tools(),
+                        request.toolChoice(),
+                        request.temperature(),
+                        request.maxTokens(),
+                        request.topP(),
+                        request.stopSequences(),
+                        true,
+                        request.timeout(),
+                        request.metadata()));
 
-        tech.kayys.wayang.agent.spi.inference.InferenceRequest gollekRequest = mapToGollekRequest(request);
-        gollekRequest = gollekRequest.toBuilder().stream(true).build();
-
-        Multi<StreamingInferenceChunk> gollekStream = gollekSdk.streamCompletion(gollekRequest);
-
-        return gollekStream
-            .map(this::mapFromGollekChunk)
-            .onFailure().transform(err -> {
-                LOG.errorf(err, "Gollek streaming failed for request %s", request.requestId());
-                return new RuntimeException("Gollek streaming failed: " + err.getMessage(), err);
-            });
+        return gollekSdk.streamCompletion(gollekRequest)
+                .map(this::fromGollekChunk)
+                .onFailure().transform(error -> {
+                    LOG.errorf(error, "Gollek streaming failed for request %s", request.requestId());
+                    return new RuntimeException("Gollek streaming failed: " + error.getMessage(), error);
+                });
     }
 
     @Override
     public List<ProviderInfo> listProviders() {
         ensureInitialized();
-
         try {
-            List<tech.kayys.wayang.agent.spi.provider.ProviderInfo> gollekProviders = gollekSdk.listAvailableProviders();
-
-            return gollekProviders.stream()
-                .map(this::mapFromGollekProvider)
-                .collect(Collectors.toList());
-        } catch (Exception e) {
-            LOG.errorf(e, "Failed to list Gollek providers");
+            return gollekSdk.listAvailableProviders().stream()
+                    .map(this::fromGollekProvider)
+                    .toList();
+        } catch (Exception error) {
+            LOG.warnf("Failed to list Gollek providers: %s", error.getMessage());
             return List.of();
         }
     }
@@ -130,306 +121,257 @@ public class GollekBackendAdapter implements InferenceBackend {
         if (!initialized) {
             return false;
         }
-
         try {
-            // Check if SDK is initialized and has at least one healthy provider
-            List<tech.kayys.wayang.agent.spi.provider.ProviderInfo> providers = gollekSdk.listAvailableProviders();
-            return providers.stream().anyMatch(p -> p.isHealthy());
-        } catch (Exception e) {
-            LOG.debugf("Gollek health check failed: %s", e.getMessage());
+            return gollekSdk.listAvailableProviders().stream()
+                    .anyMatch(provider -> provider.healthStatus()
+                            == tech.kayys.gollek.spi.provider.ProviderHealth.Status.HEALTHY);
+        } catch (Exception error) {
+            LOG.debugf("Gollek health check failed: %s", error.getMessage());
             return false;
         }
     }
 
     @Override
-    public BackendCapabilities capabilities() {
-        if (capabilities == null) {
-            detectCapabilities();
-        }
+    public BackendCapabilities capabilitiesInfo() {
+        ensureInitialized();
         return capabilities;
     }
 
     @Override
-    public void initialize(Map<String, Object> config) {
-        if (initialized) {
-            LOG.debug("GollekBackendAdapter already initialized");
-            return;
-        }
-
-        LOG.info("Initializing GollekBackendAdapter");
-
-        try {
-            // SDK should already be initialized, but verify
-            if (gollekSdk == null) {
-                throw new IllegalStateException("GollekSdk instance is null");
-            }
-
-            detectCapabilities();
-            initialized = true;
-
-            LOG.info("GollekBackendAdapter initialized successfully");
-        } catch (Exception e) {
-            LOG.errorf(e, "Failed to initialize GollekBackendAdapter");
-            throw new RuntimeException("Failed to initialize GollekBackendAdapter", e);
-        }
-    }
-
-    @Override
-    public void shutdown() {
-        if (!initialized) {
-            return;
-        }
-
-        LOG.info("Shutting down GollekBackendAdapter");
-
-        try {
-            // GollekSdk may have its own shutdown logic
-            // gollekSdk.shutdown();  // Uncomment if SDK supports shutdown
-
-            initialized = false;
-            LOG.info("GollekBackendAdapter shut down successfully");
-        } catch (Exception e) {
-            LOG.errorf(e, "Error shutting down GollekBackendAdapter");
-        }
-    }
-
-    @Override
     public long capabilities() {
-        BackendCapabilities caps = capabilities();
+        BackendCapabilities caps = capabilitiesInfo();
         long flags = 0;
         if (caps.streaming()) flags |= CAP_STREAMING;
         if (caps.toolCalling()) flags |= CAP_TOOL_CALLING;
         if (caps.multimodal()) flags |= CAP_MULTIMODAL;
         if (caps.structuredOutput()) flags |= CAP_STRUCTURED_OUTPUT;
         if (caps.parallelTools()) flags |= CAP_PARALLEL_TOOLS;
+        if (caps.vision()) flags |= CAP_VISION;
+        if (caps.audio()) flags |= CAP_AUDIO;
+        if (caps.embedding()) flags |= CAP_EMBEDDING;
         return flags;
     }
 
-    // ── Type Mapping ─────────────────────────────────────────────────────
-
-    /**
-     * Map backend-agnostic InferenceRequest to Gollek InferenceRequest.
-     */
-    private tech.kayys.wayang.agent.spi.inference.InferenceRequest mapToGollekRequest(InferenceRequest request) {
-        tech.kayys.wayang.agent.spi.inference.InferenceRequest.Builder builder =
-            tech.kayys.wayang.agent.spi.inference.InferenceRequest.builder()
-                .requestId(request.requestId())
-                .model(request.model())
-                .temperature(request.temperature())
-                .maxTokens(request.maxTokens())
-                .topP(request.topP())
-                .timeout(request.timeout())
-                .stream(request.stream());
-
-        // Map chat messages
-        if (!request.messages().isEmpty()) {
-            List<tech.kayys.wayang.agent.spi.inference.ChatMessage> gollekMessages = request.messages().stream()
-                .map(this::mapToGollekMessage)
-                .collect(Collectors.toList());
-            builder.messages(gollekMessages);
+    @Override
+    public void initialize(Map<String, Object> config) {
+        if (initialized) {
+            return;
         }
+        capabilities = detectCapabilities();
+        initialized = true;
+    }
 
-        // Map tools
-        if (!request.tools().isEmpty()) {
-            List<tech.kayys.wayang.agent.spi.tool.ToolDefinition> gollekTools = request.tools().stream()
-                .map(this::mapToGollekTool)
-                .collect(Collectors.toList());
-            builder.tools(gollekTools);
-        }
+    @Override
+    public void shutdown() {
+        initialized = false;
+    }
 
-        // Tool choice
-        if (request.toolChoice() != null) {
-            builder.toolChoice(request.toolChoice());
-        }
+    private tech.kayys.gollek.spi.inference.InferenceRequest toGollekRequest(InferenceRequest request) {
+        tech.kayys.gollek.spi.inference.InferenceRequest.Builder builder =
+                tech.kayys.gollek.spi.inference.InferenceRequest.builder()
+                        .requestId(request.requestId())
+                        .model(request.model())
+                        .messages(request.messages().stream().map(this::toGollekMessage).toList())
+                        .tools(request.tools().stream().map(this::toGollekTool).toList())
+                        .toolChoice(request.toolChoice())
+                        .temperature(request.temperature())
+                        .maxTokens(request.maxTokens())
+                        .topP(request.topP())
+                        .streaming(request.stream())
+                        .timeout(request.timeout())
+                        .metadata(request.metadata());
 
-        // Stop sequences
-        if (!request.stopSequences().isEmpty()) {
-            builder.stop(request.stopSequences());
-        }
+        metadataValue(request, "apiKey", String.class).ifPresent(builder::apiKey);
+        metadataValue(request, "preferredProvider", String.class).ifPresent(builder::preferredProvider);
+        metadataValue(request, "plugin", String.class).ifPresent(builder::plugin);
+        metadataValue(request, "userId", String.class).ifPresent(builder::userId);
+        metadataValue(request, "sessionId", String.class).ifPresent(builder::sessionId);
+        metadataValue(request, "traceId", String.class).ifPresent(builder::traceId);
 
         return builder.build();
     }
 
-    /**
-     * Map Gollek InferenceResponse to backend-agnostic InferenceResponse.
-     */
-    private InferenceResponse mapFromGollekResponse(tech.kayys.wayang.agent.spi.inference.InferenceResponse response) {
-        AssistantMessage message = new AssistantMessage(
-            response.getContent(),
-            response.getToolCalls() != null ?
-                response.getToolCalls().stream()
-                    .map(tc -> new ToolCall(tc.id(), tc.type(), tc.name(), tc.arguments()))
-                    .collect(Collectors.toList()) :
-                List.of()
-        );
+    private Message toGollekMessage(ChatMessage message) {
+        return switch (message) {
+            case SystemMessage system -> Message.system(system.content());
+            case UserMessage user -> Message.user(userContent(user));
+            case AssistantMessage assistant -> Message.assistant(assistant.content());
+            case ToolResultMessage tool -> Message.tool(tool.toolCallId(), tool.content());
+        };
+    }
 
-        TokenUsage usage = response.getUsage() != null ?
-            TokenUsage.of(
-                response.getUsage().promptTokens(),
-                response.getUsage().completionTokens()
-            ) : null;
+    private String userContent(UserMessage message) {
+        if (message.parts().isEmpty()) {
+            return message.content();
+        }
+        return message.parts().stream()
+                .map(this::contentPartText)
+                .filter(part -> !part.isBlank())
+                .reduce((left, right) -> left + "\n" + right)
+                .orElse(message.content());
+    }
+
+    private String contentPartText(ContentPart part) {
+        return switch (part) {
+            case TextPart text -> text.text();
+            case ImagePart image -> "[image:" + image.mimeType() + ":" + image.imageUrl() + "]";
+        };
+    }
+
+    private tech.kayys.gollek.spi.tool.ToolDefinition toGollekTool(ToolDefinition tool) {
+        return tech.kayys.gollek.spi.tool.ToolDefinition.builder()
+                .name(tool.name())
+                .description(tool.description())
+                .parameters(tool.parameters())
+                .build();
+    }
+
+    private InferenceResponse fromGollekResponse(
+            InferenceRequest request,
+            tech.kayys.gollek.spi.inference.InferenceResponse response,
+            long startedAt) {
+
+        AssistantMessage message = new AssistantMessage(
+                response.getContent(),
+                toWayangToolCalls(response.getToolCalls()));
 
         return InferenceResponse.builder()
-            .responseId(response.getResponseId())
-            .requestId(response.getRequestId())
-            .model(response.getModel())
-            .message(message)
-            .finishReason(response.getFinishReason())
-            .usage(usage)
-            .durationMs(response.getDurationMs())
-            .build();
+                .responseId(responseId(response, request))
+                .requestId(response.getRequestId())
+                .model(response.getModel())
+                .message(message)
+                .finishReason(finishReason(response.getFinishReason()))
+                .usage(TokenUsage.of(response.getInputTokens(), response.getOutputTokens()))
+                .durationMs(durationMs(response, startedAt))
+                .build();
     }
 
-    /**
-     * Map Gollek StreamingChunk to backend-agnostic StreamingChunk.
-     */
-    private StreamingChunk mapFromGollekChunk(StreamingInferenceChunk chunk) {
-        List<ToolCall> toolCalls = chunk.getToolCalls() != null ?
-            chunk.getToolCalls().stream()
-                .map(tc -> new ToolCall(tc.id(), tc.type(), tc.name(), tc.arguments()))
-                .collect(Collectors.toList()) :
-            List.of();
+    private List<ToolCall> toWayangToolCalls(
+            List<tech.kayys.gollek.spi.inference.InferenceResponse.ToolCall> toolCalls) {
+        if (toolCalls == null || toolCalls.isEmpty()) {
+            return List.of();
+        }
+        AtomicInteger index = new AtomicInteger();
+        return toolCalls.stream()
+                .map(call -> new ToolCall(
+                        "gollek-tool-call-" + index.incrementAndGet(),
+                        "function",
+                        call.name(),
+                        String.valueOf(call.arguments())))
+                .toList();
+    }
 
-        TokenUsage usage = chunk.getUsage() != null ?
-            TokenUsage.of(
-                chunk.getUsage().promptTokens(),
-                chunk.getUsage().completionTokens()
-            ) : null;
+    private StreamingChunk fromGollekChunk(StreamingInferenceChunk chunk) {
+        TokenUsage usage = chunk.usage() == null
+                ? null
+                : TokenUsage.of(safeInt(chunk.usage().inputTokens()), safeInt(chunk.usage().outputTokens()));
 
         return new StreamingChunk(
-            chunk.getResponseId(),
-            chunk.getDelta(),
-            toolCalls,
-            chunk.getFinishReason(),
-            usage
-        );
+                chunk.requestId(),
+                chunk.delta(),
+                List.of(),
+                chunk.finished() ? finishReason(chunk.finishReason()) : null,
+                usage);
     }
 
-    /**
-     * Map Gollek ProviderInfo to backend-agnostic ProviderInfo.
-     */
-    private ProviderInfo mapFromGollekProvider(tech.kayys.wayang.agent.spi.provider.ProviderInfo gollekProvider) {
+    private ProviderInfo fromGollekProvider(tech.kayys.gollek.spi.provider.ProviderInfo provider) {
+        String model = provider.supportedModels().stream().findFirst().orElse("");
+        boolean healthy = provider.healthStatus()
+                == tech.kayys.gollek.spi.provider.ProviderHealth.Status.HEALTHY;
+
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        putIfPresent(metadata, "vendor", provider.vendor());
+        putIfPresent(metadata, "version", provider.version());
+        putIfPresent(metadata, "description", provider.description());
+        putIfPresent(metadata, "healthStatus", provider.healthStatus() == null ? null : provider.healthStatus().name());
+        putIfPresent(metadata, "supportedModels", provider.supportedModels());
+        putIfPresent(metadata, "metadata", provider.metadata());
+
         return new ProviderInfo(
-            gollekProvider.getId(),
-            gollekProvider.getName(),
-            gollekProvider.getModel(),
-            gollekProvider.isHealthy(),
-            Map.of(
-                "type", gollekProvider.getType(),
-                "latencyMs", gollekProvider.getAvgLatencyMs(),
-                "successRate", gollekProvider.getSuccessRate()
-            )
-        );
+                provider.id(),
+                provider.name(),
+                model,
+                healthy,
+                metadata);
     }
 
-    /**
-     * Map backend-agnostic ChatMessage to Gollek ChatMessage.
-     */
-    private tech.kayys.wayang.agent.spi.inference.ChatMessage mapToGollekMessage(ChatMessage message) {
-        return switch (message) {
-            case SystemMessage sm -> tech.kayys.wayang.agent.spi.inference.ChatMessage.system(sm.content());
-            case UserMessage um -> {
-                if (um.parts().isEmpty()) {
-                    yield tech.kayys.wayang.agent.spi.inference.ChatMessage.user(um.content());
-                } else {
-                    // Multimodal message
-                    List<tech.kayys.wayang.agent.spi.inference.ContentPart> parts = um.parts().stream()
-                        .map(this::mapToGollekContentPart)
-                        .collect(Collectors.toList());
-                    yield tech.kayys.wayang.agent.spi.inference.ChatMessage.user(parts);
-                }
-            }
-            case AssistantMessage am -> {
-                if (am.toolCalls().isEmpty()) {
-                    yield tech.kayys.wayang.agent.spi.inference.ChatMessage.assistant(am.content());
-                } else {
-                    List<tech.kayys.wayang.agent.spi.inference.ToolCall> toolCalls = am.toolCalls().stream()
-                        .map(tc -> new tech.kayys.wayang.agent.spi.inference.ToolCall(
-                            tc.id(), tc.type(), tc.name(), tc.arguments()))
-                        .collect(Collectors.toList());
-                    yield tech.kayys.wayang.agent.spi.inference.ChatMessage.assistantWithTools(am.content(), toolCalls);
-                }
-            }
-            case ToolResultMessage trm -> tech.kayys.wayang.agent.spi.inference.ChatMessage.toolResult(
-                trm.toolCallId(), trm.toolName(), trm.content());
-        };
-    }
-
-    /**
-     * Map backend-agnostic ContentPart to Gollek ContentPart.
-     */
-    private tech.kayys.wayang.agent.spi.inference.ContentPart mapToGollekContentPart(ContentPart part) {
-        return switch (part) {
-            case TextPart tp -> tech.kayys.wayang.agent.spi.inference.ContentPart.text(tp.text());
-            case ImagePart ip -> tech.kayys.wayang.agent.spi.inference.ContentPart.image(ip.imageUrl(), ip.mimeType());
-        };
-    }
-
-    /**
-     * Map backend-agnostic ToolDefinition to Gollek ToolDefinition.
-     */
-    private tech.kayys.wayang.agent.spi.tool.ToolDefinition mapToGollekTool(ToolDefinition tool) {
-        return new tech.kayys.wayang.agent.spi.tool.ToolDefinition(
-            tool.name(),
-            tool.description(),
-            tool.parameters()
-        );
-    }
-
-    // ── Capability Detection ─────────────────────────────────────────────
-
-    /**
-     * Detect capabilities from Gollek provider registry.
-     */
-    private void detectCapabilities() {
+    private BackendCapabilities detectCapabilities() {
         try {
-            List<tech.kayys.wayang.agent.spi.provider.ProviderInfo> providers = gollekSdk.listAvailableProviders();
-
+            List<tech.kayys.gollek.spi.provider.ProviderInfo> providers = gollekSdk.listAvailableProviders();
             boolean streaming = false;
             boolean toolCalling = false;
             boolean multimodal = false;
-            List<String> models = new java.util.ArrayList<>();
+            boolean structuredOutput = false;
+            boolean vision = false;
+            boolean embedding = false;
+            Set<String> supportedModels = new LinkedHashSet<>();
 
-            for (tech.kayys.wayang.agent.spi.provider.ProviderInfo provider : providers) {
-                models.add(provider.getModel());
-
-                // Check capabilities from provider metadata
-                Map<String, Object> metadata = provider.getMetadata();
-                if (metadata != null) {
-                    if (Boolean.TRUE.equals(metadata.get("supports_streaming"))) {
-                        streaming = true;
-                    }
-                    if (Boolean.TRUE.equals(metadata.get("supports_tool_calling"))) {
-                        toolCalling = true;
-                    }
-                    if (Boolean.TRUE.equals(metadata.get("supports_multimodal"))) {
-                        multimodal = true;
-                    }
+            for (tech.kayys.gollek.spi.provider.ProviderInfo provider : providers) {
+                supportedModels.addAll(provider.supportedModels());
+                tech.kayys.gollek.spi.provider.ProviderCapabilities caps = provider.capabilities();
+                if (caps == null) {
+                    continue;
                 }
+                streaming |= caps.isStreaming();
+                toolCalling |= caps.isToolCalling() || caps.isFunctionCalling();
+                multimodal |= caps.isMultimodal();
+                structuredOutput |= caps.isStructuredOutputs();
+                vision |= caps.isMultimodal();
+                embedding |= caps.isEmbeddings();
+                supportedModels.addAll(caps.getSupportedModels());
             }
 
-            this.capabilities = new BackendCapabilities(
-                streaming,
-                toolCalling,
-                multimodal,
-                true,  // Gollek supports structured outputs
-                toolCalling,  // Parallel tools if tool calling supported
-                multimodal,  // Vision if multimodal supported
-                false,  // Audio not yet
-                false,  // Embedding separate
-                1000,  // Reasonable default
-                models
-            );
-
-            LOG.debugf("Detected Gollek capabilities: streaming=%s, toolCalling=%s, multimodal=%s",
-                streaming, toolCalling, multimodal);
-        } catch (Exception e) {
-            LOG.warnf("Failed to detect Gollek capabilities, using defaults: %s", e.getMessage());
-            this.capabilities = BackendCapabilities.none();
+            return new BackendCapabilities(
+                    streaming,
+                    toolCalling,
+                    multimodal,
+                    structuredOutput,
+                    toolCalling,
+                    vision,
+                    false,
+                    embedding,
+                    Math.max(1, providers.size()),
+                    new ArrayList<>(supportedModels));
+        } catch (Exception error) {
+            LOG.warnf("Failed to detect Gollek capabilities, using defaults: %s", error.getMessage());
+            return BackendCapabilities.none();
         }
     }
 
-    // ── Internal ─────────────────────────────────────────────────────────
+    private String responseId(
+            tech.kayys.gollek.spi.inference.InferenceResponse response,
+            InferenceRequest request) {
+        Object responseId = response.getMetadata() == null ? null : response.getMetadata().get("responseId");
+        if (responseId != null) {
+            return responseId.toString();
+        }
+        return response.getRequestId() != null ? response.getRequestId() : request.requestId();
+    }
+
+    private String finishReason(Object finishReason) {
+        return finishReason == null ? "stop" : finishReason.toString().toLowerCase();
+    }
+
+    private long durationMs(tech.kayys.gollek.spi.inference.InferenceResponse response, long startedAt) {
+        return response.getDurationMs() > 0
+                ? response.getDurationMs()
+                : System.currentTimeMillis() - startedAt;
+    }
+
+    private int safeInt(long value) {
+        return value > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) value;
+    }
+
+    private <T> Optional<T> metadataValue(InferenceRequest request, String key, Class<T> type) {
+        Object value = request.metadata().get(key);
+        return type.isInstance(value) ? Optional.of(type.cast(value)) : Optional.empty();
+    }
+
+    private void putIfPresent(Map<String, Object> map, String key, Object value) {
+        if (value != null) {
+            map.put(key, value);
+        }
+    }
 
     private void ensureInitialized() {
         if (!initialized) {

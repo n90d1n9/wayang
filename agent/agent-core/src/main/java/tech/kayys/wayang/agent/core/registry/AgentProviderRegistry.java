@@ -154,7 +154,7 @@ public class AgentProviderRegistry {
             .filter(e -> e.getValue().enabled)
             .filter(e -> {
                 ProviderCapabilities caps = capabilitiesCache.get(e.getKey());
-                return caps != null && Boolean.TRUE.equals(caps.supportsToolCalling());
+                return caps != null && caps.isToolCalling();
             })
             .map(Map.Entry::getKey)
             .toList();
@@ -170,7 +170,7 @@ public class AgentProviderRegistry {
             .filter(e -> e.getValue().enabled)
             .filter(e -> {
                 ProviderCapabilities caps = capabilitiesCache.get(e.getKey());
-                return caps != null && Boolean.TRUE.equals(caps.supportsStreaming());
+                return caps != null && caps.isStreaming();
             })
             .map(Map.Entry::getKey)
             .toList();
@@ -198,7 +198,7 @@ public class AgentProviderRegistry {
         try {
             ProviderInfo info = gollekSdk.getProviderInfo(providerId);
             boolean isHealthy = info.healthStatus() != null &&
-                info.healthStatus().status() ==
+                info.healthStatus() ==
                     tech.kayys.gollek.spi.provider.ProviderHealth.Status.HEALTHY;
             healthCache.put(providerId, isHealthy);
             return isHealthy;
@@ -286,7 +286,7 @@ public class AgentProviderRegistry {
             candidates = candidates.stream()
                 .filter(id -> {
                     ProviderCapabilities caps = capabilitiesCache.get(id);
-                    return caps != null && Boolean.TRUE.equals(caps.supportsToolCalling());
+                    return caps != null && caps.isToolCalling();
                 })
                 .toList();
         }
@@ -295,7 +295,7 @@ public class AgentProviderRegistry {
             candidates = candidates.stream()
                 .filter(id -> {
                     ProviderCapabilities caps = capabilitiesCache.get(id);
-                    return caps != null && Boolean.TRUE.equals(caps.supportsStreaming());
+                    return caps != null && caps.isStreaming();
                 })
                 .toList();
         }

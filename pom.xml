@@ -3,7 +3,12 @@
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-
+    <parent>
+        <groupId>tech.kayys</groupId>
+        <artifactId>wayang-platform</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
     <groupId>tech.kayys.wayang</groupId>
     <artifactId>wayang-agentic-parent</artifactId>
     <version>1.0.0-SNAPSHOT</version>
@@ -16,7 +21,13 @@
     <properties>
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
+        <gollek.version>0.1.0-SNAPSHOT</gollek.version>
+        <gamelan.version>1.0.0-SNAPSHOT</gamelan.version>
+        <lombok.version>1.18.42</lombok.version>
+        <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
+        <jandex.maven.plugin.version>3.2.7</jandex.maven.plugin.version>
         <quarkus.platform.version>3.32.2</quarkus.platform.version>
+        <tamboui.version>0.2.0</tamboui.version>
     </properties>
 
     <dependencyManagement>
@@ -33,19 +44,24 @@
             <dependency>
                 <groupId>tech.kayys.gollek</groupId>
                 <artifactId>gollek-bom</artifactId>
-                <version>0.1.0-SNAPSHOT</version>
+                <version>${gollek.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
             <dependency>
                 <groupId>tech.kayys.gollek</groupId>
                 <artifactId>gollek-spi-inference</artifactId>
-                <version>${project.version}</version>
+                <version>${gollek.version}</version>
             </dependency>
             <dependency>
-                <groupId>tech.kayys.gollek</groupId>
+                <groupId>tech.kayys.wayang</groupId>
                 <artifactId>agent-tools-spi</artifactId>
-                <version>${project.version}</version>
+                <version>1.0.0-SNAPSHOT</version>
+            </dependency>
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -63,58 +79,79 @@
         <module>prompt</module>
         <module>rag</module>
         <module>tools</module>
+        <module>a2a</module>
+        <module>agentic-commerce</module>
         <module>vector</module>
         <module>embedding</module>
-        <module>mcp</module>
         <module>storage</module>
         <module>runtime-quarkus</module>
+        <module>wayang-gollek-sdk</module>
+        <module>wayang-gollek-sdk-storage</module>
+        <module>wayang-gollek-sdk-storage-s3</module>
+        <module>wayang-gollek-sdk-remote</module>
+        <module>wayang-gollek-cli</module>
+        <module>wayang-gollek-cli-remote</module>
     </modules>
+
+    <profiles>
+        <profile>
+            <id>pro-enterprise-addons</id>
+            <modules>
+                <module>a2ui</module>
+            </modules>
+        </profile>
+    </profiles>
 
     <build>
         <pluginManagement>
             <plugins>
-                <!--
-                    ═══════════════════════════════════════════════════════════
-                    DEPENDENCY ENFORCEMENT RULES
-                    Prevents wayang-gollek modules from depending on
-                    gamelan-engine-core (must use SDK/SPI only)
-                    ═══════════════════════════════════════════════════════════
-                -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-enforcer-plugin</artifactId>
-                    <version>3.5.0</version>
-                    <executions>
-                        <execution>
-                            <id>enforce-sdk-only-dependencies</id>
-                            <goals>
-                                <goal>enforce</goal>
-                            </goals>
-                            <configuration>
-                                <rules>
-                                    <bannedDependencies>
-                                        <searchTransitive>true</searchTransitive>
-                                        <excludes>
-                                            <!--
-                                                Banned: Engine implementation (pulls full Quarkus runtime)
-                                                Use instead: gamelan-engine-spi, gamelan-sdk-executor-core,
-                                                             gamelan-sdk-client-core
-                                            -->
-                                            <exclude>tech.kayys.gamelan:gamelan-engine-core</exclude>
-                                        </excludes>
-                                        <message>
-                                            ❌ VIOLATION: wayang-gollek modules must NOT depend on gamelan-engine-core.
-                                            Use gamelan-engine-spi and gamelan-sdk-*-core instead.
-                                            See: DEPENDENCIES.md for allowed dependencies.
-                                        </message>
-                                    </bannedDependencies>
-                                </rules>
-                                <fail>true</fail>
-                            </configuration>
-                        </execution>
-                    </executions>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>${maven.compiler.plugin.version}</version>
+                </plugin>
+                <plugin>
+                    <groupId>io.smallrye</groupId>
+                    <artifactId>jandex-maven-plugin</artifactId>
+                    <version>${jandex.maven.plugin.version}</version>
                 </plugin>
             </plugins>
         </pluginManagement>
+        <plugins>
+            <!--
+                Keeps the active agentic framework backend-agnostic. Runtime
+                adapters may use SDK/SPI modules, but should not drag in the
+                full Gamelan engine implementation transitively.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>enforce-sdk-only-dependencies</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <searchTransitive>true</searchTransitive>
+                                    <excludes>
+                                        <exclude>tech.kayys.gamelan:gamelan-engine-core</exclude>
+                                    </excludes>
+                                    <message>
+                                        wayang-gollek modules must not depend on gamelan-engine-core.
+                                        Use gamelan-engine-spi and gamelan-sdk-*-core instead.
+                                        See DEPENDENCIES.md for the allowed dependency policy.
+                                    </message>
+                                </bannedDependencies>
+                            </rules>
+                            <fail>true</fail>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
     </build>
 </project>

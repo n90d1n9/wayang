@@ -1,5 +1,8 @@
 package tech.kayys.wayang.rag.core.store;
 
+import tech.kayys.wayang.rag.core.RagMetadata;
+import tech.kayys.wayang.rag.core.RagMetadataKeys;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -28,7 +31,7 @@ public class InMemoryVectorStore<T> implements VectorStore<T> {
                     "Vector dimension mismatch for namespace '" + namespace
                             + "': expected " + expectedDimension + " but got " + vector.length);
         }
-        Map<String, Object> safeMetadata = metadata == null ? Map.of() : Map.copyOf(metadata);
+        Map<String, Object> safeMetadata = RagMetadata.copy(metadata);
         validateUpsertContract(namespace, vector.length, safeMetadata);
         Map<String, Entry<T>> ns = namespaces.computeIfAbsent(namespace, key -> new ConcurrentHashMap<>());
         ns.put(id, new Entry<>(id, vector, payload, safeMetadata));
@@ -89,19 +92,19 @@ public class InMemoryVectorStore<T> implements VectorStore<T> {
     }
 
     private void validateUpsertContract(String namespace, int vectorDimension, Map<String, Object> metadata) {
-        Object tenantId = metadata.get("tenantId");
+        Object tenantId = metadata.get(RagMetadataKeys.TENANT_ID);
         if (tenantId != null && !Objects.equals(namespace, String.valueOf(tenantId))) {
             throw new IllegalArgumentException(
                     "Metadata tenantId mismatch for namespace '" + namespace + "': " + tenantId);
         }
-        Object metadataDimension = metadata.get("embeddingDimension");
+        Object metadataDimension = metadata.get(RagMetadataKeys.EMBEDDING_DIMENSION);
         if (metadataDimension != null && parseInt(metadataDimension, -1) != vectorDimension) {
             throw new IllegalArgumentException(
                     "Metadata embeddingDimension mismatch for namespace '" + namespace
                             + "': expected " + vectorDimension + " but got " + metadataDimension);
         }
-        String metadataModel = asString(metadata.get("embeddingModel"));
-        String metadataVersion = asString(metadata.get("embeddingVersion"));
+        String metadataModel = asString(metadata.get(RagMetadataKeys.EMBEDDING_MODEL));
+        String metadataVersion = asString(metadata.get(RagMetadataKeys.EMBEDDING_VERSION));
         namespaceContracts.compute(namespace, (key, existing) -> {
             if (existing == null) {
                 return new NamespaceContract(vectorDimension, metadataModel, metadataVersion);
@@ -115,12 +118,12 @@ public class InMemoryVectorStore<T> implements VectorStore<T> {
         if (filters == null || filters.isEmpty()) {
             return;
         }
-        Object tenantId = filters.get("tenantId");
+        Object tenantId = filters.get(RagMetadataKeys.TENANT_ID);
         if (tenantId != null && !Objects.equals(namespace, String.valueOf(tenantId))) {
             throw new IllegalArgumentException(
                     "Filter tenantId mismatch for namespace '" + namespace + "': " + tenantId);
         }
-        Object filterDimension = filters.get("embeddingDimension");
+        Object filterDimension = filters.get(RagMetadataKeys.EMBEDDING_DIMENSION);
         if (filterDimension != null && parseInt(filterDimension, -1) != queryDimension) {
             throw new IllegalArgumentException(
                     "Filter embeddingDimension mismatch for namespace '" + namespace
@@ -132,8 +135,8 @@ public class InMemoryVectorStore<T> implements VectorStore<T> {
         }
         contract.validate(
                 queryDimension,
-                asString(filters.get("embeddingModel")),
-                asString(filters.get("embeddingVersion")));
+                asString(filters.get(RagMetadataKeys.EMBEDDING_MODEL)),
+                asString(filters.get(RagMetadataKeys.EMBEDDING_VERSION)));
     }
 
     private static boolean matchesFilters(Map<String, Object> metadata, Map<String, Object> filters) {

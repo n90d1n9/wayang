@@ -56,10 +56,10 @@ public class RagVectorStoreProvider {
     }
 
     private String normalizeBackend(String backend) {
-        if (backend == null || backend.isBlank()) {
+        String normalized = RagRuntimeText.trimToLowerEmpty(backend);
+        if (normalized.isBlank()) {
             return "faiss"; // Default to high-performance FAISS
         }
-        String normalized = backend.trim().toLowerCase();
         return switch (normalized) {
             case "postgres", "postgresql", "pgvector" -> "pgvector";
             case "memory", "inmemory", "in-memory" -> "in-memory";

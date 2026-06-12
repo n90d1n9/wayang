@@ -99,10 +99,12 @@ public record AgentRequest(
         public Builder tenantId(String v) { this.tenantId = v; return this; }
         public Builder sessionId(String v) { this.sessionId = v; return this; }
         public Builder userId(String v) { this.userId = v; return this; }
+        public Builder agentId(String v) { this.context.put("agentId", v); return this; }
         public Builder stream(boolean v) { this.stream = v; return this; }
         public Builder verbose(boolean v) { this.verbose = v; return this; }
         public Builder timeout(Duration v) { this.timeout = v; return this; }
         public Builder maxSteps(int v) { this.parameters.put("maxSteps", v); return this; }
+        public Builder tools(Object v) { this.parameters.put("tools", v); return this; }
         public Builder memoryConfig(AgentMemoryConfig v) { this.memoryConfig = v; return this; }
         public Builder modelId(String v) { this.modelId = v; return this; }
         public Builder modelParameter(String k, Object v) {

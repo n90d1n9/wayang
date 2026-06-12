@@ -20,8 +20,6 @@
     <properties>
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
-        <snakeyaml.version>2.4</snakeyaml.version>
-        <jgit.version>7.2.0.202503040940-r</jgit.version>
     </properties>
 
     <dependencies>
@@ -32,52 +30,17 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- Agent Core (unified implementations) -->
+        <!-- Skill lifecycle service -->
         <dependency>
             <groupId>tech.kayys.wayang</groupId>
-            <artifactId>agent-core</artifactId>
+            <artifactId>skill-management</artifactId>
             <version>${project.version}</version>
-        </dependency>
-
-        <!-- YAML frontmatter parsing -->
-        <dependency>
-            <groupId>org.yaml</groupId>
-            <artifactId>snakeyaml</artifactId>
-            <version>${snakeyaml.version}</version>
-        </dependency>
-
-        <!-- Git operations (clone, pull) for skill installation -->
-        <dependency>
-            <groupId>org.eclipse.jgit</groupId>
-            <artifactId>org.eclipse.jgit</artifactId>
-            <version>${jgit.version}</version>
-        </dependency>
-
-        <!-- CDI annotations -->
-        <dependency>
-            <groupId>jakarta.enterprise</groupId>
-            <artifactId>jakarta.enterprise.cdi-api</artifactId>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- Logging -->
-        <dependency>
-            <groupId>org.jboss.logging</groupId>
-            <artifactId>jboss-logging</artifactId>
-            <scope>provided</scope>
         </dependency>
 
         <!-- Mutiny for reactive -->
         <dependency>
             <groupId>io.smallrye.reactive</groupId>
             <artifactId>mutiny</artifactId>
-        </dependency>
-
-        <!-- JSON processing -->
-        <dependency>
-            <groupId>jakarta.json</groupId>
-            <artifactId>jakarta.json-api</artifactId>
-            <scope>provided</scope>
         </dependency>
 
         <!-- Picocli for CLI commands -->
@@ -87,6 +50,17 @@
             <version>4.7.5</version>
         </dependency>
 
+        <!-- Testing -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
 </project>

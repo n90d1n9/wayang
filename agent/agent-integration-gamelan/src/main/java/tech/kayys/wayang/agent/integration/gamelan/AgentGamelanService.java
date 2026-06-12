@@ -8,7 +8,7 @@ import org.jboss.logging.Logger;
 import tech.kayys.gamelan.engine.execution.ExecutionHistory;
 import tech.kayys.gamelan.engine.run.RunResponse;
 import tech.kayys.gamelan.sdk.client.GamelanClient;
-import tech.kayys.wayang.agent.memory.AgentMemoryService;
+import tech.kayys.wayang.agent.core.memory.AgentMemoryService;
 
 import java.time.Instant;
 import java.util.*;
@@ -181,8 +181,9 @@ public class AgentGamelanService {
 
         return gamelanClient.runs()
             .suspend(runId)
-            .withReason(reason)
+            .reason(reason)
             .execute()
+            .replaceWithVoid()
             .onFailure().invoke(failure ->
                 logger.errorf(failure, "Failed to suspend workflow run %s", runId)
             );
@@ -201,7 +202,7 @@ public class AgentGamelanService {
 
         return gamelanClient.runs()
             .resume(runId)
-            .withResumeData(resumeData)
+            .data(resumeData == null ? Map.of() : resumeData)
             .execute()
             .onFailure().invoke(failure ->
                 logger.errorf(failure, "Failed to resume workflow run %s", runId)
@@ -245,9 +246,9 @@ public class AgentGamelanService {
 
         return gamelanClient.runs()
             .signal(runId)
-            .withName(signalName)
-            .withPayload(signalData)
-            .send()
+            .name(signalName)
+            .payload(signalData == null ? Map.of() : signalData)
+            .execute()
             .onFailure().invoke(failure ->
                 logger.errorf(failure, "Failed to signal workflow run %s", runId)
             );
@@ -289,7 +290,7 @@ public class AgentGamelanService {
             null,  // No specific user
             "Workflow execution: " + runResponse.getWorkflowId(),
             message
-        ).onFailure().recoverWithVoid();
+        ).onFailure().recoverWithItem((Void) null);
     }
 
     /**
@@ -338,8 +339,11 @@ public class AgentGamelanService {
 
         return gamelanClient.runs()
             .query()
-            .withLabel("agentId", agentId)
+            .size(100)
             .execute()
+            .map(runs -> runs.stream()
+                .filter(run -> agentId.equals(agentMarker(run)))
+                .toList())
             .map(runs -> {
                 WorkflowMetrics metrics = new WorkflowMetrics();
                 metrics.setTotalRuns(runs.size());
@@ -362,5 +366,14 @@ public class AgentGamelanService {
                 logger.warnf("Could not calculate metrics for agent %s", agentId);
                 return new WorkflowMetrics();
             });
+    }
+
+    private Object agentMarker(RunResponse run) {
+        Map<String, Object> outputs = run.getOutputs();
+        if (outputs == null) {
+            return null;
+        }
+        Object explicitAgentId = outputs.get("agentId");
+        return explicitAgentId != null ? explicitAgentId : outputs.get("_agentId");
     }
 }

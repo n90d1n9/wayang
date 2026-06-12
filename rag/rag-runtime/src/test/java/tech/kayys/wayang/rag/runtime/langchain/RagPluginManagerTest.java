@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import tech.kayys.wayang.rag.core.GenerationConfig;
 import tech.kayys.wayang.rag.plugin.api.RagPipelinePlugin;
 import tech.kayys.wayang.rag.plugin.api.RagPluginExecutionContext;
+import tech.kayys.wayang.rag.runtime.RagPluginInspection;
 import tech.kayys.wayang.rag.runtime.RagPluginManager;
 import tech.kayys.wayang.rag.runtime.RagPluginTenantStrategyResolution;
 import tech.kayys.wayang.rag.runtime.RagRuntimeConfig;
@@ -127,9 +128,9 @@ class RagPluginManagerTest {
 
         RagPluginManager manager = new RagPluginManager(config, List.of(pluginA, tenantScoped, pluginC));
 
-        List<RagPluginManager.PluginInspection> inspection = manager.inspectPlugins("tenant-y");
-        Map<String, RagPluginManager.PluginInspection> byId = inspection.stream()
-                .collect(Collectors.toMap(RagPluginManager.PluginInspection::id, Function.identity()));
+        List<RagPluginInspection> inspection = manager.inspectPlugins("tenant-y");
+        Map<String, RagPluginInspection> byId = inspection.stream()
+                .collect(Collectors.toMap(RagPluginInspection::id, Function.identity()));
 
         assertTrue(byId.get("a").enabledByConfig());
         assertTrue(byId.get("a").supportsTenant());

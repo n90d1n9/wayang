@@ -24,6 +24,10 @@ public record AgentResponse(
         completedAt = completedAt != null ? completedAt : Instant.now();
     }
 
+    public String content() {
+        return answer;
+    }
+
     public static Builder builder() {
         return new Builder();
     }

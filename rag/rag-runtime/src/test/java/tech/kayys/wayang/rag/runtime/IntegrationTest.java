@@ -49,13 +49,21 @@ class IntegrationTest {
 
                 when(nativeRagCoreService.ingestText(anyString(), anyString(), anyString(), anyMap(),
                                 any(ChunkingConfig.class)))
-                                .thenReturn(List.of(RagChunk.of("doc", 0, "chunk", Map.of("source", "s"))));
+                                .thenReturn(List.of(RagChunk.of(
+                                                "doc",
+                                                0,
+                                                "chunk",
+                                                Map.of(RagMetadataKeys.SOURCE, "s"))));
                 when(nativeRagCoreService.query(anyString(), anyString(), any(RetrievalConfig.class),
                                 any(GenerationConfig.class), anyMap()))
                                 .thenReturn(new RagResult(
                                                 RagQuery.of("q"),
                                                 List.of(new RagScoredChunk(
-                                                                RagChunk.of("doc", 0, "chunk", Map.of("source", "s")),
+                                                                RagChunk.of(
+                                                                                "doc",
+                                                                                0,
+                                                                                "chunk",
+                                                                                Map.of(RagMetadataKeys.SOURCE, "s")),
                                                                 0.9)),
                                                 "answer",
                                                 Map.of()));

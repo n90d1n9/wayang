@@ -30,33 +30,30 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- Core agent functionality (will depend on agent-core once complete) -->
-        <!-- <dependency>
+        <!-- Core agent client -->
+        <dependency>
             <groupId>tech.kayys.wayang</groupId>
             <artifactId>agent-core</artifactId>
             <version>${project.version}</version>
-        </dependency> -->
+        </dependency>
 
-        <!-- Built-in skills -->
-        <!-- <dependency>
+        <!-- Built-in runtime skill examples -->
+        <dependency>
             <groupId>tech.kayys.wayang</groupId>
             <artifactId>agent-skills-builtin</artifactId>
             <version>${project.version}</version>
-        </dependency> -->
-
-        <!-- Inference -->
-        <dependency>
-            <groupId>tech.kayys.wayang</groupId>
-            <artifactId>gollek-sdk</artifactId>
-            <version>0.1.0</version>
-      <scope>provided</scope>
         </dependency>
 
         <!-- Logging -->
         <dependency>
             <groupId>org.jboss.logging</groupId>
             <artifactId>jboss-logging</artifactId>
-            <version>3.5.3.Final</version>
+        </dependency>
+
+        <!-- Mutiny -->
+        <dependency>
+            <groupId>io.smallrye.reactive</groupId>
+            <artifactId>mutiny</artifactId>
         </dependency>
 
         <!-- Testing -->

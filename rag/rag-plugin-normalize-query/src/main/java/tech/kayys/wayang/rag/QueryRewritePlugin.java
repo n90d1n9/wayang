@@ -3,23 +3,22 @@ package tech.kayys.wayang.rag;
 import tech.kayys.wayang.rag.plugin.api.RagPipelinePlugin;
 import tech.kayys.wayang.rag.plugin.api.RagPluginTuningConfig;
 import tech.kayys.wayang.rag.plugin.api.RagPluginExecutionContext;
+import tech.kayys.wayang.rag.plugin.api.RagPluginSupport;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-
-import java.util.Locale;
 
 @ApplicationScoped
 public class QueryRewritePlugin implements RagPipelinePlugin {
 
     @Inject
-    RagPluginTuningConfig tuningConfig;
+    RagPluginTuningConfig tuningConfig = RagPluginTuningConfig.defaults();
 
     public QueryRewritePlugin() {
     }
 
     public QueryRewritePlugin(RagPluginTuningConfig tuningConfig) {
-        this.tuningConfig = tuningConfig;
+        this.tuningConfig = tuningConfig == null ? RagPluginTuningConfig.defaults() : tuningConfig;
     }
 
     @Override
@@ -34,19 +33,9 @@ public class QueryRewritePlugin implements RagPipelinePlugin {
 
     @Override
     public RagPluginExecutionContext beforeQuery(RagPluginExecutionContext context) {
-        String query = context.query();
-        if (query == null) {
-            query = "";
-        }
-        String normalized = query.trim().replaceAll("\\s+", " ");
-        if (tuningConfig.normalizeQueryLowercase()) {
-            normalized = normalized.toLowerCase(Locale.ROOT);
-        }
-
-        int maxLength = tuningConfig.normalizeQueryMaxLength();
-        if (maxLength > 0 && normalized.length() > maxLength) {
-            normalized = normalized.substring(0, maxLength);
-        }
-        return context.withQuery(normalized);
+        return context.withQuery(RagPluginSupport.normalizeQuery(
+                context.query(),
+                tuningConfig.normalizeQueryLowercase(),
+                tuningConfig.normalizeQueryMaxLength()));
     }
 }

@@ -8,7 +8,7 @@ import tech.kayys.wayang.error.WayangException;
 import tech.kayys.wayang.tool.dto.GenerateToolsRequest;
 import tech.kayys.wayang.tool.dto.InvocationStatus;
 import tech.kayys.wayang.tool.dto.OpenApiToolRequest;
-import tech.kayys.wayang.tool.dto.RequestContext;
+import tech.kayys.wayang.tool.dto.ToolRequestContext;
 import tech.kayys.wayang.tool.dto.SourceType;
 import tech.kayys.wayang.tool.dto.ToolDetailResponse;
 import tech.kayys.wayang.tool.dto.ToolExecuteRequest;
@@ -60,7 +60,7 @@ class ToolResourceTest {
         ToolResource resource = baseResource();
         resource.toolGenerator = generator;
 
-        RequestContext requestContext = mock(RequestContext.class);
+        ToolRequestContext requestContext = mock(ToolRequestContext.class);
         when(requestContext.getCurrentRequestId()).thenReturn("tenant-a");
         resource.requestContext = requestContext;
 
@@ -94,7 +94,7 @@ class ToolResourceTest {
 
         ToolResource resource = baseResource();
         resource.toolGenerator = generator;
-        RequestContext requestContext = mock(RequestContext.class);
+        ToolRequestContext requestContext = mock(ToolRequestContext.class);
         when(requestContext.getCurrentRequestId()).thenReturn("tenant-a");
         resource.requestContext = requestContext;
 
@@ -122,7 +122,7 @@ class ToolResourceTest {
 
         ToolResource resource = baseResource();
         resource.mcpToolRepository = repository;
-        RequestContext requestContext = mock(RequestContext.class);
+        ToolRequestContext requestContext = mock(ToolRequestContext.class);
         when(requestContext.getCurrentRequestId()).thenReturn("tenant-b");
         resource.requestContext = requestContext;
 
@@ -142,7 +142,7 @@ class ToolResourceTest {
 
         ToolResource resource = baseResource();
         resource.mcpToolRepository = repository;
-        RequestContext requestContext = mock(RequestContext.class);
+        ToolRequestContext requestContext = mock(ToolRequestContext.class);
         when(requestContext.getCurrentRequestId()).thenReturn("tenant-c");
         resource.requestContext = requestContext;
 
@@ -168,7 +168,7 @@ class ToolResourceTest {
 
         ToolResource resource = baseResource();
         resource.mcpToolRepository = repository;
-        RequestContext requestContext = mock(RequestContext.class);
+        ToolRequestContext requestContext = mock(ToolRequestContext.class);
         when(requestContext.getCurrentRequestId()).thenReturn("tenant-g");
         resource.requestContext = requestContext;
 
@@ -187,7 +187,7 @@ class ToolResourceTest {
 
         ToolResource resource = baseResource();
         resource.toolExecutor = executor;
-        RequestContext requestContext = mock(RequestContext.class);
+        ToolRequestContext requestContext = mock(ToolRequestContext.class);
         when(requestContext.getCurrentRequestId()).thenReturn("tenant-d");
         resource.requestContext = requestContext;
 
@@ -214,7 +214,7 @@ class ToolResourceTest {
 
         ToolResource resource = baseResource();
         resource.toolExecutor = executor;
-        RequestContext requestContext = mock(RequestContext.class);
+        ToolRequestContext requestContext = mock(ToolRequestContext.class);
         when(requestContext.getCurrentRequestId()).thenReturn("tenant-e");
         resource.requestContext = requestContext;
 
@@ -243,7 +243,7 @@ class ToolResourceTest {
 
         ToolResource resource = baseResource();
         resource.mcpToolRepository = repository;
-        RequestContext requestContext = mock(RequestContext.class);
+        ToolRequestContext requestContext = mock(ToolRequestContext.class);
         when(requestContext.getCurrentRequestId()).thenReturn("tenant-f");
         resource.requestContext = requestContext;
 
@@ -265,7 +265,7 @@ class ToolResourceTest {
 
         ToolResource resource = baseResource();
         resource.mcpToolRepository = repository;
-        RequestContext requestContext = mock(RequestContext.class);
+        ToolRequestContext requestContext = mock(ToolRequestContext.class);
         when(requestContext.getCurrentRequestId()).thenReturn("tenant-h");
         resource.requestContext = requestContext;
 
@@ -291,7 +291,7 @@ class ToolResourceTest {
 
         ToolResource resource = baseResource();
         resource.mcpToolRepository = repository;
-        RequestContext requestContext = mock(RequestContext.class);
+        ToolRequestContext requestContext = mock(ToolRequestContext.class);
         when(requestContext.getCurrentRequestId()).thenReturn("tenant-i");
         resource.requestContext = requestContext;
 

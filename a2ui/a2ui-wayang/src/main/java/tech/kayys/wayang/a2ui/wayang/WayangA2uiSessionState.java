@@ -2,6 +2,7 @@ package tech.kayys.wayang.a2ui.wayang;
 
 import tech.kayys.wayang.a2ui.core.A2uiClientMessage;
 import tech.kayys.wayang.a2ui.core.A2uiUserAction;
+import tech.kayys.wayang.a2ui.wayang.action.ActionContextReader;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -18,18 +19,11 @@ public final class WayangA2uiSessionState {
     public synchronized A2uiClientMessage apply(A2uiClientMessage message) {
         if (message instanceof A2uiUserAction action
                 && WayangA2uiActions.RUN_EVENTS.equals(action.name())
-                && !hasContextValue(action, "afterSequence")) {
-            String runId = contextString(action, "runId");
+                && !ActionContextReader.hasValue(action, "afterSequence")) {
+            String runId = ActionContextReader.text(action, "runId");
             OptionalLong cursor = eventCursor(runId);
             if (cursor.isPresent() && cursor.getAsLong() > 0) {
-                Map<String, Object> context = new LinkedHashMap<>(action.context());
-                context.put("afterSequence", cursor.getAsLong());
-                return new A2uiUserAction(
-                        action.name(),
-                        action.surfaceId(),
-                        action.sourceComponentId(),
-                        action.timestamp(),
-                        context);
+                return ActionContextReader.withValue(action, "afterSequence", cursor.getAsLong());
             }
         }
         return message;
@@ -68,16 +62,6 @@ public final class WayangA2uiSessionState {
 
     public synchronized void clearEventCursor(String runId) {
         eventCursors.remove(normalizeRunId(runId));
-    }
-
-    private static boolean hasContextValue(A2uiUserAction action, String key) {
-        Object value = action.context().get(key);
-        return value != null && !String.valueOf(value).isBlank();
-    }
-
-    private static String contextString(A2uiUserAction action, String key) {
-        Object value = action.context().get(key);
-        return value == null ? "" : String.valueOf(value).trim();
     }
 
     private static String normalizeRunId(String runId) {

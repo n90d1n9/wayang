@@ -1,8 +1,14 @@
 package tech.kayys.wayang.agent.core.skills.orchestrator;
 
 import org.jboss.logging.Logger;
+import tech.kayys.wayang.agent.core.skills.integration.SkillIntegrationRegistry;
+import tech.kayys.wayang.agent.core.skills.integration.SkillLifecycleRefreshCoordinator;
+import tech.kayys.wayang.agent.core.skills.integration.SkillLifecycleRefreshResult;
 import tech.kayys.wayang.agent.core.skills.loader.SkillExecutor;
+import tech.kayys.wayang.agent.core.skills.loader.SkillExecutionOutcome;
+import tech.kayys.wayang.agent.core.skills.loader.SkillExecutionOutcomes;
 import tech.kayys.wayang.agent.core.skills.manifest.SkillManifest;
+import tech.kayys.wayang.agent.spi.skills.SkillMetadataKeys;
 
 import java.nio.file.Path;
 import java.util.*;
@@ -29,13 +35,28 @@ public class SkillAwareToolOrchestrator {
     private static final Logger LOG = Logger.getLogger(SkillAwareToolOrchestrator.class);
 
     private final SkillExecutor skillExecutor;
+    private final SkillLifecycleRefreshCoordinator refreshCoordinator;
     private final Path skillsDirectory;
     private final Map<String, SkillManifest> loadedSkills;
+    private SkillLifecycleRefreshResult lastRefreshResult;
 
     public SkillAwareToolOrchestrator(Path skillsDirectory) {
+        this(skillsDirectory, null);
+    }
+
+    public SkillAwareToolOrchestrator(Path skillsDirectory, SkillIntegrationRegistry integrationRegistry) {
+        this(skillsDirectory, new SkillExecutor(skillsDirectory), integrationRegistry);
+    }
+
+    SkillAwareToolOrchestrator(
+            Path skillsDirectory,
+            SkillExecutor skillExecutor,
+            SkillIntegrationRegistry integrationRegistry) {
         this.skillsDirectory = Objects.requireNonNull(skillsDirectory, "skillsDirectory");
-        this.skillExecutor = new SkillExecutor(skillsDirectory);
+        this.skillExecutor = Objects.requireNonNull(skillExecutor, "skillExecutor");
+        this.refreshCoordinator = new SkillLifecycleRefreshCoordinator(skillExecutor, integrationRegistry);
         this.loadedSkills = new HashMap<>();
+        this.lastRefreshResult = SkillLifecycleRefreshResult.empty();
     }
 
     /**
@@ -47,8 +68,9 @@ public class SkillAwareToolOrchestrator {
      */
     public List<String> initializeForDomain(String domain) throws Exception {
         loadedSkills.clear();
-        Map<String, SkillManifest> allSkills = skillExecutor.loadAllSkills();
-        
+        lastRefreshResult = refreshCoordinator.reloadSkills();
+        Map<String, SkillManifest> allSkills = lastRefreshResult.manifests();
+
         // Filter skills by domain (if metadata includes domain information)
         for (Map.Entry<String, SkillManifest> entry : allSkills.entrySet()) {
             SkillManifest manifest = entry.getValue();
@@ -70,22 +92,23 @@ public class SkillAwareToolOrchestrator {
     }
 
     /**
+     * Get the most recent filesystem reload and integration refresh result.
+     */
+    public SkillLifecycleRefreshResult getLastRefreshResult() {
+        return lastRefreshResult;
+    }
+
+    /**
      * Execute a skill within the orchestration context.
      *
      * @param skillName name of the skill to execute
      * @param parameters execution parameters
      * @return execution result
      */
-    public SkillExecutor.SkillExecutionResult executeSkill(String skillName, Map<String, Object> parameters) {
+    public SkillExecutionOutcome executeSkill(String skillName, Map<String, Object> parameters) {
         if (!loadedSkills.containsKey(skillName)) {
             LOG.warnf("Attempted to execute unloaded skill: %s", skillName);
-            return new SkillExecutor.SkillExecutionResult(
-                    skillName,
-                    null,
-                    0,
-                    false,
-                    "Skill not loaded in orchestrator context: " + skillName
-            );
+            return SkillExecutionOutcomes.skillNotLoaded(skillName);
         }
 
         LOG.debugf("Orchestrating execution of skill: %s", skillName);
@@ -100,11 +123,9 @@ public class SkillAwareToolOrchestrator {
      * @return true if skill is relevant to domain
      */
     private boolean isDomainRelevant(SkillManifest manifest, String domain) {
-        // Check if skill has domain metadata
-        if (manifest.getMetadata() != null && manifest.getMetadata().containsKey("domains")) {
-            @SuppressWarnings("unchecked")
-            List<String> domains = (List<String>) manifest.getMetadata().get("domains");
-            return domains.contains(domain) || domains.contains("*");
+        List<String> domains = SkillMetadataKeys.domains(manifest.getMetadata());
+        if (!domains.isEmpty()) {
+            return domains.contains(domain) || domains.contains(SkillMetadataKeys.WILDCARD_DOMAIN);
         }
         // By default, include all skills if no domain restriction is specified
         return true;
@@ -129,12 +150,9 @@ public class SkillAwareToolOrchestrator {
             return false;
         }
 
-        // Check against skill-specific output requirements if metadata specifies them
-        if (manifest.getMetadata() != null && manifest.getMetadata().containsKey("output-format")) {
-            String expectedFormat = (String) manifest.getMetadata().get("output-format");
-            // Additional validation could be implemented here (JSON schema, etc.)
-            LOG.debugf("Validating output format for skill %s: %s", skillName, expectedFormat);
-        }
+        SkillMetadataKeys.outputFormat(manifest.getMetadata())
+                .ifPresent(expectedFormat ->
+                        LOG.debugf("Validating output format for skill %s: %s", skillName, expectedFormat));
 
         return true;
     }

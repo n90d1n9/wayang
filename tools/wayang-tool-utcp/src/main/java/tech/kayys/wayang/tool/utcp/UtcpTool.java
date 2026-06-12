@@ -1,7 +1,9 @@
 package tech.kayys.wayang.tool.utcp;
 
 import io.smallrye.mutiny.Uni;
-import tech.kayys.wayang.tool.spi.Tool;
+import tech.kayys.wayang.tools.spi.Tool;
+import tech.kayys.wayang.tools.spi.ToolContext;
+import tech.kayys.wayang.tools.spi.ToolResult;
 
 import java.util.Collections;
 import java.util.Map;
@@ -40,8 +42,13 @@ public class UtcpTool implements Tool {
     }
 
     @Override
-    public Uni<Map<String, Object>> execute(Map<String, Object> arguments, Map<String, Object> context) {
+    public ToolResult execute(Map<String, Object> arguments, ToolContext context) {
         // TODO: Implement UTCP call
-        return Uni.createFrom().item(Map.of("status", "executed", "tool", "utcp"));
+        return ToolResult.success(Map.of("status", "executed", "tool", "utcp"));
+    }
+
+    @Override
+    public Uni<ToolResult> executeAsync(Map<String, Object> arguments, ToolContext context) {
+        return Uni.createFrom().item(() -> execute(arguments, context));
     }
 }

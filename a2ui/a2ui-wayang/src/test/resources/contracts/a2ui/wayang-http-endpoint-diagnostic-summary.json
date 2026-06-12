@@ -1,0 +1,31 @@
+{
+  "diagnosticsId": "contract-report",
+  "passed": false,
+  "exitCode": 1,
+  "successfulExit": false,
+  "exchangeCount": 1,
+  "issueCount": 1,
+  "knownPathCount": 0,
+  "unknownPathCount": 1,
+  "matchedCount": 0,
+  "unmatchedCount": 1,
+  "successfulCount": 0,
+  "clientErrorCount": 1,
+  "serverErrorCount": 0,
+  "transportErrors": true,
+  "statusCodes": [
+    404
+  ],
+  "outcomes": [
+    "TRANSPORT_ERROR"
+  ],
+  "issueCategories": [
+    "unknown-path"
+  ],
+  "errorCodes": [
+    "not_found"
+  ],
+  "attributes": {
+    "tenant": "demo"
+  }
+}

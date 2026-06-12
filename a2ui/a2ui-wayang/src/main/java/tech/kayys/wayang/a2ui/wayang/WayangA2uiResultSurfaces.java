@@ -1,12 +1,12 @@
 package tech.kayys.wayang.a2ui.wayang;
 
-import tech.kayys.wayang.a2ui.core.A2uiBeginRendering;
 import tech.kayys.wayang.a2ui.core.A2uiComponent;
 import tech.kayys.wayang.a2ui.core.A2uiComponents;
 import tech.kayys.wayang.a2ui.core.A2uiDataEntry;
-import tech.kayys.wayang.a2ui.core.A2uiDataModelUpdate;
 import tech.kayys.wayang.a2ui.core.A2uiServerMessage;
-import tech.kayys.wayang.a2ui.core.A2uiSurfaceUpdate;
+import tech.kayys.wayang.a2ui.wayang.surface.SurfaceIds;
+import tech.kayys.wayang.a2ui.wayang.surface.SurfaceLayouts;
+import tech.kayys.wayang.a2ui.wayang.surface.SurfaceMessages;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,23 +23,21 @@ public final class WayangA2uiResultSurfaces {
 
     public static List<A2uiServerMessage> actionResult(WayangA2uiActionResult result, int sequence) {
         WayangA2uiActionResult resolved = Objects.requireNonNull(result, "result");
-        String surfaceId = "wayang-action-result-" + sequence + "-" + safeId(resolved.actionName(), "action");
+        String surfaceId = SurfaceIds.actionResult(sequence, resolved.actionName());
         String rootId = surfaceId + "-root";
         String titleId = surfaceId + "-title";
         String actionId = surfaceId + "-action";
         String runId = surfaceId + "-run";
         String messageId = surfaceId + "-message";
 
-        List<String> children = new ArrayList<>();
-        children.add(titleId);
-        children.add(actionId);
+        List<String> children = SurfaceLayouts.children(titleId, actionId);
         if (!resolved.runId().isBlank()) {
             children.add(runId);
         }
         children.add(messageId);
 
-        List<A2uiComponent> components = new ArrayList<>();
-        components.add(A2uiComponents.column(rootId, children));
+        List<A2uiComponent> components = SurfaceLayouts.components();
+        SurfaceLayouts.addRootColumn(components, rootId, children);
         components.add(A2uiComponents.text(titleId, resolved.handled() ? "Action handled" : "Action rejected"));
         components.add(A2uiComponents.text(actionId, "Action: " + valueOrUnknown(resolved.actionName())));
         if (!resolved.runId().isBlank()) {
@@ -47,16 +45,15 @@ public final class WayangA2uiResultSurfaces {
         }
         components.add(A2uiComponents.text(messageId, resolved.message()));
 
-        return List.of(
-                A2uiDataModelUpdate.root(
-                        surfaceId,
-                        A2uiDataEntry.string("actionName", resolved.actionName()),
-                        A2uiDataEntry.string("runId", resolved.runId()),
-                        A2uiDataEntry.bool("handled", resolved.handled()),
-                        A2uiDataEntry.string("message", resolved.message()),
-                        A2uiDataEntry.map("metadata", metadataEntries(resolved.metadata()))),
-                new A2uiSurfaceUpdate(surfaceId, components),
-                A2uiBeginRendering.standard(surfaceId, rootId));
+        return SurfaceMessages.standard(
+                surfaceId,
+                rootId,
+                components,
+                A2uiDataEntry.string("actionName", resolved.actionName()),
+                A2uiDataEntry.string("runId", resolved.runId()),
+                A2uiDataEntry.bool("handled", resolved.handled()),
+                A2uiDataEntry.string("message", resolved.message()),
+                A2uiDataEntry.map("metadata", metadataEntries(resolved.metadata())));
     }
 
     private static List<A2uiDataEntry> metadataEntries(Map<String, Object> metadata) {
@@ -81,15 +78,6 @@ public final class WayangA2uiResultSurfaces {
             }
         });
         return List.copyOf(entries);
-    }
-
-    private static String safeId(String value, String fallback) {
-        String normalized = value == null ? "" : value.trim().toLowerCase(java.util.Locale.ROOT);
-        if (normalized.isBlank()) {
-            return fallback;
-        }
-        String safe = normalized.replaceAll("[^a-z0-9_-]+", "-");
-        return safe.isBlank() ? fallback : safe;
     }
 
     private static String valueOrUnknown(String value) {

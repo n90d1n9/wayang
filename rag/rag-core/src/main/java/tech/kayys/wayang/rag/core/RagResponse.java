@@ -26,13 +26,13 @@ public class RagResponse {
             Optional<String> error) {
         this.query = query;
         this.answer = answer;
-        this.sourceDocuments = sourceDocuments != null ? sourceDocuments : List.of();
-        this.citations = citations != null ? citations : List.of();
+        this.sourceDocuments = RagCollections.copyList(sourceDocuments);
+        this.citations = RagCollections.copyList(citations);
         this.metrics = metrics;
         this.context = context;
         this.timestamp = timestamp != null ? timestamp : Instant.now();
-        this.metadata = metadata != null ? metadata : Map.of();
-        this.sources = sources != null ? sources : List.of();
+        this.metadata = RagMetadata.copy(metadata);
+        this.sources = RagCollections.copyList(sources);
         this.error = error != null ? error : Optional.empty();
     }
 

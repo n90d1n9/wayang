@@ -1,6 +1,6 @@
 package tech.kayys.wayang.agent.core.coordinator;
 
-import tech.kayys.wayang.agent.core.AgentResponse;
+import tech.kayys.wayang.agent.spi.AgentResponse;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -18,6 +18,10 @@ public interface ResultAggregator {
      * @return Aggregated result combining all agent outputs
      */
     AggregatedResult aggregate(Map<String, AgentResponse> results);
+
+    private static String answerOf(AgentResponse response) {
+        return response != null && response.answer() != null ? response.answer() : "";
+    }
 
     /**
      * Result of aggregation across multiple agents.
@@ -42,10 +46,11 @@ public interface ResultAggregator {
 
             for (Map.Entry<String, AgentResponse> entry : results.entrySet()) {
                 AgentResponse response = entry.getValue();
-                if (response != null && !response.getFinalAnswer().isBlank()) {
+                String answer = answerOf(response);
+                if (!answer.isBlank()) {
                     return new AggregatedResult(
-                            response.getFinalAnswer(),
-                            Map.of(entry.getKey(), response.getFinalAnswer()),
+                            answer,
+                            Map.of(entry.getKey(), answer),
                             Map.of("strategy", "first_success"),
                             System.currentTimeMillis() - startTime,
                             true,
@@ -87,9 +92,9 @@ public interface ResultAggregator {
 
             // Count vote frequencies
             Map<String, List<String>> voteGroups = results.entrySet().stream()
-                    .filter(e -> e.getValue() != null && !e.getValue().getFinalAnswer().isBlank())
+                    .filter(e -> !answerOf(e.getValue()).isBlank())
                     .collect(Collectors.groupingBy(
-                            e -> e.getValue().getFinalAnswer(),
+                            e -> answerOf(e.getValue()),
                             Collectors.mapping(Map.Entry::getKey, Collectors.toList())
                     ));
 
@@ -146,10 +151,11 @@ public interface ResultAggregator {
                 String agentName = entry.getKey();
                 AgentResponse response = entry.getValue();
 
-                if (response != null && !response.getFinalAnswer().isBlank()) {
+                String answer = answerOf(response);
+                if (!answer.isBlank()) {
                     combined.append("[").append(agentName).append("] ")
-                            .append(response.getFinalAnswer()).append("\n\n");
-                    contributions.put(agentName, response.getFinalAnswer());
+                            .append(answer).append("\n\n");
+                    contributions.put(agentName, answer);
                 }
             }
 
@@ -183,7 +189,7 @@ public interface ResultAggregator {
             long startTime = System.currentTimeMillis();
 
             List<AgentResponse> responses = results.values().stream()
-                    .filter(r -> r != null && !r.getFinalAnswer().isBlank())
+                    .filter(r -> !answerOf(r).isBlank())
                     .toList();
 
             if (responses.isEmpty()) {
@@ -198,14 +204,14 @@ public interface ResultAggregator {
             }
 
             // Use primary agent's answer plus supplementary info
-            StringBuilder combined = new StringBuilder(responses.get(0).getFinalAnswer());
+            StringBuilder combined = new StringBuilder(answerOf(responses.get(0)));
 
             if (responses.size() > 1) {
                 combined.append("\n\nAdditional context:\n");
                 for (int i = 1; i < responses.size(); i++) {
                     double weight = i < weights.size() ? weights.get(i) : 0.5;
                     combined.append("- [weight: ").append(String.format("%.1f", weight)).append("] ")
-                            .append(responses.get(i).getFinalAnswer()).append("\n");
+                            .append(answerOf(responses.get(i))).append("\n");
                 }
             }
 
@@ -213,7 +219,7 @@ public interface ResultAggregator {
             int index = 0;
             for (String agentName : results.keySet()) {
                 if (index < responses.size()) {
-                    contributions.put(agentName, responses.get(index).getFinalAnswer());
+                    contributions.put(agentName, answerOf(responses.get(index)));
                     index++;
                 }
             }

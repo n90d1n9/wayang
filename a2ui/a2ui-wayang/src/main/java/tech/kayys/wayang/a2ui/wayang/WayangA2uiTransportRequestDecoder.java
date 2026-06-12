@@ -1,5 +1,9 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.DecodeValues;
+
 import java.util.Locale;
 import java.util.Map;
 
@@ -9,10 +13,10 @@ import java.util.Map;
 public final class WayangA2uiTransportRequestDecoder {
 
     public static WayangA2uiTransportRequest fromMap(Map<?, ?> values) {
-        Map<String, Object> request = WayangA2uiTransportMaps.copy(values);
+        Map<String, Object> request = TransportMaps.copy(values);
         return new WayangA2uiTransportRequest(
                 payloadKind(request.get(WayangA2uiTransportFields.KIND)),
-                WayangA2uiDecodeValues.rawText(request.get(WayangA2uiTransportFields.BODY)),
+                DecodeValues.rawText(request.get(WayangA2uiTransportFields.BODY)),
                 dataPart(request.get(WayangA2uiTransportFields.DATA_PART)));
     }
 
@@ -20,7 +24,7 @@ public final class WayangA2uiTransportRequestDecoder {
         if (value instanceof WayangA2uiTransportPayloadKind requestKind) {
             return requestKind;
         }
-        String text = WayangA2uiDecodeValues.rawText(value);
+        String text = DecodeValues.rawText(value);
         if (text.isBlank()) {
             throw new IllegalArgumentException("A2UI transport request kind must not be blank");
         }
@@ -34,7 +38,7 @@ public final class WayangA2uiTransportRequestDecoder {
 
     static Map<String, Object> dataPart(Object value) {
         if (value instanceof Map<?, ?> map) {
-            return WayangA2uiTransportMaps.copy(map);
+            return TransportMaps.copy(map);
         }
         return Map.of();
     }

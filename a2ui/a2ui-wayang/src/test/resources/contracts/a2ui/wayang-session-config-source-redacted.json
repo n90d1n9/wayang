@@ -1,0 +1,8 @@
+{
+  "bucket": "wayang-config",
+  "key": "tenants/tenant-a/a2ui-session.json",
+  "endpointUrl": "[REDACTED]",
+  "accessKeyId": "[REDACTED]",
+  "secretAccessKey": "[REDACTED]",
+  "type": "s3"
+}

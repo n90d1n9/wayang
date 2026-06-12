@@ -1,0 +1,40 @@
+{
+  "diagnosticsId": "contract-plan",
+  "config": {
+    "routeCatalogProbe": true,
+    "bindingReportProbe": true,
+    "smokeProbe": false,
+    "readinessProbe": false,
+    "routeOptionsProbe": false,
+    "defaultHeaders": {
+      "Accept": [
+        "application/json"
+      ]
+    },
+    "defaultAttributes": {
+      "tenant": "demo"
+    }
+  },
+  "requests": [
+    {
+      "method": "GET",
+      "rawPath": "/api/a2ui/route-catalog?tenant=demo",
+      "body": "",
+      "bodyPresent": false,
+      "bodyLength": 0,
+      "headers": {
+        "Accept": [
+          "application/json"
+        ]
+      },
+      "attributes": {
+        "traceId": "trace-1"
+      }
+    }
+  ],
+  "requestCount": 1,
+  "usesDefaultRequests": false,
+  "attributes": {
+    "source": "contract"
+  }
+}

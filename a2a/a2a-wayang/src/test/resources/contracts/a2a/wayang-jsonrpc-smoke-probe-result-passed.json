@@ -1,0 +1,72 @@
+{
+  "statusCode": 200,
+  "httpSuccessful": true,
+  "routeOperation": "JsonRpcSmoke",
+  "protocolVersion": "1.0",
+  "contentType": "application/json",
+  "smokeRoute": true,
+  "passed": true,
+  "exitCode": 0,
+  "summary": {
+    "passed": true,
+    "exitCode": 0,
+    "scenarioId": "a2a.jsonrpc.contract.pass",
+    "exchangeCount": 1,
+    "issueCount": 0,
+    "smokeResult": true,
+    "successfulExit": true,
+    "issues": [],
+    "attributes": {
+      "source": "contract",
+      "scenarioId": "a2a.jsonrpc.contract.pass",
+      "exchangeCount": 1
+    },
+    "body": {
+      "passed": true,
+      "exitCode": 0,
+      "scenarioResult": {
+        "scenarioId": "a2a.jsonrpc.contract.pass",
+        "passed": true,
+        "exchangeCount": 1,
+        "issueCount": 0,
+        "exchanges": [
+          {
+            "index": 0,
+            "requestId": "ok",
+            "method": "GetExtendedAgentCard",
+            "statusCode": 200,
+            "successful": true,
+            "contentType": "application/json",
+            "headers": {
+              "Content-Type": "application/json"
+            },
+            "body": {
+              "jsonrpc": "2.0",
+              "id": "ok",
+              "result": {
+                "kind": "contract-pass",
+                "name": "Wayang"
+              }
+            }
+          }
+        ],
+        "issues": [],
+        "attributes": {}
+      },
+      "attributes": {
+        "source": "contract",
+        "scenarioId": "a2a.jsonrpc.contract.pass",
+        "exchangeCount": 1
+      }
+    }
+  },
+  "headers": {
+    "Content-Type": "application/json",
+    "X-Wayang-A2A-Route-Operation": "JsonRpcSmoke",
+    "X-Wayang-A2A-Protocol-Version": "1.0",
+    "X-Wayang-A2A-Smoke-Passed": true,
+    "X-Wayang-A2A-Smoke-Exit-Code": 0,
+    "X-Wayang-A2A-Smoke-Scenario": "a2a.jsonrpc.contract.pass",
+    "A2A-Version": "1.0"
+  }
+}

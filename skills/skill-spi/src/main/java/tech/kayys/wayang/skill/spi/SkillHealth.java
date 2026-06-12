@@ -1,4 +1,4 @@
-package tech.kayys.gollek.agent.spi;
+package tech.kayys.wayang.skill.spi;
 
 public record SkillHealth(String skillId, boolean healthy, String message) {
     public static SkillHealth healthy(String id) {

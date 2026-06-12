@@ -7,10 +7,10 @@ import tech.kayys.wayang.embedding.EmbeddingResponse;
 import tech.kayys.wayang.embedding.EmbeddingService;
 import tech.kayys.wayang.rag.core.RagChunk;
 import tech.kayys.wayang.rag.core.RagDocument;
+import tech.kayys.wayang.rag.core.RagMetadataKeys;
 import tech.kayys.wayang.rag.core.store.VectorStore;
 
 import java.util.List;
-import java.util.Map;
 import java.util.OptionalInt;
 
 public class RagIndexer {
@@ -56,13 +56,12 @@ public class RagIndexer {
                     chunk.id(),
                     vector,
                     chunk,
-                    Map.of(
-                            "tenantId", namespace,
-                            "embeddingModel", embeddingModel,
-                            "embeddingDimension", response.dimension(),
-                            "embeddingVersion", response.version(),
-                            "documentId", chunk.documentId(),
-                            "chunkIndex", chunk.chunkIndex()));
+                    RagMetadataKeys.indexedChunk(
+                            namespace,
+                            embeddingModel,
+                            response.dimension(),
+                            response.version(),
+                            chunk));
         }
     }
 

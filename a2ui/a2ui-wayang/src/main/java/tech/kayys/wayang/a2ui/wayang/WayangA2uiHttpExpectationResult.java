@@ -1,5 +1,11 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpExpectationProjection;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+
 import java.util.List;
 import java.util.Map;
 
@@ -13,12 +19,10 @@ public record WayangA2uiHttpExpectationResult(
         Map<String, Object> attributes) {
 
     public WayangA2uiHttpExpectationResult {
-        targetId = targetId == null || targetId.isBlank() ? "a2ui-http-target" : targetId.trim();
-        expectationId = expectationId == null || expectationId.isBlank()
-                ? "a2ui-http-expectation"
-                : expectationId.trim();
-        validationIssues = WayangA2uiTransportMaps.copyMaps(validationIssues);
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        targetId = RecordValues.textOrDefault(targetId, "a2ui-http-target");
+        expectationId = RecordValues.textOrDefault(expectationId, "a2ui-http-expectation");
+        validationIssues = TransportMaps.copyMaps(validationIssues);
+        attributes = TransportMaps.copy(attributes);
     }
 
     public static WayangA2uiHttpExpectationResult of(
@@ -34,7 +38,7 @@ public record WayangA2uiHttpExpectationResult(
                         : issues.stream()
                                 .map(WayangA2uiHttpExpectationIssue::toMap)
                                 .toList(),
-                WayangA2uiTransportMaps.copy(attributes));
+                TransportMaps.copy(attributes));
     }
 
     public boolean passed() {
@@ -46,10 +50,10 @@ public record WayangA2uiHttpExpectationResult(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpExpectationProjection.result(this);
+        return HttpExpectationProjection.result(this);
     }
 
     public String toJson() {
-        return WayangA2uiTransportJson.json(toMap(), "Unable to encode A2UI HTTP expectation result");
+        return TransportJson.json(toMap(), "Unable to encode A2UI HTTP expectation result");
     }
 }

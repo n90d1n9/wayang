@@ -1,0 +1,157 @@
+{
+  "endpointPath": "",
+  "specComplianceReportEnabled": true,
+  "routeCatalogPath": "",
+  "contentType": "application/json",
+  "smokeEnabled": true,
+  "routeCatalogEnabled": true,
+  "specComplianceReportPath": "",
+  "allow": "GET, OPTIONS",
+  "headers": {
+    "Allow": "GET, OPTIONS",
+    "X-Wayang-A2A-Route-Operation": "JsonRpcBindingReport",
+    "Content-Type": "application/json",
+    "X-Wayang-A2A-Protocol-Version": "1.0",
+    "A2A-Version": "1.0"
+  },
+  "diagnosticsReportPath": "",
+  "httpSuccessful": true,
+  "statusCode": 200,
+  "issues": [
+    {
+      "expected": "> 0",
+      "source": "bindingReport",
+      "code": "method_count_missing",
+      "message": "A2A JSON-RPC binding report did not expose any methods.",
+      "actual": "0",
+      "field": "methodCount"
+    },
+    {
+      "expected": "non-blank",
+      "source": "bindingReport",
+      "code": "endpoint_path_missing",
+      "message": "A2A JSON-RPC binding report did not expose an endpoint path.",
+      "actual": "",
+      "field": "endpointPath"
+    },
+    {
+      "expected": "non-blank",
+      "source": "bindingReport",
+      "code": "smoke_path_missing",
+      "message": "A2A JSON-RPC binding report did not expose a smoke path.",
+      "actual": "",
+      "field": "smokePath"
+    },
+    {
+      "expected": "non-blank",
+      "source": "bindingReport",
+      "code": "binding_report_path_missing",
+      "message": "A2A JSON-RPC binding report did not expose a binding report path.",
+      "actual": "",
+      "field": "bindingReportPath"
+    },
+    {
+      "expected": "non-blank",
+      "source": "bindingReport",
+      "code": "route_catalog_path_missing",
+      "message": "A2A JSON-RPC binding report did not expose a route catalog path.",
+      "actual": "",
+      "field": "routeCatalogPath"
+    },
+    {
+      "expected": "non-blank",
+      "source": "bindingReport",
+      "code": "diagnostics_report_path_missing",
+      "message": "A2A JSON-RPC binding report did not expose a diagnostics report path.",
+      "actual": "",
+      "field": "diagnosticsReportPath"
+    },
+    {
+      "expected": "non-blank",
+      "source": "bindingReport",
+      "code": "spec_compliance_report_path_missing",
+      "message": "A2A JSON-RPC binding report did not expose a spec compliance report path.",
+      "actual": "",
+      "field": "specComplianceReportPath"
+    },
+    {
+      "expected": "non-blank",
+      "source": "bindingReport",
+      "code": "readiness_path_missing",
+      "message": "A2A JSON-RPC binding report did not expose a readiness path.",
+      "actual": "",
+      "field": "readinessPath"
+    },
+    {
+      "expected": "non-blank",
+      "source": "bindingReport",
+      "code": "readiness_issue_summary_path_missing",
+      "message": "A2A JSON-RPC binding report did not expose a readiness issue summary path.",
+      "actual": "",
+      "field": "readinessIssueSummaryPath"
+    },
+    {
+      "expected": "true",
+      "source": "bindingReport",
+      "code": "diagnostic_handler_coverage_incomplete",
+      "message": "A2A JSON-RPC binding report diagnostic handler coverage was incomplete.",
+      "actual": "missing=[], orphan=[]",
+      "field": "diagnosticHandlers.complete"
+    }
+  ],
+  "complete": false,
+  "readinessEnabled": true,
+  "issueCount": 10,
+  "smokePath": "",
+  "streamingMethods": [],
+  "passed": false,
+  "jsonContent": true,
+  "bindingReportRoute": true,
+  "readinessPath": "",
+  "methodCount": 0,
+  "streamingMethodCount": 0,
+  "readinessIssueSummaryEnabled": true,
+  "bindingReportEnabled": true,
+  "diagnosticHandlersComplete": false,
+  "diagnosticRouteKeyCount": 0,
+  "diagnosticHandlerKeyCount": 0,
+  "diagnosticRouteKeys": [],
+  "diagnosticHandlerKeys": [],
+  "missingDiagnosticHandlerKeys": [],
+  "orphanDiagnosticHandlerKeys": [],
+  "body": {
+    "methodCount": 0,
+    "bindingReport": {
+      "enabled": true
+    },
+    "protocolVersion": "1.0",
+    "readiness": {
+      "enabled": true
+    },
+    "diagnosticsReport": {
+      "enabled": true
+    },
+    "config": {},
+    "streamingMethods": [],
+    "methods": [],
+    "readinessIssueSummary": {
+      "enabled": true
+    },
+    "endpoint": {},
+    "binding": "JSONRPC",
+    "routeCatalog": {
+      "enabled": true
+    },
+    "smoke": {
+      "enabled": true
+    },
+    "specComplianceReport": {
+      "enabled": true
+    }
+  },
+  "diagnosticsReportEnabled": true,
+  "protocolVersion": "1.0",
+  "bindingReportPath": "",
+  "routeOperation": "JsonRpcBindingReport",
+  "readinessIssueSummaryPath": ""
+}

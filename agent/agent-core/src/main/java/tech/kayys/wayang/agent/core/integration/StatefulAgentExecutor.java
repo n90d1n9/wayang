@@ -70,16 +70,15 @@ public class StatefulAgentExecutor {
             String sessionId,
             List<String> prompts) {
 
-        return Uni.combine()
-                .all()
-                .unis(prompts.stream()
+        return Uni.join()
+                .all(prompts.stream()
                         .map(prompt -> executeTurn(
                                 agentId,
                                 userId,
                                 sessionId,
                                 prompt))
                         .collect(Collectors.toList()))
-                .asList();
+                .andCollectFailures();
     }
 
     /**

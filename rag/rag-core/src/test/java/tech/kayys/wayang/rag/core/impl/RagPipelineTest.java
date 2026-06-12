@@ -7,6 +7,7 @@ import tech.kayys.wayang.embedding.EmbeddingService;
 import tech.kayys.wayang.embedding.provider.CharNgramEmbeddingProvider;
 import tech.kayys.wayang.embedding.provider.DeterministicHashEmbeddingProvider;
 import tech.kayys.wayang.embedding.provider.TfIdfHashEmbeddingProvider;
+import tech.kayys.wayang.rag.core.RagMetadataKeys;
 import tech.kayys.wayang.rag.core.RagQuery;
 import tech.kayys.wayang.rag.core.RagResult;
 import tech.kayys.wayang.rag.core.spi.ChunkingOptions;
@@ -43,10 +44,10 @@ class RagPipelineTest {
                                 new TopKReranker(),
                                 new ContextConcatenatingGenerator());
 
-                pipeline.ingest(
+                List<tech.kayys.wayang.rag.core.RagChunk> chunks = pipeline.ingest(
                                 "runbook",
                                 "Payment timeout happens when gateway latency spikes. Retry policy should use exponential backoff.",
-                                Map.of("collection", "ops"),
+                                Map.of(RagMetadataKeys.COLLECTION, "ops"),
                                 new ChunkingOptions(70, 10));
 
                 RagResult result = pipeline.query(new RagQuery(
@@ -56,6 +57,7 @@ class RagPipelineTest {
                                 Map.of()));
 
                 assertFalse(result.chunks().isEmpty());
+                assertTrue(chunks.stream().allMatch(chunk -> "runbook".equals(chunk.documentId())));
                 assertTrue(result.answer().contains("payment") || result.answer().contains("Payment"));
         }
 }

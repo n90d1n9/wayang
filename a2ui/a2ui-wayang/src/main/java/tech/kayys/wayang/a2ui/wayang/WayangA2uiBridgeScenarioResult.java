@@ -1,8 +1,13 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportExchangeMetrics;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+import tech.kayys.wayang.a2ui.wayang.support.RecordCollections;
+
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Captured result of a bridge scenario run.
@@ -13,13 +18,9 @@ public record WayangA2uiBridgeScenarioResult(
         Map<String, Object> attributes) {
 
     public WayangA2uiBridgeScenarioResult {
-        scenarioId = scenarioId == null || scenarioId.isBlank() ? "a2ui-bridge-scenario" : scenarioId.trim();
-        exchanges = exchanges == null
-                ? List.of()
-                : exchanges.stream()
-                        .filter(Objects::nonNull)
-                        .toList();
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        scenarioId = RecordValues.textOrDefault(scenarioId, "a2ui-bridge-scenario");
+        exchanges = RecordCollections.nonNullList(exchanges);
+        attributes = TransportMaps.copy(attributes);
     }
 
     public int exchangeCount() {
@@ -27,34 +28,22 @@ public record WayangA2uiBridgeScenarioResult(
     }
 
     public long handledCount() {
-        return exchanges.stream()
-                .map(WayangA2uiBridgeScenarioExchange::response)
-                .map(WayangA2uiBridgeResponse::transportResponse)
-                .mapToLong(WayangA2uiTransportResponse::handledCount)
-                .sum();
+        return TransportExchangeMetrics.handledCount(exchanges);
     }
 
     public long rejectedCount() {
-        return exchanges.stream()
-                .map(WayangA2uiBridgeScenarioExchange::response)
-                .map(WayangA2uiBridgeResponse::transportResponse)
-                .mapToLong(WayangA2uiTransportResponse::rejectedCount)
-                .sum();
+        return TransportExchangeMetrics.rejectedCount(exchanges);
     }
 
     public boolean hasTransportErrors() {
-        return exchanges.stream().anyMatch(WayangA2uiBridgeScenarioExchange::transportError);
+        return TransportExchangeMetrics.hasTransportErrors(exchanges);
     }
 
     public List<WayangA2uiTransportOutcome> outcomes() {
-        return exchanges.stream()
-                .map(WayangA2uiBridgeScenarioExchange::outcome)
-                .toList();
+        return TransportExchangeMetrics.outcomes(exchanges);
     }
 
     public List<Map<String, Object>> responseEnvelopes() {
-        return exchanges.stream()
-                .map(WayangA2uiBridgeScenarioExchange::responseEnvelope)
-                .toList();
+        return TransportExchangeMetrics.responseEnvelopes(exchanges);
     }
 }

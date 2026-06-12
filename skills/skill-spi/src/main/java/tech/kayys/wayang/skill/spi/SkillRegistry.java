@@ -1,4 +1,4 @@
-package tech.kayys.gollek.agent.spi;
+package tech.kayys.wayang.skill.spi;
 
 import java.util.List;
 import java.util.Optional;
@@ -18,19 +18,19 @@ import java.util.Optional;
  */
 public interface SkillRegistry {
 
-    List<AgentSkill> listAll();
+    List<Skill> listAll();
 
-    Optional<AgentSkill> find(String id);
+    Optional<Skill> find(String id);
 
-    AgentSkill findOrThrow(String id);
+    Skill findOrThrow(String id);
 
-    void register(AgentSkill skill);
+    void register(Skill skill);
 
     void unregister(String skillId);
 
-    List<AgentSkill> findByCategory(SkillCategory category);
+    List<Skill> findByCategory(SkillCategory category);
 
-    List<AgentSkill> listAllowed(String tenantId, java.util.Set<String> allowedIds);
+    List<Skill> listAllowed(String tenantId, java.util.Set<String> allowedIds);
 
     boolean isRegistered(String skillId);
 

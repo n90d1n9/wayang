@@ -159,7 +159,7 @@ class PromptEngineTest {
 
                 @Test
                 void invalid_semver_throws() {
-                        PromptVersion badVersion = new PromptVersion(
+                        assertThrows(IllegalArgumentException.class, () -> new PromptVersion(
                                         "not-a-version",
                                         "Hello",
                                         null,
@@ -170,10 +170,7 @@ class PromptEngineTest {
                                         null,
                                         null,
                                         null,
-                                        null);
-                        
-                        // Version validation happens at PromptVersion constructor level
-                        // This test would need adjustment based on actual validation in PromptVersion
+                                        null));
                 }
 
                 @Test
@@ -1357,7 +1354,7 @@ class PromptEngineTest {
                                         null,
                                         null,
                                         null,
-                                        null);
+                                        Map.of("condition", "context.flag"));
 
                         PromptTemplate conditional = new PromptTemplate(
                                         "cond",
@@ -1425,7 +1422,7 @@ class PromptEngineTest {
                                         null,
                                         null,
                                         null,
-                                        null);
+                                        Map.of("condition", "false"));
 
                         PromptTemplate t = new PromptTemplate(
                                         "skip",

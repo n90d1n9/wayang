@@ -1,4 +1,4 @@
-package tech.kayys.gollek.agent.spi;
+package tech.kayys.wayang.skill.spi;
 
 public enum SkillCategory {
     GENERAL,

@@ -5,8 +5,8 @@
 
     <parent>
         <groupId>tech.kayys.wayang</groupId>
-        <artifactId>wayang-executor-parent</artifactId>
-        <version>0.1.0</version>
+        <artifactId>wayang-agentic-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 

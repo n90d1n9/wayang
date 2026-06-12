@@ -1,8 +1,13 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpExchangeMetrics;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+import tech.kayys.wayang.a2ui.wayang.support.RecordCollections;
+
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Captured result of an HTTP scenario run.
@@ -13,73 +18,49 @@ public record WayangA2uiHttpScenarioResult(
         Map<String, Object> attributes) {
 
     public WayangA2uiHttpScenarioResult {
-        scenarioId = scenarioId == null || scenarioId.isBlank() ? "a2ui-http-scenario" : scenarioId.trim();
-        exchanges = exchanges == null
-                ? List.of()
-                : exchanges.stream()
-                        .filter(Objects::nonNull)
-                        .toList();
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        scenarioId = RecordValues.textOrDefault(scenarioId, "a2ui-http-scenario");
+        exchanges = RecordCollections.nonNullList(exchanges);
+        attributes = TransportMaps.copy(attributes);
     }
 
     public int exchangeCount() {
-        return exchanges.size();
+        return HttpExchangeMetrics.exchangeCount(exchanges);
     }
 
     public long successfulCount() {
-        return exchanges.stream()
-                .filter(WayangA2uiHttpScenarioExchange::successful)
-                .count();
+        return HttpExchangeMetrics.successfulCount(exchanges);
     }
 
     public long clientErrorCount() {
-        return exchanges.stream()
-                .mapToInt(WayangA2uiHttpScenarioExchange::statusCode)
-                .filter(statusCode -> statusCode >= 400 && statusCode < 500)
-                .count();
+        return HttpExchangeMetrics.clientErrorCount(exchanges);
     }
 
     public long serverErrorCount() {
-        return exchanges.stream()
-                .mapToInt(WayangA2uiHttpScenarioExchange::statusCode)
-                .filter(statusCode -> statusCode >= 500)
-                .count();
+        return HttpExchangeMetrics.serverErrorCount(exchanges);
     }
 
     public long handledCount() {
-        return exchanges.stream()
-                .map(WayangA2uiHttpScenarioExchange::transportResponse)
-                .mapToLong(WayangA2uiTransportResponse::handledCount)
-                .sum();
+        return HttpExchangeMetrics.handledCount(exchanges);
     }
 
     public long rejectedCount() {
-        return exchanges.stream()
-                .map(WayangA2uiHttpScenarioExchange::transportResponse)
-                .mapToLong(WayangA2uiTransportResponse::rejectedCount)
-                .sum();
+        return HttpExchangeMetrics.rejectedCount(exchanges);
     }
 
     public boolean hasTransportErrors() {
-        return exchanges.stream().anyMatch(WayangA2uiHttpScenarioExchange::transportError);
+        return HttpExchangeMetrics.hasTransportErrors(exchanges);
     }
 
     public List<Integer> statusCodes() {
-        return exchanges.stream()
-                .map(WayangA2uiHttpScenarioExchange::statusCode)
-                .toList();
+        return HttpExchangeMetrics.statusCodes(exchanges);
     }
 
     public List<WayangA2uiTransportOutcome> outcomes() {
-        return exchanges.stream()
-                .map(WayangA2uiHttpScenarioExchange::outcome)
-                .toList();
+        return HttpExchangeMetrics.outcomes(exchanges);
     }
 
     public List<Map<String, Object>> responseEnvelopes() {
-        return exchanges.stream()
-                .map(WayangA2uiHttpScenarioExchange::responseEnvelope)
-                .toList();
+        return HttpExchangeMetrics.responseEnvelopes(exchanges);
     }
 
     public WayangA2uiHttpScenarioReport report() {

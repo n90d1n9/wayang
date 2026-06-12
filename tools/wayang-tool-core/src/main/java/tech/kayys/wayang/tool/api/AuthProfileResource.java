@@ -21,7 +21,6 @@ import tech.kayys.wayang.tool.repository.AuthProfileRepository;
 
 import java.util.*;
 
-import tech.kayys.gollek.mcp.dto.Tool;
 import tech.kayys.wayang.security.secrets.dto.SecretType;
 import tech.kayys.wayang.security.secrets.dto.StoreSecretRequest;
 import tech.kayys.wayang.security.secrets.vault.VaultSecretManager;

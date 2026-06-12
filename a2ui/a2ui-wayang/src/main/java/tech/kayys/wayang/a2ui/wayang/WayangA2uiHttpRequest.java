@@ -1,5 +1,7 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -18,8 +20,8 @@ public record WayangA2uiHttpRequest(
         method = normalizeMethod(method);
         path = normalizePath(path);
         body = body == null ? "" : body;
-        headers = WayangA2uiTransportMaps.copy(headers);
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        headers = TransportMaps.copy(headers);
+        attributes = TransportMaps.copy(attributes);
     }
 
     public static WayangA2uiHttpRequest get(String path) {
@@ -119,7 +121,7 @@ public record WayangA2uiHttpRequest(
                 path,
                 body,
                 headers,
-                WayangA2uiTransportMetadata.merge(attributes, WayangA2uiTransportMaps.copy(extraAttributes)));
+                WayangA2uiTransportMetadata.merge(attributes, TransportMaps.copy(extraAttributes)));
     }
 
     static String normalizeMethod(String value) {

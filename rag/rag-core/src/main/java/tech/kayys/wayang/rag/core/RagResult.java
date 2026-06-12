@@ -8,4 +8,8 @@ public record RagResult(
         List<RagScoredChunk> chunks,
         String answer,
         Map<String, Object> metadata) {
+
+    public RagResult {
+        metadata = RagMetadata.copy(metadata);
+    }
 }

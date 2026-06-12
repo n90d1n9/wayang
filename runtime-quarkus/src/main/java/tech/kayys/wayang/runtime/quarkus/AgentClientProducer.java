@@ -1,12 +1,11 @@
 package tech.kayys.wayang.runtime.quarkus;
 
-import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
-import tech.kayys.gollek.agent.core.AgentClient;
-import tech.kayys.gollek.agent.core.AgentConfig;
+import tech.kayys.wayang.agent.core.core.AgentClient;
+import tech.kayys.wayang.agent.core.core.AgentConfig;
 import tech.kayys.wayang.agent.spi.InferenceBackend;
 import tech.kayys.wayang.agent.spi.WorkflowBackend;
 

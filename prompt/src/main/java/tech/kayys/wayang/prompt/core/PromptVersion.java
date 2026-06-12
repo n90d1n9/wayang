@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 
 /**
  * ============================================================================
@@ -39,6 +40,9 @@ import java.util.Objects;
  * JINJA2 / FREEMARKER are available when the full platform module is loaded.
  */
 public final class PromptVersion {
+
+    private static final Pattern SCRIPT_TAG_PATTERN =
+            Pattern.compile("<\\s*/?\\s*script\\b", Pattern.CASE_INSENSITIVE);
 
     /** Semantic version string (SemVer). */
     private final String version;
@@ -103,17 +107,19 @@ public final class PromptVersion {
 
         Objects.requireNonNull(version, "version must not be null");
         Objects.requireNonNull(templateBody, "templateBody must not be null");
-        Objects.requireNonNull(renderingStrategy, "renderingStrategy must not be null");
         Objects.requireNonNull(status, "status must not be null");
 
         if (!version.matches("^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.\\-]+)?$")) {
             throw new IllegalArgumentException("version must be valid SemVer: " + version);
         }
+        if (SCRIPT_TAG_PATTERN.matcher(templateBody).find()) {
+            throw new IllegalArgumentException("templateBody contains potentially dangerous script tag");
+        }
 
         this.version = version;
         this.templateBody = templateBody;
         this.systemPrompt = systemPrompt;
-        this.renderingStrategy = renderingStrategy;
+        this.renderingStrategy = renderingStrategy != null ? renderingStrategy : RenderingStrategy.SIMPLE;
         this.maxOutputTokens = maxOutputTokens;
         this.maxContextTokens = maxContextTokens;
         this.status = status;

@@ -1,5 +1,14 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpEndpointDiagnosticProjection;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+import tech.kayys.wayang.a2ui.wayang.support.RecordNumbers;
+import tech.kayys.wayang.a2ui.wayang.support.RecordCollections;
+import tech.kayys.wayang.a2ui.wayang.support.DecodeCollections;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -27,29 +36,24 @@ public record WayangA2uiHttpEndpointDiagnosticReport(
         Map<String, Object> attributes) {
 
     public WayangA2uiHttpEndpointDiagnosticReport {
-        diagnosticsId = diagnosticsId == null || diagnosticsId.isBlank()
-                ? WayangA2uiHttpEndpointDiagnostics.DEFAULT_ID
-                : diagnosticsId.trim();
-        exchangeCount = Math.max(0, exchangeCount);
-        knownPathCount = Math.max(0L, knownPathCount);
-        unknownPathCount = Math.max(0L, unknownPathCount);
-        matchedCount = Math.max(0L, matchedCount);
-        unmatchedCount = Math.max(0L, unmatchedCount);
-        successfulCount = Math.max(0L, successfulCount);
-        clientErrorCount = Math.max(0L, clientErrorCount);
-        serverErrorCount = Math.max(0L, serverErrorCount);
-        handledCount = Math.max(0L, handledCount);
-        rejectedCount = Math.max(0L, rejectedCount);
-        statusCodes = statusCodes == null ? List.of() : List.copyOf(statusCodes);
-        outcomes = outcomes == null
-                ? List.of()
-                : outcomes.stream()
-                        .filter(value -> value != null && !value.isBlank())
-                        .map(String::trim)
-                        .toList();
-        exchanges = WayangA2uiTransportMaps.copyMaps(exchanges);
-        issues = WayangA2uiTransportMaps.copyMaps(issues);
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        diagnosticsId = RecordValues.textOrDefault(
+                diagnosticsId,
+                WayangA2uiHttpEndpointDiagnostics.DEFAULT_ID);
+        exchangeCount = RecordNumbers.nonNegative(exchangeCount);
+        knownPathCount = RecordNumbers.nonNegative(knownPathCount);
+        unknownPathCount = RecordNumbers.nonNegative(unknownPathCount);
+        matchedCount = RecordNumbers.nonNegative(matchedCount);
+        unmatchedCount = RecordNumbers.nonNegative(unmatchedCount);
+        successfulCount = RecordNumbers.nonNegative(successfulCount);
+        clientErrorCount = RecordNumbers.nonNegative(clientErrorCount);
+        serverErrorCount = RecordNumbers.nonNegative(serverErrorCount);
+        handledCount = RecordNumbers.nonNegative(handledCount);
+        rejectedCount = RecordNumbers.nonNegative(rejectedCount);
+        statusCodes = RecordCollections.copyList(statusCodes);
+        outcomes = DecodeCollections.nonBlankTexts(outcomes);
+        exchanges = TransportMaps.copyMaps(exchanges);
+        issues = TransportMaps.copyMaps(issues);
+        attributes = TransportMaps.copy(attributes);
     }
 
     public static WayangA2uiHttpEndpointDiagnosticReport from(WayangA2uiHttpEndpointDiagnosticResult result) {
@@ -71,9 +75,30 @@ public record WayangA2uiHttpEndpointDiagnosticReport(
                 resolved.outcomes().stream()
                         .map(WayangA2uiTransportOutcome::name)
                         .toList(),
-                WayangA2uiHttpEndpointDiagnosticProjection.exchanges(resolved.exchanges()),
-                WayangA2uiHttpEndpointDiagnosticProjection.issues(resolved.diagnosticsId(), resolved.exchanges()),
+                HttpEndpointDiagnosticProjection.exchanges(resolved.exchanges()),
+                HttpEndpointDiagnosticProjection.issues(resolved.diagnosticsId(), resolved.exchanges()),
                 resolved.attributes());
+    }
+
+    public static WayangA2uiHttpEndpointDiagnosticReport empty() {
+        return new WayangA2uiHttpEndpointDiagnosticReport(
+                WayangA2uiHttpEndpointDiagnostics.DEFAULT_ID,
+                0,
+                0L,
+                0L,
+                0L,
+                0L,
+                0L,
+                0L,
+                0L,
+                0L,
+                0L,
+                false,
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                Map.of());
     }
 
     public static WayangA2uiHttpEndpointDiagnosticReport fromMap(Map<?, ?> values) {
@@ -102,11 +127,11 @@ public record WayangA2uiHttpEndpointDiagnosticReport(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpEndpointDiagnosticProjection.report(this);
+        return HttpEndpointDiagnosticProjection.report(this);
     }
 
     public String toJson() {
-        return WayangA2uiTransportJson.json(toMap(), "Unable to encode A2UI HTTP endpoint diagnostic report");
+        return TransportJson.json(toMap(), "Unable to encode A2UI HTTP endpoint diagnostic report");
     }
 
 }

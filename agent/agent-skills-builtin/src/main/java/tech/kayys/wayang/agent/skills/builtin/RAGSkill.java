@@ -2,82 +2,63 @@ package tech.kayys.wayang.agent.skills.builtin;
 
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
-import tech.kayys.wayang.agent.spi.*;
-import tech.kayys.wayang.agent.spi.EmbeddingRequest;
-import tech.kayys.gollek.engine.inference.InferenceService;
-import tech.kayys.wayang.agent.spi.InferenceRequest;
-import tech.kayys.wayang.agent.spi.Message;
+import tech.kayys.wayang.agent.spi.AgentSkill;
+import tech.kayys.wayang.agent.spi.InferenceBackend;
+import tech.kayys.wayang.agent.spi.skills.SkillCategory;
+import tech.kayys.wayang.agent.spi.skills.SkillDescriptor;
+import tech.kayys.wayang.agent.spi.skills.rag.RagSkillRetrievedDocument;
+import tech.kayys.wayang.agent.spi.skills.rag.RagSkillRetrievalRequest;
+import tech.kayys.wayang.agent.spi.skills.rag.RagSkillRetrievalResult;
+import tech.kayys.wayang.agent.spi.skills.rag.RagSkillRetriever;
+import tech.kayys.wayang.embedding.EmbeddingRequest;
+import tech.kayys.wayang.embedding.EmbeddingResponse;
+import tech.kayys.wayang.embedding.EmbeddingService;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
-/**
- * Built-in skill: Retrieval-Augmented Generation (RAG).
- *
- * <p>
- * Pipeline:
- * <ol>
- * <li>Embed the query using the configured embedding model</li>
- * <li>Retrieve top-K relevant documents from the vector store</li>
- * <li>Augment the prompt with retrieved context</li>
- * <li>Generate answer via LLM inference</li>
- * </ol>
- *
- * <p>
- * Input schema:
- * <ul>
- * <li>{@code query} (string, required) — the question to answer</li>
- * <li>{@code collection} (string, optional) — vector store collection name</li>
- * <li>{@code topK} (integer, optional, default 5) — number of documents to
- * retrieve</li>
- * <li>{@code model} (string, optional) — LLM model override</li>
- * <li>{@code embeddingModel} (string, optional) — embedding model override</li>
- * </ul>
- *
- * <p>
- * Output schema:
- * <ul>
- * <li>{@code answer} (string) — generated answer</li>
- * <li>{@code sources} (list) — retrieved document references</li>
- * <li>{@code context} (string) — the retrieved context used</li>
- * </ul>
- *
- * @author Bhangun
- */
 @ApplicationScoped
-@SkillDescriptor(id = "rag", name = "RAG — Retrieval Augmented Generation", description = "Search a vector store for relevant documents and generate a grounded answer.", version = "1.0.0", category = SkillCategory.RETRIEVAL, inputs = {
+@SkillDescriptor(id = "rag", name = "RAG - Retrieval Augmented Generation", description = "Generates a grounded answer using optional retrieved context and the configured inference backend.", version = "1.0.0", category = SkillCategory.RETRIEVAL, inputs = {
         @SkillDescriptor.Input(name = "query", description = "The question to answer"),
-        @SkillDescriptor.Input(name = "collection", required = false, description = "Vector store collection name"),
-        @SkillDescriptor.Input(name = "topK", type = "integer", required = false, description = "Number of documents to retrieve"),
-        @SkillDescriptor.Input(name = "model", required = false, description = "LLM model override"),
+        @SkillDescriptor.Input(name = "context", required = false, description = "Pre-retrieved context to ground the answer"),
+        @SkillDescriptor.Input(name = "collection", required = false, description = "Retriever collection or namespace"),
+        @SkillDescriptor.Input(name = "filters", type = "object", required = false, description = "Retriever metadata filters"),
+        @SkillDescriptor.Input(name = "model", required = false, description = "Inference model override"),
         @SkillDescriptor.Input(name = "embeddingModel", required = false, description = "Embedding model override")
 }, outputs = {
         @SkillDescriptor.Output(name = "answer", description = "Generated answer"),
-        @SkillDescriptor.Output(name = "sources", type = "array", description = "Retrieved document references"),
-        @SkillDescriptor.Output(name = "context", description = "Retrieved context used")
-}, triggers = { "search documents", "find in knowledge base", "rag", "lookup",
-        "retrieve and answer" }, aliases = { "retrieval", "knowledge-search", "semantic-search" })
+        @SkillDescriptor.Output(name = "context", description = "Context used"),
+        @SkillDescriptor.Output(name = "sources", type = "array", description = "Retrieved document references")
+}, triggers = { "search documents", "find in knowledge base", "rag", "lookup", "retrieve and answer" }, aliases = { "retrieval", "knowledge-search", "semantic-search" }, priority = 20)
 public class RAGSkill implements AgentSkill {
 
     private static final Logger LOG = Logger.getLogger(RAGSkill.class);
 
     @Inject
-    InferenceService inferenceService;
+    InferenceBackend inferenceBackend;
 
-    @ConfigProperty(name = "gollek.agent.skills.rag.default-collection", defaultValue = "default")
-    String defaultCollection;
+    @Inject
+    EmbeddingService embeddingService;
 
-    @ConfigProperty(name = "gollek.agent.skills.rag.default-top-k", defaultValue = "5")
-    int defaultTopK;
+    @Inject
+    Instance<RagSkillRetriever> retrieverInstances;
 
-    @ConfigProperty(name = "gollek.agent.skills.rag.embedding-model", defaultValue = "")
-    String defaultEmbeddingModel;
+    RagSkillRetriever retriever;
 
     @ConfigProperty(name = "gollek.agent.skills.rag.vector-store-enabled", defaultValue = "false")
-    boolean vectorStoreEnabled;
+    boolean vectorStoreEnabled = false;
+
+    @ConfigProperty(name = "gollek.agent.skills.rag.default-collection", defaultValue = "default")
+    String defaultCollection = "default";
+
+    @ConfigProperty(name = "gollek.agent.skills.rag.default-top-k", defaultValue = "5")
+    int defaultTopK = 5;
 
     @Override
     public String id() {
@@ -86,17 +67,17 @@ public class RAGSkill implements AgentSkill {
 
     @Override
     public String name() {
-        return "RAG — Retrieval Augmented Generation";
+        return "RAG - Retrieval Augmented Generation";
     }
 
     @Override
     public String description() {
-        return "Search a vector store for relevant documents and generate a grounded answer.";
+        return "Generates grounded answers with optional retrieved context.";
     }
 
     @Override
-    public SkillCategory category() {
-        return SkillCategory.RETRIEVAL;
+    public String category() {
+        return SkillCategory.RETRIEVAL.name();
     }
 
     @Override
@@ -105,123 +86,158 @@ public class RAGSkill implements AgentSkill {
     }
 
     @Override
-    public boolean isHealthy() {
-        return vectorStoreEnabled;
+    public boolean canHandle(Map<String, Object> inputs) {
+        return inputs != null && inputs.containsKey("query");
     }
 
     @Override
-    public Uni<SkillResult> execute(SkillContext ctx) {
-        ctx.requireInput("query");
-        long start = System.currentTimeMillis();
-
-        String query = ctx.getStringInput("query");
-        String collection = ctx.getStringInput("collection", defaultCollection);
-        int topK = ctx.getIntInput("topK", defaultTopK);
-        String model = ctx.getStringInput("model");
-
-        LOG.debugf("RAGSkill: query='%s', collection=%s, topK=%d", query, collection, topK);
-
-        if (!vectorStoreEnabled) {
-            // Graceful degradation: fall through to direct inference without retrieval
-            LOG.warn("RAGSkill: vector store disabled — executing direct inference without retrieval");
-            return executeDirectInference(ctx, query, "", start);
+    public Uni<Map<String, Object>> execute(Map<String, Object> context) {
+        Map<String, Object> inputs = context == null ? Map.of() : context;
+        String query = BuiltinSkillSupport.stringInput(inputs, "query");
+        if (query == null || query.isBlank()) {
+            return Uni.createFrom().item(BuiltinSkillSupport.failure("Input 'query' is required"));
+        }
+        String normalizedQuery = query.trim();
+        if (inferenceBackend == null) {
+            return Uni.createFrom().item(BuiltinSkillSupport.failure("Inference backend is not configured"));
         }
 
-        // Step 1: embed the query
-        return embedQuery(ctx, query)
-                // Step 2: retrieve documents (stub — real impl calls vector store client)
-                .chain(embedding -> retrieveDocuments(ctx, embedding, collection, topK))
-                // Step 3: augment and generate
-                .chain(docs -> {
-                    String context = formatDocuments(docs);
-                    return executeDirectInference(ctx, query, context, start)
-                            .map(result -> result.isSuccess()
-                                    ? SkillResult.builder()
-                                            .skillId(id())
-                                            .invocationId(ctx.invocationId())
-                                            .status(SkillResult.Status.SUCCESS)
-                                            .observation(java.util.Objects
-                                                    .requireNonNullElse(result.getOutput("answer", String.class), ""))
-                                            .output("answer",
-                                                    java.util.Objects.requireNonNullElse(
-                                                            result.getOutput("answer", String.class), ""))
-                                            .output("sources", docs.stream().map(d -> d.get("source")).toList())
-                                            .output("context", context)
-                                            .durationMs(System.currentTimeMillis() - start)
-                                            .build()
-                                    : result);
+        Uni<EmbeddingResponse> queryEmbedding = shouldEmbedForRetrieval()
+                ? embeddingService.embed(new EmbeddingRequest(
+                        List.of(normalizedQuery),
+                        BuiltinSkillSupport.stringInput(inputs, "embeddingModel"),
+                        null,
+                        true))
+                : Uni.createFrom().nullItem();
+
+        return queryEmbedding
+                .onFailure().recoverWithItem(error -> {
+                    LOG.warnf(error, "RAG query embedding failed; continuing without retrieval vector");
+                    return null;
                 })
-                .onFailure().recoverWithItem(err -> {
-                    LOG.errorf(err, "RAGSkill failed: query='%s'", query);
-                    return SkillResult.builder()
-                            .skillId(id())
-                            .invocationId(ctx.invocationId())
-                            .status(SkillResult.Status.ERROR)
-                            .observation(err.getMessage())
-                            .error(err)
-                            .build();
+                .flatMap(embedding -> retrieve(inputs, normalizedQuery, embedding)
+                        .flatMap(retrieval -> inferAnswer(inputs, normalizedQuery, embedding, retrieval)));
+    }
+
+    private Uni<Map<String, Object>> inferAnswer(
+            Map<String, Object> inputs,
+            String query,
+            EmbeddingResponse embedding,
+            RagSkillRetrievalResult retrieval) {
+        String suppliedContext = BuiltinSkillSupport.stringInput(inputs, "context", "");
+        String context = mergeContext(suppliedContext, retrieval);
+        String prompt = context.isBlank()
+                ? query
+                : "Context:\n" + context + "\n\nQuestion: " + query + "\n\nAnswer based on the context above:";
+        String model = BuiltinSkillSupport.stringInput(inputs, "model");
+        int maxTokens = BuiltinSkillSupport.intInput(inputs, "maxTokens", 1024);
+        long start = System.currentTimeMillis();
+
+        return inferenceBackend.infer(BuiltinSkillSupport.textRequest(
+                        "skill-rag-" + UUID.randomUUID(),
+                        model,
+                        "You are a helpful assistant. Answer based on the provided context when context is present.",
+                        prompt,
+                        maxTokens,
+                        0.1,
+                        BuiltinSkillSupport.stringInput(inputs, "tenantId")))
+                .map(response -> {
+                    String answer = BuiltinSkillSupport.responseContent(response);
+                    Map<String, Object> outputs = new LinkedHashMap<>();
+                    outputs.put("answer", answer);
+                    outputs.put("context", context);
+                    outputs.put("sources", sourceSummaries(retrieval));
+                    outputs.put("tokensUsed", BuiltinSkillSupport.totalTokens(response));
+                    outputs.put("durationMs", System.currentTimeMillis() - start);
+                    outputs.put("model", BuiltinSkillSupport.responseModel(response, model));
+                    outputs.put("topK", topK(inputs));
+                    if (embedding != null) {
+                        outputs.put("query_embedding_dimension", embedding.dimension());
+                    }
+                    return BuiltinSkillSupport.success(answer, outputs);
+                })
+                .onFailure().recoverWithItem(BuiltinSkillSupport::error);
+    }
+
+    private Uni<RagSkillRetrievalResult> retrieve(
+            Map<String, Object> inputs,
+            String query,
+            EmbeddingResponse embedding) {
+        RagSkillRetriever activeRetriever = activeRetriever();
+        if (!vectorStoreEnabled || activeRetriever == null) {
+            return Uni.createFrom().item(RagSkillRetrievalResult.empty());
+        }
+        RagSkillRetrievalRequest request = new RagSkillRetrievalRequest(
+                BuiltinSkillSupport.stringInput(inputs, "tenantId"),
+                query,
+                collection(inputs),
+                topK(inputs),
+                firstEmbedding(embedding),
+                BuiltinSkillSupport.objectMapInput(inputs, "filters"));
+        return activeRetriever.retrieve(request)
+                .onItem().ifNull().continueWith(RagSkillRetrievalResult.empty())
+                .onFailure().recoverWithItem(error -> {
+                    LOG.warnf(error, "RAG retrieval failed; continuing with supplied context only");
+                    return RagSkillRetrievalResult.empty();
                 });
     }
 
-    // ── Internal steps ─────────────────────────────────────────────────────────
-
-    private Uni<float[]> embedQuery(SkillContext ctx, String query) {
-        String embModel = ctx.getStringInput("embeddingModel", defaultEmbeddingModel);
-        EmbeddingRequest req = EmbeddingRequest.builder()
-                .requestId("rag-embed-" + ctx.invocationId())
-                .model(embModel.isBlank() ? "text-embedding-ada-002" : embModel)
-                .input(query)
-                .build();
-        return inferenceService.executeEmbedding(req)
-                .map(resp -> resp.embeddings().isEmpty() ? new float[0] : toFloatArray(resp.embeddings().get(0)));
+    private boolean shouldEmbedForRetrieval() {
+        return vectorStoreEnabled && embeddingService != null && activeRetriever() != null;
     }
 
-    private Uni<List<Map<String, Object>>> retrieveDocuments(
-            SkillContext ctx, float[] embedding, String collection, int topK) {
-        // TODO: inject VectorStoreClient and call similarity search
-        // For now, return empty list — real implementation queries Qdrant/Weaviate/etc.
-        LOG.debugf("RAGSkill: vector search in collection=%s, topK=%d", collection, topK);
-        return Uni.createFrom().item(List.of());
-    }
-
-    private Uni<SkillResult> executeDirectInference(
-            SkillContext ctx, String query, String context, long start) {
-        String augmentedPrompt = context.isBlank()
-                ? query
-                : "Context:\n" + context + "\n\nQuestion: " + query + "\n\nAnswer based on the context above:";
-
-        InferenceRequest.Builder reqBuilder = InferenceRequest.builder()
-                .requestId("rag-infer-" + ctx.invocationId())
-                .message(Message.system("You are a helpful assistant. Answer based on the provided context."))
-                .message(Message.user(augmentedPrompt))
-                .parameter("max_tokens", 1024)
-                .parameter("temperature", 0.1)
-                .metadata("tenantId", ctx.tenantId());
-
-        ctx.getStringInput("model", null);
-        return inferenceService.inferAsync(reqBuilder.build())
-                .map(resp -> SkillResult.builder()
-                        .skillId(id()).invocationId(ctx.invocationId())
-                        .status(SkillResult.Status.SUCCESS)
-                        .observation(resp.getContent())
-                        .output("answer", resp.getContent())
-                        .output("tokensUsed", resp.getTokensUsed())
-                        .durationMs(System.currentTimeMillis() - start)
-                        .build());
-    }
-
-    private String formatDocuments(List<Map<String, Object>> docs) {
-        if (docs.isEmpty())
-            return "";
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < docs.size(); i++) {
-            Map<String, Object> doc = docs.get(i);
-            sb.append("[").append(i + 1).append("] ").append(doc.getOrDefault("text", "")).append("\n");
+    private float[] firstEmbedding(EmbeddingResponse embedding) {
+        if (embedding == null) {
+            return null;
         }
-        return sb.toString();
+        try {
+            return embedding.first();
+        } catch (RuntimeException error) {
+            LOG.warnf(error, "RAG query embedding response was empty; retrieving without vector");
+            return null;
+        }
     }
 
-    private float[] toFloatArray(float[] arr) {
-        return arr;
+    private RagSkillRetriever activeRetriever() {
+        if (retriever != null) {
+            return retriever;
+        }
+        if (retrieverInstances == null || retrieverInstances.isUnsatisfied()) {
+            return null;
+        }
+        for (RagSkillRetriever candidate : retrieverInstances) {
+            return candidate;
+        }
+        return null;
+    }
+
+    private int topK(Map<String, Object> inputs) {
+        return Math.max(1, BuiltinSkillSupport.intInput(inputs, "topK", defaultTopK));
+    }
+
+    private String collection(Map<String, Object> inputs) {
+        String collection = BuiltinSkillSupport.stringInput(inputs, "collection", defaultCollection);
+        return collection == null || collection.isBlank() ? defaultCollection : collection.trim();
+    }
+
+    private String mergeContext(String suppliedContext, RagSkillRetrievalResult retrieval) {
+        String safeSuppliedContext = suppliedContext == null ? "" : suppliedContext.trim();
+        String retrievedContext = retrieval == null ? "" : retrieval.context();
+        if (safeSuppliedContext.isBlank()) {
+            return retrievedContext;
+        }
+        if (retrievedContext.isBlank()) {
+            return safeSuppliedContext;
+        }
+        return safeSuppliedContext + "\n\nRetrieved context:\n" + retrievedContext;
+    }
+
+    private List<Map<String, Object>> sourceSummaries(RagSkillRetrievalResult retrieval) {
+        if (retrieval == null || retrieval.isEmpty()) {
+            return List.of();
+        }
+        return retrieval.documents().stream()
+                .map(RagSkillRetrievedDocument::sourceSummary)
+                .toList();
     }
 }

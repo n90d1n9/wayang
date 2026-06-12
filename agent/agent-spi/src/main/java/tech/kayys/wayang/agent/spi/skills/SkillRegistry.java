@@ -2,6 +2,7 @@ package tech.kayys.wayang.agent.spi.skills;
 
 import java.util.List;
 import java.util.Optional;
+import io.smallrye.mutiny.Uni;
 import tech.kayys.wayang.agent.spi.AgentSkill;
 
 /**
@@ -76,6 +77,22 @@ public interface SkillRegistry {
      * @return true if the skill was found and removed, false otherwise
      */
     boolean unregisterSkill(String skillId);
+
+    default List<SkillDefinition> list() {
+        return listSkills();
+    }
+
+    default List<SkillDefinition> findAll() {
+        return listSkills();
+    }
+
+    default Uni<SkillDefinition> get(String skillId) {
+        return Uni.createFrom().item(() -> getSkill(skillId).orElse(null));
+    }
+
+    default Uni<SkillResult> executeSkill(String skillId, java.util.Map<String, Object> input) {
+        return Uni.createFrom().item(SkillResult.failure(skillId, "Skill execution is not wired for this registry"));
+    }
 
     /**
      * Check whether a skill with the given ID exists.

@@ -8,7 +8,7 @@
     <parent>
         <groupId>tech.kayys.wayang</groupId>
         <artifactId>wayang-rag-parent</artifactId>
-        <version>0.1.0</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
     <artifactId>wayang-rag-runtime</artifactId>
 
@@ -34,6 +34,11 @@
         <dependency>
             <groupId>tech.kayys.wayang</groupId>
             <artifactId>wayang-embedding-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>agent-spi</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

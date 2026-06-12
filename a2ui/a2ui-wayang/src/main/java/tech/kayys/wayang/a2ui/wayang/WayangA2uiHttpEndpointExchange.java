@@ -1,5 +1,8 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpEndpointProjection;
+import tech.kayys.wayang.a2ui.wayang.http.HttpMetricExchange;
+
 import java.util.Map;
 import java.util.Objects;
 
@@ -8,7 +11,7 @@ import java.util.Objects;
  */
 public record WayangA2uiHttpEndpointExchange(
         WayangA2uiHttpEndpointRequest request,
-        WayangA2uiHttpEndpointResponse response) {
+        WayangA2uiHttpEndpointResponse response) implements HttpMetricExchange {
 
     public WayangA2uiHttpEndpointExchange {
         request = Objects.requireNonNull(request, "request");
@@ -57,19 +60,7 @@ public record WayangA2uiHttpEndpointExchange(
         return WayangA2uiTransportResponse.fromJson(response.body());
     }
 
-    public WayangA2uiTransportOutcome outcome() {
-        return transportResponse().outcome();
-    }
-
-    public boolean transportError() {
-        return transportResponse().transportError().isPresent();
-    }
-
-    public Map<String, Object> responseEnvelope() {
-        return transportResponse().toMap();
-    }
-
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpEndpointProjection.exchange(this);
+        return HttpEndpointProjection.exchange(this);
     }
 }

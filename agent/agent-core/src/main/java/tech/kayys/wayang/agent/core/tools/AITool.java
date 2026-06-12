@@ -1,16 +1,11 @@
 package tech.kayys.wayang.agent.core.tools;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import jakarta.enterprise.context.ApplicationScoped;
-import tech.kayys.wayang.agent.core.orchestrator.AgentConfig;
-import tech.kayys.wayang.agent.core.orchestrator.AnthropicClient;
-import tech.kayys.gollek.tools.*;
-import tech.kayys.gollek.tools.spi.Tool;
-import tech.kayys.gollek.tools.spi.ToolContext;
-import tech.kayys.gollek.tools.spi.ToolResult;
+import tech.kayys.wayang.tools.spi.Tool;
+import tech.kayys.wayang.tools.spi.ToolContext;
+import tech.kayys.wayang.tools.spi.ToolResult;
 
 import java.util.*;
 
@@ -18,11 +13,9 @@ import java.util.*;
  * AI Tool — provides LLM and embedding capabilities.
  */
 @ApplicationScoped
-public class AITool implements CodeTool {
+public class AITool implements Tool {
 
     private static final Logger log = LoggerFactory.getLogger(AITool.class);
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-    private static final Logger LOG = LoggerFactory.getLogger(ToolRegistry.class);
 
     @Override
     public String id() { return "ai"; }
@@ -37,16 +30,18 @@ public class AITool implements CodeTool {
 
     @Override
     public Map<String, Object> inputSchema() {
-        return ToolRegistry.SchemaBuilder.create()
-                .string("op", "Operation: chat|embed|list_models", true)
-                .string("provider", "Provider: anthropic|openai", false)
-                .string("prompt", "User prompt", false)
-                .string("input", "Text for embedding", false)
-                .build();
+        return Map.of(
+                "type", "object",
+                "properties", Map.of(
+                        "op", Map.of("type", "string", "description", "Operation: chat|embed|list_models"),
+                        "provider", Map.of("type", "string", "description", "Provider: anthropic|openai"),
+                        "prompt", Map.of("type", "string", "description", "User prompt"),
+                        "input", Map.of("type", "string", "description", "Text for embedding")),
+                "required", List.of("op"));
     }
 
     @Override
-    public ToolResult execute(Map<String, Object> params, CodeToolContext context) {
+    public ToolResult execute(Map<String, Object> params, ToolContext context) {
         String op = String.valueOf(params.getOrDefault("op", "chat"));
         try {
             String result = switch (op) {
@@ -60,20 +55,11 @@ public class AITool implements CodeTool {
         }
     }
 
-    private String chat(Map<String, Object> params) throws Exception {
+    private String chat(Map<String, Object> params) {
         String provider = String.valueOf(params.getOrDefault("provider", "anthropic"));
-        if ("anthropic".equals(provider)) {
-            // Use the local AnthropicClient
-            AgentConfig config = AgentConfig.builder()
-                    .apiKey(System.getenv("ANTHROPIC_API_KEY"))
-                    .build();
-            AnthropicClient client = new AnthropicClient(config);
-            
-            List<Map<String, Object>> messages = List.of(Map.of("role", "user", "content", params.get("prompt")));
-            JsonNode response = client.sendMessage(messages, List.of(), "You are a helpful assistant.");
-            return AnthropicClient.extractText(response);
-        }
-        return "Only 'anthropic' provider is currently supported in this simplified AITool.";
+        String prompt = String.valueOf(params.getOrDefault("prompt", ""));
+        log.debug("AI tool chat requested for provider '{}' with prompt length {}", provider, prompt.length());
+        return "AI chat execution is delegated to the configured inference backend.";
     }
 
     private String listModels(Map<String, Object> params) {

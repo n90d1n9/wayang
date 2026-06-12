@@ -13,7 +13,7 @@ public final class WayangA2uiStandardAlignment {
     }
 
     public static WayangStandardAlignmentPortfolio portfolio() {
-        return portfolio(WayangA2uiSpecAlignmentReport.defaults());
+        return portfolio(WayangA2uiSpecAlignmentReport.defaultReport());
     }
 
     public static WayangStandardAlignmentPortfolio portfolio(WayangA2uiSpecAlignmentReport report) {
@@ -21,7 +21,7 @@ public final class WayangA2uiStandardAlignment {
     }
 
     public static WayangStandardAlignmentHealthReport pinnedHealth() {
-        return pinnedHealth(WayangA2uiSpecAlignmentReport.defaults());
+        return pinnedHealth(WayangA2uiSpecAlignmentReport.defaultReport());
     }
 
     public static WayangStandardAlignmentHealthReport pinnedHealth(WayangA2uiSpecAlignmentReport report) {
@@ -31,7 +31,7 @@ public final class WayangA2uiStandardAlignment {
     }
 
     public static WayangStandardAlignmentHealthReport health(WayangStandardAlignmentPolicyConfig config) {
-        return health(WayangA2uiSpecAlignmentReport.defaults(), config);
+        return health(WayangA2uiSpecAlignmentReport.defaultReport(), config);
     }
 
     public static WayangStandardAlignmentHealthReport health(
@@ -41,6 +41,6 @@ public final class WayangA2uiStandardAlignment {
     }
 
     private static WayangA2uiSpecAlignmentReport resolve(WayangA2uiSpecAlignmentReport report) {
-        return report == null ? WayangA2uiSpecAlignmentReport.defaults() : report;
+        return report == null ? WayangA2uiSpecAlignmentReport.defaultReport() : report;
     }
 }

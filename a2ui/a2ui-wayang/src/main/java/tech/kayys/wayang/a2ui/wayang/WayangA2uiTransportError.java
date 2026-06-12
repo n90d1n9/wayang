@@ -1,5 +1,8 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportProjection;
+
 import java.util.Map;
 
 /**
@@ -21,6 +24,10 @@ public record WayangA2uiTransportError(
         return new WayangA2uiTransportError(code, message);
     }
 
+    public static WayangA2uiTransportError defaultError() {
+        return new WayangA2uiTransportError(DEFAULT_CODE, DEFAULT_MESSAGE);
+    }
+
     public static WayangA2uiTransportError fromMap(Map<?, ?> values) {
         return WayangA2uiTransportErrorDecoder.fromMap(values);
     }
@@ -30,10 +37,10 @@ public record WayangA2uiTransportError(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiTransportProjection.error(this);
+        return TransportProjection.error(this);
     }
 
     public String toJson() {
-        return WayangA2uiTransportJson.json(toMap(), "Unable to encode A2UI transport error");
+        return TransportJson.json(toMap(), "Unable to encode A2UI transport error");
     }
 }

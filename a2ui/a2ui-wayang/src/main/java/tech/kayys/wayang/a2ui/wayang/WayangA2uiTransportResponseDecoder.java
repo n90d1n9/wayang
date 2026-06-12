@@ -1,5 +1,10 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.DecodeValues;
+
 import java.util.List;
 import java.util.Map;
 
@@ -9,11 +14,11 @@ import java.util.Map;
 public final class WayangA2uiTransportResponseDecoder {
 
     public static WayangA2uiTransportResponse fromMap(Map<?, ?> values) {
-        Map<String, Object> response = WayangA2uiTransportMaps.copy(values);
+        Map<String, Object> response = TransportMaps.copy(values);
         return new WayangA2uiTransportResponse(
-                WayangA2uiDecodeValues.rawText(response.get(WayangA2uiTransportFields.MIME_TYPE)),
-                WayangA2uiDecodeValues.rawText(response.get(WayangA2uiTransportFields.BODY_ENCODING)),
-                WayangA2uiDecodeValues.rawText(response.get(WayangA2uiTransportFields.BODY)),
+                DecodeValues.rawText(response.get(WayangA2uiTransportFields.MIME_TYPE)),
+                DecodeValues.rawText(response.get(WayangA2uiTransportFields.BODY_ENCODING)),
+                DecodeValues.rawText(response.get(WayangA2uiTransportFields.BODY)),
                 dataParts(response.get(WayangA2uiTransportFields.DATA_PARTS)),
                 count(response.get(WayangA2uiTransportFields.HANDLED_COUNT), WayangA2uiTransportFields.HANDLED_COUNT),
                 count(response.get(WayangA2uiTransportFields.REJECTED_COUNT), WayangA2uiTransportFields.REJECTED_COUNT),
@@ -21,7 +26,7 @@ public final class WayangA2uiTransportResponseDecoder {
     }
 
     public static WayangA2uiTransportResponse fromJson(String json) {
-        return fromMap(WayangA2uiTransportJson.map(
+        return fromMap(TransportJson.map(
                 json,
                 "A2UI transport response JSON must not be blank",
                 "Unable to decode A2UI transport response JSON"));
@@ -34,7 +39,7 @@ public final class WayangA2uiTransportResponseDecoder {
         if (value instanceof Number number) {
             return number.longValue();
         }
-        String text = WayangA2uiDecodeValues.rawText(value).trim();
+        String text = DecodeValues.rawText(value).trim();
         if (text.isBlank()) {
             return 0L;
         }
@@ -50,18 +55,18 @@ public final class WayangA2uiTransportResponseDecoder {
             return list.stream()
                     .filter(Map.class::isInstance)
                     .map(Map.class::cast)
-                    .map(WayangA2uiTransportMaps::copy)
+                    .map(TransportMaps::copy)
                     .toList();
         }
         if (value instanceof Map<?, ?> map) {
-            return List.of(WayangA2uiTransportMaps.copy(map));
+            return List.of(TransportMaps.copy(map));
         }
         return List.of();
     }
 
     static Map<String, Object> metadata(Object value) {
         if (value instanceof Map<?, ?> map) {
-            return WayangA2uiTransportMaps.copy(map);
+            return TransportMaps.copy(map);
         }
         return Map.of();
     }

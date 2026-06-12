@@ -107,7 +107,7 @@ public class ProviderAwareInference {
         }
 
         try {
-            List<ProviderInfo> providers = sdk.listAvailableProviders();
+            List<ProviderInfo> providers = gollekSdk.listAvailableProviders();
             if (providers.isEmpty()) {
                 return CompletableFuture.completedFuture("default");
             }
@@ -132,7 +132,7 @@ public class ProviderAwareInference {
                 bestProvider, scoreProvider(healthyProviders.stream()
                     .filter(p -> p.id().equals(bestProvider))
                     .findFirst()
-                    .orElse(healthyProviders.get(0), request)));
+                    .orElse(healthyProviders.get(0)), request));
 
             return CompletableFuture.completedFuture(bestProvider);
 
@@ -222,7 +222,7 @@ public class ProviderAwareInference {
         
         // Tool calling support
         if (request.getTools() != null && !request.getTools().isEmpty()) {
-            if (caps != null && Boolean.TRUE.equals(caps.supportsToolCalling())) {
+            if (caps != null && caps.isToolCalling()) {
                 score += 50;
             } else if (isCloudProvider(provider.id())) {
                 // Cloud providers typically support tool calling
@@ -232,7 +232,7 @@ public class ProviderAwareInference {
 
         // Streaming support
         if (request.isStreaming()) {
-            if (caps != null && Boolean.TRUE.equals(caps.supportsStreaming())) {
+            if (caps != null && caps.isStreaming()) {
                 score += 30;
             }
         }
@@ -257,7 +257,7 @@ public class ProviderAwareInference {
 
         // Consider provider health
         if (provider.healthStatus() != null && 
-            provider.healthStatus().status() == 
+            provider.healthStatus() == 
                 tech.kayys.gollek.spi.provider.ProviderHealth.Status.HEALTHY) {
             score += 15;
         }
@@ -286,7 +286,7 @@ public class ProviderAwareInference {
         try {
             ProviderInfo info = gollekSdk.getProviderInfo(providerId);
             return info.healthStatus() != null && 
-                info.healthStatus().status() == 
+                info.healthStatus() == 
                     tech.kayys.gollek.spi.provider.ProviderHealth.Status.HEALTHY;
         } catch (SdkException e) {
             LOG.debugf("Provider %s health check failed: %s", providerId, e.getMessage());

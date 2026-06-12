@@ -154,12 +154,17 @@ public class MultiAgentCoordinator {
             .map(finalAnswer -> buildResponse(finalAnswer, request, runId, startTime))
             .onFailure().recoverWithUni(err -> {
                 LOG.errorf(err, "Multi-agent execution failed");
-                return Uni.createFrom().item(new AgentResponse(
-                    runId, request.requestId(), 
-                    "Error: " + err.getMessage(),
-                    List.of(), 0, false, err.getMessage(),
-                    "multi-agent", Duration.between(startTime, Instant.now()).toMillis()
-                ));
+                return Uni.createFrom().item(AgentResponse.builder()
+                        .runId(runId)
+                        .requestId(request.requestId())
+                        .answer("Error: " + err.getMessage())
+                        .steps(List.of())
+                        .totalSteps(0)
+                        .successful(false)
+                        .error(err.getMessage())
+                        .strategy("multi-agent")
+                        .durationMs(Duration.between(startTime, Instant.now()).toMillis())
+                        .build());
             });
     }
 

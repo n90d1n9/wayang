@@ -1,0 +1,279 @@
+{
+  "endpointPublished" : true,
+  "complianceId" : "a2a.jsonrpc.spec-compliance",
+  "operations" : [ {
+    "grpcMethod" : "SendMessage",
+    "streaming" : false,
+    "restPath" : "/message:send",
+    "supported" : true,
+    "requestMediaType" : "application/json",
+    "jsonRpcMethod" : "SendMessage",
+    "operation" : "SendMessage",
+    "responseMediaType" : "application/json",
+    "restMethod" : "POST",
+    "description" : "Send message"
+  }, {
+    "grpcMethod" : "SendStreamingMessage",
+    "streaming" : true,
+    "restPath" : "/message:stream",
+    "supported" : true,
+    "requestMediaType" : "application/json",
+    "jsonRpcMethod" : "SendStreamingMessage",
+    "operation" : "SendStreamingMessage",
+    "responseMediaType" : "text/event-stream",
+    "restMethod" : "POST",
+    "description" : "Send streaming message"
+  }, {
+    "grpcMethod" : "GetTask",
+    "streaming" : false,
+    "restPath" : "/tasks/{id}",
+    "supported" : true,
+    "requestMediaType" : "application/json",
+    "jsonRpcMethod" : "GetTask",
+    "operation" : "GetTask",
+    "responseMediaType" : "application/json",
+    "restMethod" : "GET",
+    "description" : "Get task"
+  }, {
+    "grpcMethod" : "ListTasks",
+    "streaming" : false,
+    "restPath" : "/tasks",
+    "supported" : true,
+    "requestMediaType" : "application/json",
+    "jsonRpcMethod" : "ListTasks",
+    "operation" : "ListTasks",
+    "responseMediaType" : "application/json",
+    "restMethod" : "GET",
+    "description" : "List tasks"
+  }, {
+    "grpcMethod" : "CancelTask",
+    "streaming" : false,
+    "restPath" : "/tasks/{id}:cancel",
+    "supported" : true,
+    "requestMediaType" : "application/json",
+    "jsonRpcMethod" : "CancelTask",
+    "operation" : "CancelTask",
+    "responseMediaType" : "application/json",
+    "restMethod" : "POST",
+    "description" : "Cancel task"
+  }, {
+    "grpcMethod" : "SubscribeToTask",
+    "streaming" : true,
+    "restPath" : "/tasks/{id}:subscribe",
+    "supported" : true,
+    "requestMediaType" : "application/json",
+    "jsonRpcMethod" : "SubscribeToTask",
+    "operation" : "SubscribeToTask",
+    "responseMediaType" : "text/event-stream",
+    "restMethod" : "POST",
+    "description" : "Subscribe to task updates"
+  }, {
+    "grpcMethod" : "CreateTaskPushNotificationConfig",
+    "streaming" : false,
+    "restPath" : "/tasks/{id}/pushNotificationConfigs",
+    "supported" : true,
+    "requestMediaType" : "application/json",
+    "jsonRpcMethod" : "CreateTaskPushNotificationConfig",
+    "operation" : "CreateTaskPushNotificationConfig",
+    "responseMediaType" : "application/json",
+    "restMethod" : "POST",
+    "description" : "Create push notification config"
+  }, {
+    "grpcMethod" : "GetTaskPushNotificationConfig",
+    "streaming" : false,
+    "restPath" : "/tasks/{id}/pushNotificationConfigs/{configId}",
+    "supported" : true,
+    "requestMediaType" : "application/json",
+    "jsonRpcMethod" : "GetTaskPushNotificationConfig",
+    "operation" : "GetTaskPushNotificationConfig",
+    "responseMediaType" : "application/json",
+    "restMethod" : "GET",
+    "description" : "Get push notification config"
+  }, {
+    "grpcMethod" : "ListTaskPushNotificationConfigs",
+    "streaming" : false,
+    "restPath" : "/tasks/{id}/pushNotificationConfigs",
+    "supported" : true,
+    "requestMediaType" : "application/json",
+    "jsonRpcMethod" : "ListTaskPushNotificationConfigs",
+    "operation" : "ListTaskPushNotificationConfigs",
+    "responseMediaType" : "application/json",
+    "restMethod" : "GET",
+    "description" : "List push notification configs"
+  }, {
+    "grpcMethod" : "DeleteTaskPushNotificationConfig",
+    "streaming" : false,
+    "restPath" : "/tasks/{id}/pushNotificationConfigs/{configId}",
+    "supported" : true,
+    "requestMediaType" : "application/json",
+    "jsonRpcMethod" : "DeleteTaskPushNotificationConfig",
+    "operation" : "DeleteTaskPushNotificationConfig",
+    "responseMediaType" : "application/json",
+    "restMethod" : "DELETE",
+    "description" : "Delete push notification config"
+  }, {
+    "grpcMethod" : "GetExtendedAgentCard",
+    "streaming" : false,
+    "restPath" : "/extendedAgentCard",
+    "supported" : true,
+    "requestMediaType" : "application/json",
+    "jsonRpcMethod" : "GetExtendedAgentCard",
+    "operation" : "GetExtendedAgentCard",
+    "responseMediaType" : "application/json",
+    "restMethod" : "GET",
+    "description" : "Get authenticated extended Agent Card"
+  } ],
+  "binding" : "JSONRPC",
+  "specUrl" : "https://a2a-protocol.org/latest/specification/",
+  "publication" : {
+    "publishedRouteCount" : 7,
+    "enabledRouteCount" : 7,
+    "routeCount" : 8,
+    "routes" : [ {
+      "allowedMethods" : [ "POST", "OPTIONS" ],
+      "responseMediaTypes" : [ "application/json", "text/event-stream" ],
+      "httpMethod" : "POST",
+      "requestBodyRequired" : true,
+      "published" : true,
+      "requestMediaType" : "application/json",
+      "enabled" : true,
+      "allow" : "POST, OPTIONS",
+      "operation" : "JsonRpc",
+      "path" : "/a2a/rpc"
+    }, {
+      "allowedMethods" : [ "GET", "OPTIONS" ],
+      "responseMediaTypes" : [ "application/json" ],
+      "httpMethod" : "GET",
+      "requestBodyRequired" : false,
+      "published" : true,
+      "requestMediaType" : "",
+      "enabled" : true,
+      "allow" : "GET, OPTIONS",
+      "operation" : "JsonRpcRouteCatalog",
+      "path" : "/a2a/jsonrpc/route-catalog"
+    }, {
+      "allowedMethods" : [ "GET", "OPTIONS" ],
+      "responseMediaTypes" : [ "application/json" ],
+      "httpMethod" : "GET",
+      "requestBodyRequired" : false,
+      "published" : true,
+      "requestMediaType" : "",
+      "enabled" : true,
+      "allow" : "GET, OPTIONS",
+      "operation" : "JsonRpcDiagnostics",
+      "path" : "/a2a/jsonrpc/diagnostics"
+    }, {
+      "allowedMethods" : [ "GET", "OPTIONS" ],
+      "responseMediaTypes" : [ "application/json" ],
+      "httpMethod" : "GET",
+      "requestBodyRequired" : false,
+      "published" : true,
+      "requestMediaType" : "",
+      "enabled" : true,
+      "allow" : "GET, OPTIONS",
+      "operation" : "JsonRpcSpecCompliance",
+      "path" : "/a2a/jsonrpc/spec-compliance"
+    }, {
+      "allowedMethods" : [ "GET", "OPTIONS" ],
+      "responseMediaTypes" : [ "application/json" ],
+      "httpMethod" : "GET",
+      "requestBodyRequired" : false,
+      "published" : true,
+      "requestMediaType" : "",
+      "enabled" : true,
+      "allow" : "GET, OPTIONS",
+      "operation" : "JsonRpcBindingReport",
+      "path" : "/a2a/jsonrpc/binding-report"
+    }, {
+      "allowedMethods" : [ "GET", "OPTIONS" ],
+      "responseMediaTypes" : [ "application/json" ],
+      "httpMethod" : "GET",
+      "requestBodyRequired" : false,
+      "published" : true,
+      "requestMediaType" : "",
+      "enabled" : true,
+      "allow" : "GET, OPTIONS",
+      "operation" : "JsonRpcReadiness",
+      "path" : "/a2a/jsonrpc/readiness"
+    }, {
+      "allowedMethods" : [ "GET", "OPTIONS" ],
+      "responseMediaTypes" : [ "application/json" ],
+      "httpMethod" : "GET",
+      "requestBodyRequired" : false,
+      "published" : true,
+      "requestMediaType" : "",
+      "enabled" : true,
+      "allow" : "GET, OPTIONS",
+      "operation" : "JsonRpcReadinessIssueSummary",
+      "path" : "/a2a/jsonrpc/readiness/issues"
+    } ],
+    "operations" : [ "JsonRpc", "JsonRpcRouteCatalog", "JsonRpcDiagnostics", "JsonRpcSpecCompliance", "JsonRpcBindingReport", "JsonRpcReadiness", "JsonRpcReadinessIssueSummary" ]
+  },
+  "endpointPath" : "/a2a/rpc",
+  "issueCount" : 0,
+  "attributes" : {
+    "jsonRpcSection" : "9",
+    "methodMappingSection" : "5.3",
+    "specAlignment" : {
+      "binding" : "JSONRPC",
+      "protocol" : "a2a",
+      "gapCount" : 0,
+      "alignedCount" : 20,
+      "requirementCount" : 20,
+      "protocolVersion" : "1.0",
+      "standard" : {
+        "standardId" : "a2a",
+        "name" : "Agent2Agent Protocol",
+        "version" : "1.0",
+        "binding" : "JSONRPC",
+        "specUrl" : "https://a2a-protocol.org/latest/specification/"
+      },
+      "gapIds" : [ ],
+      "gapCategories" : [ ],
+      "categorySummaries" : [ {
+        "category" : "protocol",
+        "aligned" : true,
+        "gapCount" : 0,
+        "alignedCount" : 1,
+        "requirementCount" : 1,
+        "gapIds" : [ ]
+      }, {
+        "category" : "binding",
+        "aligned" : true,
+        "gapCount" : 0,
+        "alignedCount" : 1,
+        "requirementCount" : 1,
+        "gapIds" : [ ]
+      }, {
+        "category" : "agent_card",
+        "aligned" : true,
+        "gapCount" : 0,
+        "alignedCount" : 3,
+        "requirementCount" : 3,
+        "gapIds" : [ ]
+      }, {
+        "category" : "route",
+        "aligned" : true,
+        "gapCount" : 0,
+        "alignedCount" : 12,
+        "requirementCount" : 12,
+        "gapIds" : [ ]
+      }, {
+        "category" : "jsonrpc",
+        "aligned" : true,
+        "gapCount" : 0,
+        "alignedCount" : 3,
+        "requirementCount" : 3,
+        "gapIds" : [ ]
+      } ],
+      "aligned" : true
+    },
+    "source" : "A2aHttpRouteCatalog.standard"
+  },
+  "passed" : true,
+  "issues" : [ ],
+  "streamingOperationCount" : 2,
+  "operationCount" : 11,
+  "supportedOperationCount" : 11,
+  "protocolVersion" : "1.0"
+}

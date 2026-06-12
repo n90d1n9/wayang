@@ -1,0 +1,103 @@
+{
+  "statusCode": 200,
+  "httpSuccessful": true,
+  "routeOperation": "a2ui.bindingReport",
+  "allow": "GET, OPTIONS",
+  "outcome": "SUCCESS",
+  "contentType": "application/json",
+  "mimeType": "application/json",
+  "bodyEncoding": "json",
+  "bindingReportRoute": true,
+  "bindingReportResult": true,
+  "jsonContent": true,
+  "complete": false,
+  "passed": false,
+  "routeOperationCount": 3,
+  "handlerOperationCount": 3,
+  "missingHandlerCount": 2,
+  "orphanHandlerCount": 2,
+  "issueCount": 4,
+  "issues": [
+    {
+      "source": "bindingReport",
+      "field": "missingHandlerOperations",
+      "operation": "a2ui.surfaceCatalog",
+      "message": "A2UI HTTP route has no registered handler."
+    },
+    {
+      "source": "bindingReport",
+      "field": "missingHandlerOperations",
+      "operation": "a2ui.bindingReport",
+      "message": "A2UI HTTP route has no registered handler."
+    },
+    {
+      "source": "bindingReport",
+      "field": "orphanHandlerOperations",
+      "operation": "a2ui.routeCatalog",
+      "message": "A2UI HTTP handler is not declared by the route catalog."
+    },
+    {
+      "source": "bindingReport",
+      "field": "orphanHandlerOperations",
+      "operation": "a2ui.customHandler",
+      "message": "A2UI HTTP handler is not declared by the route catalog."
+    }
+  ],
+  "routeOperations": [
+    "a2ui.exchange",
+    "a2ui.surfaceCatalog",
+    "a2ui.bindingReport"
+  ],
+  "handlerOperations": [
+    "a2ui.exchange",
+    "a2ui.routeCatalog",
+    "a2ui.customHandler"
+  ],
+  "missingHandlerOperations": [
+    "a2ui.surfaceCatalog",
+    "a2ui.bindingReport"
+  ],
+  "orphanHandlerOperations": [
+    "a2ui.routeCatalog",
+    "a2ui.customHandler"
+  ],
+  "metadata": {
+    "responseKind": "http-binding-report",
+    "complete": false,
+    "routeOperationCount": 3,
+    "handlerOperationCount": 3,
+    "missingHandlerCount": 2,
+    "orphanHandlerCount": 2
+  },
+  "body": {
+    "complete": false,
+    "routeOperationCount": 3,
+    "handlerOperationCount": 3,
+    "routeOperations": [
+      "a2ui.exchange",
+      "a2ui.surfaceCatalog",
+      "a2ui.bindingReport"
+    ],
+    "handlerOperations": [
+      "a2ui.exchange",
+      "a2ui.routeCatalog",
+      "a2ui.customHandler"
+    ],
+    "missingHandlerOperations": [
+      "a2ui.surfaceCatalog",
+      "a2ui.bindingReport"
+    ],
+    "orphanHandlerOperations": [
+      "a2ui.routeCatalog",
+      "a2ui.customHandler"
+    ]
+  },
+  "headers": {
+    "Content-Type": "application/json",
+    "X-Wayang-A2UI-Mime-Type": "application/json",
+    "X-Wayang-A2UI-Body-Encoding": "json",
+    "X-Wayang-A2UI-Outcome": "SUCCESS",
+    "X-Wayang-A2UI-Route-Operation": "a2ui.bindingReport",
+    "Allow": "GET, OPTIONS"
+  }
+}

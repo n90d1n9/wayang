@@ -316,7 +316,7 @@ public class AgentPromptService {
 
         return memoryService.vectorAgentMemory()
                 .store(agentId, entry)
-                .onFailure().recoverWithVoid();
+                .onFailure().recoverWithItem((Void) null);
     }
 
     /**
@@ -404,6 +404,16 @@ public class AgentPromptService {
 
             public Builder variables(List<String> variables) {
                 this.variables = variables;
+                return this;
+            }
+
+            public Builder createdAt(Instant createdAt) {
+                this.createdAt = createdAt;
+                return this;
+            }
+
+            public Builder updatedAt(Instant updatedAt) {
+                this.updatedAt = updatedAt;
                 return this;
             }
 

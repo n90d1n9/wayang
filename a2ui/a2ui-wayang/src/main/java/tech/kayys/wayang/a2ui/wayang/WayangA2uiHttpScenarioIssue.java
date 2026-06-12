@@ -1,5 +1,11 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpScenarioProjection;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+import tech.kayys.wayang.a2ui.wayang.support.RecordNumbers;
+
 import java.util.Map;
 import java.util.Optional;
 
@@ -19,16 +25,16 @@ public record WayangA2uiHttpScenarioIssue(
         Map<String, Object> attributes) {
 
     public WayangA2uiHttpScenarioIssue {
-        scenarioId = scenarioId == null || scenarioId.isBlank() ? "a2ui-http-scenario" : scenarioId.trim();
-        exchangeIndex = Math.max(1, exchangeIndex);
+        scenarioId = RecordValues.textOrDefault(scenarioId, "a2ui-http-scenario");
+        exchangeIndex = RecordNumbers.oneBased(exchangeIndex);
         method = WayangA2uiHttpRequest.normalizeMethod(method);
         path = WayangA2uiHttpRequest.normalizePath(path);
-        statusCode = Math.max(0, statusCode);
-        routeOperation = routeOperation == null ? "" : routeOperation.trim();
-        outcome = outcome == null ? "" : outcome.trim();
-        errorCode = errorCode == null || errorCode.isBlank() ? "http_exchange_issue" : errorCode.trim();
-        message = message == null || message.isBlank() ? defaultMessage(method, path, statusCode) : message.trim();
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        statusCode = RecordNumbers.nonNegative(statusCode);
+        routeOperation = RecordValues.text(routeOperation);
+        outcome = RecordValues.text(outcome);
+        errorCode = RecordValues.textOrDefault(errorCode, "http_exchange_issue");
+        message = RecordValues.textOrDefault(message, defaultMessage(method, path, statusCode));
+        attributes = TransportMaps.copy(attributes);
     }
 
     public static Optional<WayangA2uiHttpScenarioIssue> from(
@@ -53,7 +59,7 @@ public record WayangA2uiHttpScenarioIssue(
                 request.method(),
                 request.path(),
                 response.statusCode(),
-                stringHeader(response, WayangA2uiHttpResponse.HEADER_A2UI_ROUTE_OPERATION),
+                response.header(WayangA2uiHttpResponse.HEADER_A2UI_ROUTE_OPERATION),
                 transportResponse.outcome().name(),
                 code,
                 message,
@@ -61,17 +67,12 @@ public record WayangA2uiHttpScenarioIssue(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpScenarioProjection.issue(this);
+        return HttpScenarioProjection.issue(this);
     }
 
     private static String defaultMessage(String method, String path, int statusCode) {
         return "HTTP status " + statusCode + " for "
                 + WayangA2uiHttpRequest.normalizeMethod(method) + " "
                 + WayangA2uiHttpRequest.normalizePath(path);
-    }
-
-    private static String stringHeader(WayangA2uiHttpResponse response, String headerName) {
-        Object value = response.headers().get(headerName);
-        return value == null ? "" : String.valueOf(value);
     }
 }

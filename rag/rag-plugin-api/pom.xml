@@ -6,7 +6,7 @@
     <parent>
         <groupId>tech.kayys.wayang</groupId>
         <artifactId>wayang-rag-parent</artifactId>
-        <version>0.1.0</version>
+        <version>1.0.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>rag-plugin-api</artifactId>
@@ -21,6 +21,11 @@
             <groupId>tech.kayys.wayang</groupId>
             <artifactId>rag-core</artifactId>
             <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

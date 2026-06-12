@@ -6,9 +6,11 @@ import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import tech.kayys.wayang.tool.spi.Tool;
-import tech.kayys.wayang.agent.core.tools.ToolCacheManager;
+import tech.kayys.wayang.tools.spi.Tool;
+import tech.kayys.wayang.tools.spi.ToolContext;
 
+import java.nio.file.Path;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -73,15 +75,33 @@ public class ToolRegistry {
      */
     public Uni<Map<String, Object>> executeTool(String toolId, Map<String, Object> arguments,
             Map<String, Object> context) {
-        // Enhanced: Execute with caching for better performance
-        return cacheManager.executeWithCache(
-            toolId,
-            arguments,
-            context,
-            () -> getTool(toolId)
-                .map(tool -> tool.execute(arguments, context))
-                .orElseThrow(() -> new IllegalArgumentException("Tool not found: " + toolId))
-        );
+        return Uni.createFrom().item(() -> {
+            Tool tool = getTool(toolId)
+                    .orElseThrow(() -> new IllegalArgumentException("Tool not found: " + toolId));
+            Map<String, Object> safeArguments = arguments != null ? arguments : Map.of();
+            ToolContext toolContext = new ToolContext(
+                    toolId,
+                    safeArguments,
+                    Path.of(System.getProperty("user.dir")),
+                    System.getenv(),
+                    Duration.ofSeconds(30),
+                    false,
+                    context != null ? context : Map.of());
+            return tool.execute(safeArguments, toolContext).toMap();
+        });
+    }
+
+    public Uni<Map<String, Object>> executeTool(String toolId, Map<String, Object> arguments,
+            ToolContext context) {
+        return executeTool(toolId, arguments, context != null ? context.asMap() : Map.of());
+    }
+
+    public void enable(String toolId) {
+        log.debug("Enable requested for tool {}", toolId);
+    }
+
+    public void disable(String toolId) {
+        log.debug("Disable requested for tool {}", toolId);
     }
 
     /**

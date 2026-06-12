@@ -27,10 +27,10 @@
     No CDI or Quarkus dependencies — suitable as a compile-time-only dependency.
   </description>
 
-  <properties>
-    <gollek.version>0.1.0-SNAPSHOT</gollek.version>
-    <lombok.version>1.18.30</lombok.version>
-  </properties>
+    <properties>
+        <gollek.version>0.1.0-SNAPSHOT</gollek.version>
+        <lombok.version>1.18.42</lombok.version>
+    </properties>
 
   <dependencies>
 
@@ -41,37 +41,38 @@
       <scope>provided</scope>
     </dependency>
 
-    <!-- Gollek Tools SPI (for tool integration) - optional, adapter only -->
+    <!-- Gollek Tools SPI (for tool integration) - optional, adapter only 
+    NOTE: These modules don't exist in gollek, comment out for now
     <dependency>
-      <groupId>tech.kayys.wayang</groupId>
+      <groupId>tech.kayys.gollek</groupId>
       <artifactId>gollek-tools-spi</artifactId>
-      <version>${project.version}</version>
+      <version>${gollek.version}</version>
       <optional>true</optional>
     </dependency>
 
-    <!-- Gollek Tools Core (for ToolRegistry and implementation) - optional, adapter only -->
     <dependency>
-      <groupId>tech.kayys.wayang</groupId>
+      <groupId>tech.kayys.gollek</groupId>
       <artifactId>gollek-tools-core</artifactId>
-      <version>${project.version}</version>
+      <version>${gollek.version}</version>
       <optional>true</optional>
     </dependency>
+    -->
 
     <!-- Gollek core SPI (Message, InferenceRequest, etc.) - optional, adapter only -->
     <dependency>
-      <groupId>tech.kayys.wayang</groupId>
+      <groupId>tech.kayys.gollek</groupId>
       <artifactId>gollek-spi</artifactId>
       <version>${gollek.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>tech.kayys.wayang</groupId>
+      <groupId>tech.kayys.gollek</groupId>
       <artifactId>gollek-spi-inference</artifactId>
       <version>${gollek.version}</version>
       <optional>true</optional>
     </dependency>
     <dependency>
-      <groupId>tech.kayys.wayang</groupId>
+      <groupId>tech.kayys.gollek</groupId>
       <artifactId>gollek-engine</artifactId>
       <version>${gollek.version}</version>
       <optional>true</optional>
@@ -136,15 +137,21 @@
 
     <dependency>
       <groupId>tech.kayys.wayang</groupId>
+      <artifactId>agent-spi</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>tech.kayys.wayang</groupId>
       <artifactId>wayang-plugin-spi</artifactId>
       <version>${project.version}</version>
     </dependency>
 
     <!-- Gollek SDK facade — discovers local or remote implementation at runtime - optional -->
     <dependency>
-      <groupId>tech.kayys.wayang</groupId>
+      <groupId>tech.kayys.gollek</groupId>
       <artifactId>gollek-sdk</artifactId>
-      <version>0.1.0</version>
+      <version>${gollek.version}</version>
       <optional>true</optional>
     </dependency>
 
@@ -168,12 +175,7 @@
     </dependency>
     -->
 
-    <!-- CDI for dependency injection -->
-    <dependency>
-      <groupId>jakarta.enterprise</groupId>
-      <artifactId>jakarta.enterprise.cdi-api</artifactId>
-      <scope>provided</scope>
-    </dependency>
+
 
     <!-- Mutiny for reactive programming -->
     <dependency>
@@ -192,8 +194,21 @@
     <!-- Tool Integration -->
     <dependency>
       <groupId>tech.kayys.wayang</groupId>
+      <artifactId>agent-tools-spi</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>tech.kayys.wayang</groupId>
       <artifactId>wayang-tool-core</artifactId>
       <version>${project.version}</version>
+    </dependency>
+
+    <!-- Git implementation for Skills Loader -->
+    <dependency>
+      <groupId>org.eclipse.jgit</groupId>
+      <artifactId>org.eclipse.jgit</artifactId>
+      <version>6.8.0.202311291450-r</version>
     </dependency>
 
     <!-- Caffeine cache for ToolCacheManager -->
@@ -208,6 +223,12 @@
       <groupId>tech.kayys.wayang</groupId>
       <artifactId>wayang-memory-core</artifactId>
       <version>${project.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>tech.kayys.gamelan</groupId>
+          <artifactId>gamelan-engine-core</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
 
     <!-- Embedding Integration -->

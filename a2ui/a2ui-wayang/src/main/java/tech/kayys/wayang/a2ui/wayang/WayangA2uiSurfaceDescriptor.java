@@ -1,5 +1,7 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.surface.SurfaceProjection;
+
 import java.util.Map;
 import java.util.Objects;
 
@@ -24,7 +26,7 @@ public record WayangA2uiSurfaceDescriptor(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiSurfaceProjection.descriptor(this);
+        return SurfaceProjection.descriptor(this);
     }
 
     static String normalizeKind(String kind) {

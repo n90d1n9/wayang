@@ -1,6 +1,8 @@
 package tech.kayys.wayang.agent.core.tools;
 
 import org.jboss.logging.Logger;
+import tech.kayys.wayang.agent.spi.tools.ToolSelector;
+import tech.kayys.wayang.agent.spi.tools.ToolSelector.ToolDefinition;
 
 import java.util.*;
 import java.util.stream.Collectors;

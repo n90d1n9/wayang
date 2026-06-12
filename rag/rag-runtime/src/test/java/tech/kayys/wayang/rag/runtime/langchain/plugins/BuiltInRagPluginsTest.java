@@ -77,6 +77,27 @@ class BuiltInRagPluginsTest {
         assertFalse(redacted.answer().contains("token"));
     }
 
+    @Test
+    void shouldRunBuiltInPluginsWithDefaultTuningConfig() {
+        QueryRewritePlugin rewrite = new QueryRewritePlugin();
+        RagPluginExecutionContext normalized = rewrite.beforeQuery(context("  HELLO   Plugin   WORLD  "));
+        assertEquals("HELLO Plugin WORLD", normalized.query());
+
+        SafetyFilterPlugin safety = new SafetyFilterPlugin();
+        RagPluginExecutionContext safeQuery = safety.beforeQuery(context("secret stays visible without configured terms"));
+        assertEquals("secret stays visible without configured terms", safeQuery.query());
+
+        LexicalRerankPlugin rerank = new LexicalRerankPlugin();
+        List<RagScoredChunk> ranked = rerank.afterRetrieve(
+                context("payment status"),
+                List.of(
+                        scoredChunk("low", "shipping address only", 0.9),
+                        scoredChunk("high", "payment status approved", 0.2)));
+
+        assertEquals("low", ranked.get(0).chunk().id());
+        assertTrue(ranked.get(0).chunk().metadata().containsKey("plugin.lexical_rerank.lexical_score"));
+    }
+
     private static RagPluginExecutionContext context(String query) {
         return new RagPluginExecutionContext(
                 "tenant-a",

@@ -1,5 +1,9 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+
+import tech.kayys.wayang.a2ui.wayang.support.DecodeValues;
+
 import java.util.Map;
 
 /**
@@ -9,17 +13,15 @@ public final class WayangA2uiTransportErrorDecoder {
 
     public static WayangA2uiTransportError fromMap(Map<?, ?> values) {
         if (values == null || values.isEmpty()) {
-            return new WayangA2uiTransportError(
-                    WayangA2uiTransportError.DEFAULT_CODE,
-                    WayangA2uiTransportError.DEFAULT_MESSAGE);
+            return WayangA2uiTransportError.defaultError();
         }
         return new WayangA2uiTransportError(
-                WayangA2uiDecodeValues.text(values.get(WayangA2uiTransportFields.CODE)),
-                WayangA2uiDecodeValues.text(values.get(WayangA2uiTransportFields.MESSAGE)));
+                DecodeValues.text(values.get(WayangA2uiTransportFields.CODE)),
+                DecodeValues.text(values.get(WayangA2uiTransportFields.MESSAGE)));
     }
 
     public static WayangA2uiTransportError fromJson(String json) {
-        return fromMap(WayangA2uiTransportJson.map(
+        return fromMap(TransportJson.map(
                 json,
                 "A2UI transport error JSON must not be blank",
                 "Unable to decode A2UI transport error JSON"));

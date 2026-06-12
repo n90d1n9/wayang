@@ -8,7 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import tech.kayys.wayang.tool.dto.CapabilityLevel;
 import tech.kayys.wayang.tool.dto.InvocationStatus;
-import tech.kayys.wayang.tool.dto.RequestContext;
+import tech.kayys.wayang.tool.dto.ToolRequestContext;
 import tech.kayys.wayang.tool.dto.ToolExecutionRequest;
 import tech.kayys.wayang.tool.dto.ToolExecutionResult;
 import tech.kayys.wayang.tool.dto.ToolGenerationResult;
@@ -44,7 +44,7 @@ class ToolResourceHttpTest {
     ToolRepository toolRepository;
 
     @InjectMock
-    RequestContext requestContext;
+    ToolRequestContext requestContext;
 
     @BeforeEach
     void setup() {

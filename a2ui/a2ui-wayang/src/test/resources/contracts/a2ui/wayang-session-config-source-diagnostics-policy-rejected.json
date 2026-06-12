@@ -1,0 +1,84 @@
+{
+  "diagnosticsId": "a2ui.session-config.source-diagnostics",
+  "sourceType": "inline",
+  "valid": true,
+  "allowed": false,
+  "status": "FAILED",
+  "loaded": false,
+  "missing": false,
+  "failed": true,
+  "validationErrors": [],
+  "policyErrors": [
+    "source source type inline is not allowed"
+  ],
+  "sourceSpec": {
+    "type": "inline",
+    "description": "contract-inline",
+    "json": "{ \"mode\": \"read-only\" }"
+  },
+  "sourcePolicy": {
+    "allowedTypes": [],
+    "deniedTypes": [
+      "inline"
+    ],
+    "allowAll": false
+  },
+  "capability": {
+    "type": "inline",
+    "category": "inline",
+    "requiredFields": [
+      "json"
+    ],
+    "fieldAliases": {
+      "json": [
+        "value"
+      ]
+    },
+    "diagnosticSafeFields": [
+      "type",
+      "description"
+    ],
+    "tenantScoped": false,
+    "lookupKeyScoped": false,
+    "objectStorage": false,
+    "fallback": false
+  },
+  "sourceCapabilities": {
+    "inline": {
+      "type": "inline",
+      "category": "inline",
+      "requiredFields": [
+        "json"
+      ],
+      "fieldAliases": {
+        "json": [
+          "value"
+        ]
+      },
+      "diagnosticSafeFields": [
+        "type",
+        "description"
+      ],
+      "tenantScoped": false,
+      "lookupKeyScoped": false,
+      "objectStorage": false,
+      "fallback": false
+    }
+  },
+  "loadResult": {
+    "sourceDescription": "session-config-source-policy",
+    "status": "FAILED",
+    "loaded": false,
+    "config": {
+      "enabled": true,
+      "policy": {
+        "allowedActions": [
+          "wayang.run.inspect"
+        ],
+        "allowedRunIds": [],
+        "requiredContext": {}
+      }
+    },
+    "message": "Unable to load A2UI session config. source source type inline is not allowed"
+  }
+}

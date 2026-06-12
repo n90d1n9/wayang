@@ -10,6 +10,7 @@ import tech.kayys.wayang.rag.core.RagScoredChunk;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NativeGenerationServiceTest {
@@ -54,5 +55,61 @@ class NativeGenerationServiceTest {
 
         assertTrue(answer.contains("First sentence."));
         assertTrue(answer.contains("[source:"));
+    }
+
+    @Test
+    void shouldGenerateExtractiveModeFromAdditionalParamsWithoutProviderCoupling() {
+        GenerationConfig extractive = config(
+                "openai",
+                Map.of(NativeGenerationMode.PARAM_NATIVE_GENERATION_MODE, "extractive"),
+                false);
+
+        String answer = service.generate(
+                RagQuery.of("Explain"),
+                List.of(new RagScoredChunk(RagChunk.of("d1", 0, "First sentence. Second sentence.", Map.of()), 0.9)),
+                extractive);
+
+        assertEquals("First sentence.", answer);
+    }
+
+    @Test
+    void shouldHandleNullQueryAndContextInContextMode() {
+        String answer = service.generate(null, null, GenerationConfig.defaults());
+
+        assertTrue(answer.contains("Q:"));
+        assertTrue(answer.contains("Context:"));
+    }
+
+    @Test
+    void shouldIgnoreNullContextEntries() {
+        String answer = service.generate(
+                RagQuery.of("What is this?"),
+                java.util.Arrays.asList(
+                        null,
+                        new RagScoredChunk(null, 0.1),
+                        new RagScoredChunk(RagChunk.of("d1", 0, "Context A", Map.of()), 0.9)),
+                GenerationConfig.defaults());
+
+        assertTrue(answer.contains("Context A"));
+    }
+
+    private static GenerationConfig config(String provider, Map<String, Object> additionalParams, boolean citations) {
+        return new GenerationConfig(
+                provider,
+                "n/a",
+                0.0f,
+                256,
+                1.0f,
+                0.0f,
+                0.0f,
+                List.of(),
+                "",
+                additionalParams,
+                citations,
+                true,
+                CitationStyle.INLINE_NUMBERED,
+                false,
+                false,
+                Map.of());
     }
 }

@@ -1,5 +1,8 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpEndpointDiagnosticPlanProjection;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
 import java.util.Map;
 
 /**
@@ -28,11 +31,11 @@ public record WayangA2uiHttpEndpointDiagnosticConfig(
     public static final String PROFILE_DISCOVERY_ONLY = "discovery-only";
 
     public WayangA2uiHttpEndpointDiagnosticConfig {
-        defaultHeaders = WayangA2uiTransportMaps.copy(defaultHeaders);
-        defaultAttributes = WayangA2uiTransportMaps.copy(defaultAttributes);
+        defaultHeaders = TransportMaps.copy(defaultHeaders);
+        defaultAttributes = TransportMaps.copy(defaultAttributes);
     }
 
-    public static WayangA2uiHttpEndpointDiagnosticConfig defaults() {
+    public static WayangA2uiHttpEndpointDiagnosticConfig defaultConfig() {
         return new WayangA2uiHttpEndpointDiagnosticConfig(
                 true,
                 true,
@@ -41,6 +44,10 @@ public record WayangA2uiHttpEndpointDiagnosticConfig(
                 true,
                 Map.of(),
                 Map.of());
+    }
+
+    public static WayangA2uiHttpEndpointDiagnosticConfig defaults() {
+        return defaultConfig();
     }
 
     public static WayangA2uiHttpEndpointDiagnosticConfig discoveryOnly() {
@@ -68,7 +75,7 @@ public record WayangA2uiHttpEndpointDiagnosticConfig(
                 smokeProbe,
                 readinessProbe,
                 routeOptionsProbe,
-                WayangA2uiTransportMetadata.merge(defaultHeaders, WayangA2uiTransportMaps.copy(extraHeaders)),
+                WayangA2uiTransportMetadata.merge(defaultHeaders, TransportMaps.copy(extraHeaders)),
                 defaultAttributes);
     }
 
@@ -83,11 +90,11 @@ public record WayangA2uiHttpEndpointDiagnosticConfig(
                 readinessProbe,
                 routeOptionsProbe,
                 defaultHeaders,
-                WayangA2uiTransportMetadata.merge(defaultAttributes, WayangA2uiTransportMaps.copy(extraAttributes)));
+                WayangA2uiTransportMetadata.merge(defaultAttributes, TransportMaps.copy(extraAttributes)));
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpEndpointDiagnosticPlanProjection.config(this);
+        return HttpEndpointDiagnosticPlanProjection.config(this);
     }
 
 }

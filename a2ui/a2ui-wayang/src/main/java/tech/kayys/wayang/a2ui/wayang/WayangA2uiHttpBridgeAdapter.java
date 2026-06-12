@@ -102,6 +102,10 @@ public final class WayangA2uiHttpBridgeAdapter {
         return WayangA2uiHttpBindingReportProbeResult.run(this);
     }
 
+    public WayangA2uiHttpActionBindingProbeResult actionBindingProbe() {
+        return WayangA2uiHttpActionBindingProbeResult.run(this);
+    }
+
     public WayangA2uiHttpResponse smoke() {
         return handle(WayangA2uiHttpRequest.smoke());
     }
@@ -116,6 +120,10 @@ public final class WayangA2uiHttpBridgeAdapter {
 
     public WayangA2uiHttpReadinessProbeResult readinessProbe() {
         return WayangA2uiHttpReadinessProbeResult.run(this);
+    }
+
+    public WayangA2uiHttpOperationalDiagnostics operationalDiagnostics() {
+        return WayangA2uiHttpOperationalDiagnostics.run(this);
     }
 
     private static WayangA2uiHttpRouteCatalog resolveCatalog(WayangA2uiHttpRouteCatalog routeCatalog) {

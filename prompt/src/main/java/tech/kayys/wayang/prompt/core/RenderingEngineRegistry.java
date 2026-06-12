@@ -33,12 +33,17 @@ public class RenderingEngineRegistry {
     @PostConstruct
     void initialize() {
         if (!initialized) {
-            // Add the basic engines
+            // Add built-in engines so non-CDI tests and standalone runtimes can
+            // use every strategy when the module dependencies are present.
             engines.put(PromptVersion.RenderingStrategy.SIMPLE, new SimpleRenderingEngine());
+            engines.put(PromptVersion.RenderingStrategy.JINJA2, new Jinja2RenderingEngine());
+            engines.put(PromptVersion.RenderingStrategy.FREEMARKER, new FreeMarkerRenderingEngine());
             
-            // Add optional engines if available
-            for (RenderingEngine engine : renderingEngines) {
-                engines.put(engine.getStrategy(), engine);
+            // CDI-provided engines override defaults, allowing custom variants.
+            if (renderingEngines != null) {
+                for (RenderingEngine engine : renderingEngines) {
+                    engines.put(engine.getStrategy(), engine);
+                }
             }
             
             initialized = true;

@@ -1,0 +1,21 @@
+{
+  "mimeType": "application/json+a2ui",
+  "bodyEncoding": "jsonl",
+  "body": "{\"hello\":\"world\"}\n",
+  "dataParts": [
+    {
+      "kind": "data",
+      "nested": {
+        "value": "original"
+      }
+    }
+  ],
+  "handledCount": 1,
+  "rejectedCount": 0,
+  "metadata": {
+    "requestKind": "JSON_LINE",
+    "responseKind": "a2ui-session-result"
+  },
+  "outcome": "SUCCESS",
+  "empty": false
+}

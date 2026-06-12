@@ -5,14 +5,15 @@
 
     <parent>
         <groupId>tech.kayys.wayang</groupId>
-        <artifactId>wayang-executor-parent</artifactId>
-        <version>0.1.0</version>
+        <artifactId>wayang-agentic-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
     <groupId>tech.kayys.wayang</groupId>
     <artifactId>wayang-tool-parent</artifactId>
     <packaging>pom</packaging>
     <modules>
+        <module>tools-spi</module>
         <module>wayang-tool-core</module>
         <module>wayang-tool-parser</module>
         <module>wayang-tool-mcp</module>
@@ -22,7 +23,7 @@
         <module>golek-tool-http</module>
         <module>golek-tool-sandbox</module>
         <module>golek-tool-rest</module>
-        <module>gollek-plugin-tool-execution</module>
+        <!-- Legacy Gollek inference plugin bridge; reintroduce after Wayang/Gamelan plugin migration. -->
         <module>wayang-tool-runtime</module>
     </modules>
 
@@ -44,11 +45,5 @@
         </dependencies>
     </dependencyManagement>
 
-    <dependencies>
-        <dependency>
-            <groupId>tech.kayys.gollek</groupId>
-            <artifactId>gollek-tool-core</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-    </dependencies>
+
 </project>

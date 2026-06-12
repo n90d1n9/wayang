@@ -12,11 +12,54 @@
     <artifactId>agent-api</artifactId>
     <packaging>jar</packaging>
     <name>Wayang Agent API</name>
-    <description>REST API endpoints for agent management and interaction</description>
+    <description>REST API endpoints over the active Wayang agent SPI.</description>
 
     <properties>
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
     </properties>
+
+    <dependencies>
+        <!-- Active agent execution and skill contracts -->
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>agent-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>agent-spi</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>agent-hermes</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- REST runtime support -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-jackson</artifactId>
+        </dependency>
+
+        <!-- Mutiny -->
+        <dependency>
+            <groupId>io.smallrye.reactive</groupId>
+            <artifactId>mutiny</artifactId>
+        </dependency>
+
+        <!-- Testing -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
 </project>

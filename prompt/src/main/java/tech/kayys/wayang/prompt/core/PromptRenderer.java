@@ -123,11 +123,11 @@ public final class PromptRenderer {
             } else if (required) {
                 // Required variable with no value anywhere → hard failure
                 throw new PromptRenderException(
+                        "Required variable '%s' could not be resolved in template '%s' v%s"
+                                .formatted(placeholder, template.getTemplateId(), template.getActiveVersion()),
                         placeholder,
                         template.getTemplateId(),
-                        template.getActiveVersion(),
-                        "Required variable '%s' could not be resolved in template '%s' v%s"
-                                .formatted(placeholder, template.getTemplateId(), template.getActiveVersion()));
+                        template.getActiveVersion());
             } else {
                 value = ""; // optional, no value found
                 source = RenderResult.ResolutionSource.EMPTY;

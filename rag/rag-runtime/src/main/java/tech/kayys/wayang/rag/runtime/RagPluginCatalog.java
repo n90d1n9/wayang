@@ -1,15 +1,12 @@
 package tech.kayys.wayang.rag.runtime;
 
-import tech.kayys.wayang.rag.plugin.api.*;
+import tech.kayys.wayang.rag.plugin.api.RagPipelinePlugin;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 
-import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
-import java.util.Objects;
 
 @ApplicationScoped
 public class RagPluginCatalog {
@@ -25,28 +22,17 @@ public class RagPluginCatalog {
 
     RagPluginCatalog(List<RagPipelinePlugin> testPlugins) {
         this.pluginInstances = null;
-        this.testPlugins = testPlugins == null ? List.of() : List.copyOf(testPlugins);
+        this.testPlugins = RagRuntimeLists.copy(testPlugins);
     }
 
     public List<RagPipelinePlugin> discover() {
         if (pluginInstances != null) {
-            return pluginInstances.stream()
-                    .filter(Objects::nonNull)
-                    .sorted(Comparator.comparingInt(RagPipelinePlugin::order)
-                            .thenComparing(plugin -> normalizeId(plugin.id())))
-                    .toList();
+            return RagPluginDiscovery.ordered(pluginInstances.stream());
         }
-        return testPlugins.stream()
-                .filter(Objects::nonNull)
-                .sorted(Comparator.comparingInt(RagPipelinePlugin::order)
-                        .thenComparing(plugin -> normalizeId(plugin.id())))
-                .toList();
+        return RagPluginDiscovery.ordered(testPlugins.stream());
     }
 
     static String normalizeId(String id) {
-        if (id == null) {
-            return "";
-        }
-        return id.trim().toLowerCase(Locale.ROOT);
+        return RagPluginDiscovery.normalizeId(id);
     }
 }

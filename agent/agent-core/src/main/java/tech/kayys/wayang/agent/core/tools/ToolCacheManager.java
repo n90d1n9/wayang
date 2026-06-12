@@ -2,12 +2,13 @@ package tech.kayys.wayang.agent.core.tools;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.stats.CacheStats;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
-import tech.kayys.wayang.agent.spi.SkillResult;
+import tech.kayys.wayang.agent.spi.skills.SkillResult;
 import tech.kayys.wayang.agent.core.metrics.AgentMetricsCollector;
 import tech.kayys.gollek.spi.tool.ToolDefinition;
 
@@ -176,13 +177,13 @@ public class ToolCacheManager {
 
         LOG.debugf("Executing tool %s with cache key %s", toolId, cacheKey);
 
-        return Uni.createFrom().completionStage(() -> {
+        return Uni.createFrom().item(() -> {
             CachedExecutionResult cached = resultCache.getIfPresent(cacheKey);
 
             if (cached != null && !cached.isExpired()) {
                 LOG.debugf("Cache hit for tool %s (key: %s)", toolId, cacheKey);
                 recordCacheHit(toolId, true);
-                return cached.getResult();
+                return cached.result();
             }
 
             // Cache miss - execute and cache
@@ -197,7 +198,7 @@ public class ToolCacheManager {
                 CachedExecutionResult cachedResult = new CachedExecutionResult(
                     result,
                     Instant.now(),
-                    config.getTtl()
+                    config.ttl()
                 );
                 resultCache.put(cacheKey, cachedResult);
 
@@ -235,7 +236,7 @@ public class ToolCacheManager {
 
         if (bypassCache) {
             LOG.debugf("Cache bypass requested for tool %s", toolId);
-            return Uni.createFrom().completionStage(() -> {
+            return Uni.createFrom().item(() -> {
                 try {
                     return executor.execute();
                 } catch (Exception e) {
@@ -341,7 +342,7 @@ public class ToolCacheManager {
      * @return cache statistics
      */
     public CacheStatistics getStatistics() {
-        com.github.benmanes.caffeine.cache.CacheStats stats = resultCache.stats();
+        CacheStats stats = resultCache.stats();
         long totalRequests = stats.hitCount() + stats.missCount();
         double hitRatio = totalRequests > 0 ? (double) stats.hitCount() / totalRequests : 0.0;
 
@@ -383,7 +384,7 @@ public class ToolCacheManager {
     public void registerCacheConfig(String toolId, CacheConfig config) {
         toolCacheConfigs.put(toolId, config);
         LOG.debugf("Registered cache config for tool %s: TTL=%s, maxSize=%d",
-            toolId, config.getTtl(), config.getMaxSize());
+            toolId, config.ttl(), config.maxSize());
     }
 
     /**
@@ -418,7 +419,7 @@ public class ToolCacheManager {
         CachedExecutionResult cachedResult = new CachedExecutionResult(
             result,
             Instant.now(),
-            config.getTtl()
+            config.ttl()
         );
 
         resultCache.put(cacheKey, cachedResult);
@@ -471,9 +472,10 @@ public class ToolCacheManager {
      * Record cache hit/miss for metrics.
      */
     private void recordCacheHit(String toolId, boolean hit) {
-        if (metricsCollector != null) {
-            metricsCollector.recordToolCacheHit(toolId, hit);
-        }
+        toolStats.compute(toolId, (key, stats) -> {
+            ToolExecutionStats current = stats != null ? stats : ToolExecutionStats.empty(toolId);
+            return hit ? current.recordCacheHit() : current.recordCacheMiss();
+        });
     }
 
     /**

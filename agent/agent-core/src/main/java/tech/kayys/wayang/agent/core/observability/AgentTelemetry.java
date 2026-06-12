@@ -14,7 +14,9 @@ import io.opentelemetry.context.Scope;
 import org.jboss.logging.Logger;
 
 import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -68,13 +70,16 @@ public class AgentTelemetry {
     private final DoubleHistogram inferenceDuration;
     private final LongCounter toolExecutions;
     private final DoubleHistogram toolDuration;
+    private final LongCounter memoryOperations;
+    private final DoubleHistogram memoryDuration;
     private final LongCounter errors;
 
     // Local cache for span context
     private final Map<String, io.opentelemetry.context.Context> activeSpans = new ConcurrentHashMap<>();
+    private final Map<MemoryOperationKey, MemoryOperationStats> memoryOperationStats = new ConcurrentHashMap<>();
 
     private AgentTelemetry(OpenTelemetry openTelemetry) {
-        this.openTelemetry = openTelemetry;
+        this.openTelemetry = Objects.requireNonNull(openTelemetry, "openTelemetry");
         this.tracer = openTelemetry.getTracer(INSTRUMENTATION_SCOPE, INSTRUMENTATION_VERSION);
         this.meter = openTelemetry.getMeter(INSTRUMENTATION_SCOPE);
 
@@ -106,6 +111,16 @@ public class AgentTelemetry {
 
         this.toolDuration = meter.histogramBuilder("wayang.tool.duration")
             .setDescription("Tool execution duration")
+            .setUnit("ms")
+            .build();
+
+        this.memoryOperations = meter.counterBuilder("wayang.memory.operations")
+            .setDescription("Total number of memory operations")
+            .setUnit("{operation}")
+            .build();
+
+        this.memoryDuration = meter.histogramBuilder("wayang.memory.operation.duration")
+            .setDescription("Memory operation duration")
             .setUnit("ms")
             .build();
 
@@ -145,16 +160,16 @@ public class AgentTelemetry {
     public <T> T executeAgent(String strategy, String agentId, java.util.function.Supplier<T> action) {
         Span span = tracer.spanBuilder("agent.execute")
             .setSpanKind(SpanKind.INTERNAL)
-            .setAttribute("agent.strategy", strategy)
-            .setAttribute("agent.id", agentId)
+            .setAttribute("agent.strategy", normalize(strategy, "unknown"))
+            .setAttribute("agent.id", normalize(agentId, "unknown"))
             .startSpan();
 
         try (Scope scope = span.makeCurrent()) {
             T result = action.get();
             span.setStatus(StatusCode.OK);
             agentExecutions.add(1, Attributes.of(
-                io.opentelemetry.api.common.AttributeKey.stringKey("strategy"), strategy,
-                io.opentelemetry.api.common.AttributeKey.stringKey("agent_id"), agentId
+                io.opentelemetry.api.common.AttributeKey.stringKey("strategy"), normalize(strategy, "unknown"),
+                io.opentelemetry.api.common.AttributeKey.stringKey("agent_id"), normalize(agentId, "unknown")
             ));
             return result;
         } catch (Exception e) {
@@ -176,8 +191,8 @@ public class AgentTelemetry {
     public <T> T executeStep(String stepType, String agentId, java.util.function.Supplier<T> action) {
         Span span = tracer.spanBuilder("agent.step")
             .setSpanKind(SpanKind.INTERNAL)
-            .setAttribute("agent.step_type", stepType)
-            .setAttribute("agent.id", agentId)
+            .setAttribute("agent.step_type", normalize(stepType, "unknown"))
+            .setAttribute("agent.id", normalize(agentId, "unknown"))
             .startSpan();
 
         try (Scope scope = span.makeCurrent()) {
@@ -204,19 +219,20 @@ public class AgentTelemetry {
      * @param success whether the call succeeded
      */
     public void recordInference(String backend, String model, Duration duration, boolean success) {
+        String normalizedBackend = normalize(backend, "unknown");
         Attributes attrs = Attributes.of(
-            io.opentelemetry.api.common.AttributeKey.stringKey("backend"), backend,
-            io.opentelemetry.api.common.AttributeKey.stringKey("model"), model,
+            io.opentelemetry.api.common.AttributeKey.stringKey("backend"), normalizedBackend,
+            io.opentelemetry.api.common.AttributeKey.stringKey("model"), normalize(model, "unknown"),
             io.opentelemetry.api.common.AttributeKey.booleanKey("success"), success
         );
 
         inferenceExecutions.add(1, attrs);
-        inferenceDuration.record(duration.toMillis(), attrs);
+        inferenceDuration.record(durationMs(duration), attrs);
 
         if (!success) {
             errors.add(1, Attributes.of(
                 io.opentelemetry.api.common.AttributeKey.stringKey("component"), "inference",
-                io.opentelemetry.api.common.AttributeKey.stringKey("backend"), backend
+                io.opentelemetry.api.common.AttributeKey.stringKey("backend"), normalizedBackend
             ));
         }
     }
@@ -231,18 +247,19 @@ public class AgentTelemetry {
      * @param success whether the call succeeded
      */
     public void recordToolExecution(String toolName, Duration duration, boolean success) {
+        String normalizedTool = normalize(toolName, "unknown");
         Attributes attrs = Attributes.of(
-            io.opentelemetry.api.common.AttributeKey.stringKey("tool"), toolName,
+            io.opentelemetry.api.common.AttributeKey.stringKey("tool"), normalizedTool,
             io.opentelemetry.api.common.AttributeKey.booleanKey("success"), success
         );
 
         toolExecutions.add(1, attrs);
-        toolDuration.record(duration.toMillis(), attrs);
+        toolDuration.record(durationMs(duration), attrs);
 
         if (!success) {
             errors.add(1, Attributes.of(
                 io.opentelemetry.api.common.AttributeKey.stringKey("component"), "tool",
-                io.opentelemetry.api.common.AttributeKey.stringKey("tool"), toolName
+                io.opentelemetry.api.common.AttributeKey.stringKey("tool"), normalizedTool
             ));
         }
     }
@@ -257,7 +274,60 @@ public class AgentTelemetry {
      * @param duration operation duration
      */
     public void recordMemoryOperation(String operation, String tier, Duration duration) {
-        // TODO: Add memory metrics
+        recordMemoryOperation(operation, tier, duration, true);
+    }
+
+    /**
+     * Record memory operation.
+     *
+     * @param operation operation type (read, write, search)
+     * @param tier memory tier (short-term, long-term, etc.)
+     * @param duration operation duration
+     * @param success whether the operation succeeded
+     */
+    public void recordMemoryOperation(String operation, String tier, Duration duration, boolean success) {
+        String normalizedOperation = normalize(operation, "unknown");
+        String normalizedTier = normalize(tier, "unknown");
+        long durationMs = durationMs(duration);
+        Attributes attrs = Attributes.of(
+            io.opentelemetry.api.common.AttributeKey.stringKey("operation"), normalizedOperation,
+            io.opentelemetry.api.common.AttributeKey.stringKey("tier"), normalizedTier,
+            io.opentelemetry.api.common.AttributeKey.booleanKey("success"), success
+        );
+
+        memoryOperations.add(1, attrs);
+        memoryDuration.record(durationMs, attrs);
+        memoryOperationStats.compute(
+                new MemoryOperationKey(normalizedOperation, normalizedTier),
+                (key, current) -> current == null
+                        ? MemoryOperationStats.first(normalizedOperation, normalizedTier, durationMs, success)
+                        : current.record(durationMs, success));
+
+        if (!success) {
+            errors.add(1, Attributes.of(
+                io.opentelemetry.api.common.AttributeKey.stringKey("component"), "memory",
+                io.opentelemetry.api.common.AttributeKey.stringKey("operation"), normalizedOperation,
+                io.opentelemetry.api.common.AttributeKey.stringKey("tier"), normalizedTier
+            ));
+        }
+    }
+
+    /**
+     * Return immutable memory operation stats grouped by tier and operation.
+     */
+    public Map<String, MemoryOperationStats> getMemoryOperationStats() {
+        Map<String, MemoryOperationStats> stats = new LinkedHashMap<>();
+        memoryOperationStats.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .forEach(entry -> stats.put(entry.getKey().id(), entry.getValue()));
+        return Map.copyOf(stats);
+    }
+
+    /**
+     * Return the number of active spans tracked by this telemetry instance.
+     */
+    public int activeSpanCount() {
+        return activeSpans.size();
     }
 
     // ── Span Context Management ─────────────────────────────────────────────
@@ -267,7 +337,7 @@ public class AgentTelemetry {
      */
     public String startSpan(String name) {
         String spanId = java.util.UUID.randomUUID().toString();
-        Span span = tracer.spanBuilder(name).startSpan();
+        Span span = tracer.spanBuilder(normalize(name, "span")).startSpan();
         activeSpans.put(spanId, span.storeInContext(Context.current()));
         return spanId;
     }
@@ -288,7 +358,7 @@ public class AgentTelemetry {
     public void addEvent(String spanId, String eventName) {
         io.opentelemetry.context.Context ctx = activeSpans.get(spanId);
         if (ctx != null) {
-            Span.fromContext(ctx).addEvent(eventName);
+            Span.fromContext(ctx).addEvent(normalize(eventName, "event"));
         }
     }
 
@@ -297,9 +367,9 @@ public class AgentTelemetry {
      */
     public void setAttribute(String spanId, String key, String value) {
         io.opentelemetry.context.Context ctx = activeSpans.get(spanId);
-        if (ctx != null) {
+        if (ctx != null && key != null && !key.isBlank()) {
             Span.fromContext(ctx).setAttribute(
-                io.opentelemetry.api.common.AttributeKey.stringKey(key), value
+                io.opentelemetry.api.common.AttributeKey.stringKey(key.trim()), normalize(value, "")
             );
         }
     }
@@ -313,5 +383,78 @@ public class AgentTelemetry {
         LOG.info("AgentTelemetry shutting down");
         activeSpans.clear();
         // In production, flush exporters here
+    }
+
+    private static String normalize(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
+    }
+
+    private static long durationMs(Duration duration) {
+        if (duration == null || duration.isNegative()) {
+            return 0L;
+        }
+        return duration.toMillis();
+    }
+
+    private record MemoryOperationKey(String operation, String tier) implements Comparable<MemoryOperationKey> {
+        private MemoryOperationKey {
+            operation = normalize(operation, "unknown");
+            tier = normalize(tier, "unknown");
+        }
+
+        private String id() {
+            return tier + ":" + operation;
+        }
+
+        @Override
+        public int compareTo(MemoryOperationKey other) {
+            return id().compareTo(other.id());
+        }
+    }
+
+    public record MemoryOperationStats(
+            String operation,
+            String tier,
+            long count,
+            long failureCount,
+            long totalDurationMs,
+            long maxDurationMs) {
+
+        public MemoryOperationStats {
+            operation = normalize(operation, "unknown");
+            tier = normalize(tier, "unknown");
+            count = Math.max(0L, count);
+            failureCount = Math.max(0L, failureCount);
+            totalDurationMs = Math.max(0L, totalDurationMs);
+            maxDurationMs = Math.max(0L, maxDurationMs);
+        }
+
+        private static MemoryOperationStats first(String operation, String tier, long durationMs, boolean success) {
+            return new MemoryOperationStats(
+                    operation,
+                    tier,
+                    1,
+                    success ? 0 : 1,
+                    durationMs,
+                    durationMs);
+        }
+
+        private MemoryOperationStats record(long durationMs, boolean success) {
+            return new MemoryOperationStats(
+                    operation,
+                    tier,
+                    count + 1,
+                    failureCount + (success ? 0 : 1),
+                    totalDurationMs + Math.max(0L, durationMs),
+                    Math.max(maxDurationMs, Math.max(0L, durationMs)));
+        }
+
+        public double averageDurationMs() {
+            return count == 0 ? 0.0 : (double) totalDurationMs / count;
+        }
+
+        public double failureRate() {
+            return count == 0 ? 0.0 : (double) failureCount / count;
+        }
     }
 }

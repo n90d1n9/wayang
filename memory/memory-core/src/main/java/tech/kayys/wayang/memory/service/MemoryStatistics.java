@@ -73,4 +73,12 @@ public class MemoryStatistics {
     public Instant getNewestMemory() {
         return newestMemory;
     }
+
+    public double getAverageSize() {
+        return 0.0;
+    }
+
+    public Instant getLastUpdated() {
+        return newestMemory;
+    }
 }

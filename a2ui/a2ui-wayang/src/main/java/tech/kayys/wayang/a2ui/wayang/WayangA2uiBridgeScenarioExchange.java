@@ -1,5 +1,8 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMetricExchange;
+import tech.kayys.wayang.a2ui.wayang.support.RecordNumbers;
+
 import java.util.Map;
 import java.util.Objects;
 
@@ -9,27 +12,19 @@ import java.util.Objects;
 public record WayangA2uiBridgeScenarioExchange(
         int index,
         WayangA2uiBridgeRequest request,
-        WayangA2uiBridgeResponse response) {
+        WayangA2uiBridgeResponse response) implements TransportMetricExchange {
 
     public WayangA2uiBridgeScenarioExchange {
-        index = Math.max(1, index);
+        index = RecordNumbers.oneBased(index);
         request = Objects.requireNonNull(request, "request");
         response = Objects.requireNonNull(response, "response");
     }
 
-    public WayangA2uiTransportOutcome outcome() {
-        return response.outcome();
-    }
-
-    public boolean transportError() {
-        return response.transportError().isPresent();
+    public WayangA2uiTransportResponse transportResponse() {
+        return response.transportResponse();
     }
 
     public Map<String, Object> requestEnvelope() {
         return request.transportEnvelope();
-    }
-
-    public Map<String, Object> responseEnvelope() {
-        return response.transportEnvelope();
     }
 }

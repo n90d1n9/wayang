@@ -1,5 +1,7 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.support.RecordCollections;
+
 import tech.kayys.wayang.a2ui.core.A2uiJsonlCodec;
 import tech.kayys.wayang.a2ui.core.A2uiServerMessage;
 
@@ -18,8 +20,8 @@ public record WayangA2uiSessionResult(
         List<Map<String, Object>> responseDataParts) {
 
     public WayangA2uiSessionResult {
-        actionResults = actionResults == null ? List.of() : List.copyOf(actionResults);
-        responseMessages = responseMessages == null ? List.of() : List.copyOf(responseMessages);
+        actionResults = RecordCollections.copyList(actionResults);
+        responseMessages = RecordCollections.copyList(responseMessages);
         responseJsonl = responseJsonl == null ? "" : responseJsonl;
         responseDataParts = responseDataParts == null
                 ? List.of()
@@ -40,7 +42,7 @@ public record WayangA2uiSessionResult(
             A2uiJsonlCodec codec,
             WayangA2uiSurfaceRegistry surfaceRegistry) {
         A2uiJsonlCodec resolvedCodec = codec == null ? new A2uiJsonlCodec() : codec;
-        List<WayangA2uiActionResult> results = actionResults == null ? List.of() : List.copyOf(actionResults);
+        List<WayangA2uiActionResult> results = RecordCollections.copyList(actionResults);
         List<A2uiServerMessage> messages = messages(results, surfaceRegistry);
         List<Map<String, Object>> dataParts = messages.stream()
                 .map(WayangA2ui::dataPart)

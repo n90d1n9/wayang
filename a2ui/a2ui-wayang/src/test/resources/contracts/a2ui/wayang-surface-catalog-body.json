@@ -1,0 +1,42 @@
+{
+  "surfaceKinds": [
+    "wayang.run.status",
+    "wayang.run.inspection",
+    "wayang.run.events",
+    "wayang.run.history",
+    "wayang.action.result"
+  ],
+  "descriptorCount": 6,
+  "descriptors": [
+    {
+      "kind": "wayang.run.status",
+      "modelType": "tech.kayys.wayang.gollek.sdk.AgentRunStatus",
+      "modelSimpleName": "AgentRunStatus"
+    },
+    {
+      "kind": "wayang.run.inspection",
+      "modelType": "tech.kayys.wayang.gollek.sdk.AgentRunInspection",
+      "modelSimpleName": "AgentRunInspection"
+    },
+    {
+      "kind": "wayang.run.events",
+      "modelType": "tech.kayys.wayang.gollek.sdk.AgentRunEvents",
+      "modelSimpleName": "AgentRunEvents"
+    },
+    {
+      "kind": "wayang.run.history",
+      "modelType": "tech.kayys.wayang.gollek.sdk.AgentRunHistory",
+      "modelSimpleName": "AgentRunHistory"
+    },
+    {
+      "kind": "wayang.action.result",
+      "modelType": "tech.kayys.wayang.a2ui.wayang.WayangA2uiActionFeedback",
+      "modelSimpleName": "WayangA2uiActionFeedback"
+    },
+    {
+      "kind": "wayang.action.result",
+      "modelType": "tech.kayys.wayang.a2ui.wayang.WayangA2uiActionResult",
+      "modelSimpleName": "WayangA2uiActionResult"
+    }
+  ]
+}

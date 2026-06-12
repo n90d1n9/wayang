@@ -1,9 +1,12 @@
 package tech.kayys.wayang.a2ui.wayang;
 
-import java.util.Arrays;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+import tech.kayys.wayang.a2ui.wayang.support.RecordCollections;
+
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Named bridge scenario for replaying a deterministic sequence of A2UI requests.
@@ -14,17 +17,13 @@ public record WayangA2uiBridgeScenario(
         Map<String, Object> attributes) {
 
     public WayangA2uiBridgeScenario {
-        id = id == null || id.isBlank() ? "a2ui-bridge-scenario" : id.trim();
-        requests = requests == null
-                ? List.of()
-                : requests.stream()
-                        .filter(Objects::nonNull)
-                        .toList();
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        id = RecordValues.textOrDefault(id, "a2ui-bridge-scenario");
+        requests = RecordCollections.nonNullList(requests);
+        attributes = TransportMaps.copy(attributes);
     }
 
     public static WayangA2uiBridgeScenario of(String id, WayangA2uiBridgeRequest... requests) {
-        return of(id, requests == null ? List.of() : Arrays.asList(requests));
+        return of(id, RecordCollections.nonNullVarargs(requests));
     }
 
     public static WayangA2uiBridgeScenario of(String id, List<WayangA2uiBridgeRequest> requests) {
@@ -32,22 +31,18 @@ public record WayangA2uiBridgeScenario(
     }
 
     public static WayangA2uiBridgeScenario envelope(String id, List<? extends Map<?, ?>> requestEnvelopes) {
-        List<WayangA2uiBridgeRequest> requests = requestEnvelopes == null
-                ? List.of()
-                : requestEnvelopes.stream()
-                        .filter(Objects::nonNull)
-                        .map(WayangA2uiBridgeRequest::envelope)
-                        .toList();
+        List<WayangA2uiBridgeRequest> requests = RecordCollections.nonNullList(requestEnvelopes)
+                .stream()
+                .map(WayangA2uiBridgeRequest::envelope)
+                .toList();
         return of(id, requests);
     }
 
     public static WayangA2uiBridgeScenario envelopeJson(String id, List<String> requestEnvelopeJsons) {
-        List<WayangA2uiBridgeRequest> requests = requestEnvelopeJsons == null
-                ? List.of()
-                : requestEnvelopeJsons.stream()
-                        .filter(json -> json != null && !json.isBlank())
-                        .map(WayangA2uiBridgeRequest::envelopeJson)
-                        .toList();
+        List<WayangA2uiBridgeRequest> requests = RecordCollections.nonBlankStrings(requestEnvelopeJsons)
+                .stream()
+                .map(WayangA2uiBridgeRequest::envelopeJson)
+                .toList();
         return of(id, requests);
     }
 
@@ -58,7 +53,7 @@ public record WayangA2uiBridgeScenario(
         return new WayangA2uiBridgeScenario(
                 id,
                 requests,
-                WayangA2uiTransportMetadata.merge(attributes, WayangA2uiTransportMaps.copy(extraAttributes)));
+                WayangA2uiTransportMetadata.merge(attributes, TransportMaps.copy(extraAttributes)));
     }
 
     public boolean empty() {

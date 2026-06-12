@@ -22,7 +22,8 @@ public class RagExecutionService {
     RagQueryService ragQueryService;
 
     public Uni<RagResponse> executeRagWorkflow(RagWorkflowInput input) {
-        LOG.info("Executing native RAG workflow for tenant: {}", input.tenantId());
-        return ragQueryService.query(input.tenantId(), input.query(), "default");
+        RagQueryRequest request = RagWorkflowRequestMapper.toQueryRequest(input);
+        LOG.info("Executing native RAG workflow for tenant: {}", request.tenantId());
+        return ragQueryService.advancedQuery(request);
     }
 }

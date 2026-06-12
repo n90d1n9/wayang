@@ -3,7 +3,7 @@ package tech.kayys.wayang.runtime.quarkus;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import org.jboss.logging.Logger;
-import tech.kayys.wayang.agent.spi.BackendRegistry;
+import tech.kayys.wayang.agent.core.registry.BackendRegistry;
 import tech.kayys.wayang.agent.spi.InferenceBackend;
 import tech.kayys.wayang.agent.spi.WorkflowBackend;
 

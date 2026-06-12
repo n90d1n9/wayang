@@ -11,6 +11,9 @@ import tech.kayys.gollek.spi.inference.InferenceRequest;
 import tech.kayys.gollek.spi.inference.InferenceResponse;
 import tech.kayys.gollek.spi.inference.StreamingInferenceChunk;
 import tech.kayys.gollek.spi.tool.ToolDefinition;
+import tech.kayys.gollek.sdk.mcp.McpRegistryManager;
+import tech.kayys.gollek.spi.model.ModelInfo;
+import tech.kayys.gollek.spi.provider.ProviderInfo;
 
 import java.time.Duration;
 import java.util.List;
@@ -139,7 +142,7 @@ public class GollekAgentClient {
                         }
                     }
                 );
-            } catch (SdkException e) {
+            } catch (Exception e) {
                 emitter.fail(e);
             }
         });
@@ -199,12 +202,30 @@ public class GollekAgentClient {
      * @return list of available provider IDs
      */
     public Uni<List<String>> getAvailableProviders() {
-        return Uni.createFrom().item(gollekSdk.listAvailableProviders())
+        return Uni.createFrom().item(() -> {
+                try {
+                    return gollekSdk.listAvailableProviders();
+                } catch (SdkException e) {
+                    throw new RuntimeException(e);
+                }
+            })
             .onItem().transform(providers -> 
                 providers.stream()
                     .map(p -> p.id())
                     .toList()
             );
+    }
+
+    public ProviderInfo getProviderInfo(String providerId) throws SdkException {
+        return gollekSdk.getProviderInfo(providerId);
+    }
+
+    public List<ModelInfo> listModels() throws SdkException {
+        return gollekSdk.listModels();
+    }
+
+    public McpRegistryManager mcpRegistry() {
+        return gollekSdk.mcpRegistry();
     }
 
     /**
@@ -234,7 +255,7 @@ public class GollekAgentClient {
     public boolean isProviderHealthy(String providerId) {
         try {
             var providerInfo = gollekSdk.getProviderInfo(providerId);
-            return providerInfo.healthStatus().status() == 
+            return providerInfo.healthStatus() == 
                 tech.kayys.gollek.spi.provider.ProviderHealth.Status.HEALTHY;
         } catch (SdkException e) {
             LOG.warnf(e, "Failed to get health status for provider: %s", providerId);

@@ -1,5 +1,7 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpRouteProjection;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -88,6 +90,6 @@ public record WayangA2uiHttpRouteBinding(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpRouteProjection.binding(this);
+        return HttpRouteProjection.binding(this);
     }
 }

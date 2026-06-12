@@ -44,7 +44,7 @@ public class AgentToolService {
     private static final Logger LOG = LoggerFactory.getLogger(AgentToolService.class);
 
     @Inject
-    DefaultToolRegistry toolRegistry;
+    ToolRegistry toolRegistry;
 
     @Inject
     AgentMemoryService agentMemoryService;
@@ -57,7 +57,7 @@ public class AgentToolService {
     public Uni<List<Map<String, Object>>> getAvailableTools() {
         return Uni.createFrom().item(() -> {
             try {
-                return toolRegistry.toToolDefinitions();
+                return toolRegistry.getToolDefinitions(); // Changed from toToolDefinitions
             } catch (Exception e) {
                 LOG.warn("Failed to get tool definitions: {}", e.getMessage());
                 return Collections.emptyList();
@@ -147,7 +147,9 @@ public class AgentToolService {
                 Map.of("agentId", agentId)
         );
 
-        return toolRegistry.execute(toolId, params, enrichedContext)
+        return Uni.createFrom().item(() -> toolRegistry.getTool(toolId)
+                .orElseThrow(() -> new IllegalArgumentException("Tool not found: " + toolId))
+                .execute(params != null ? params : Map.of(), enrichedContext))
                 // Store execution in memory
                 .flatMap(result -> {
                     return storeToolExecution(agentId, toolId, params, result)
@@ -187,7 +189,7 @@ public class AgentToolService {
 
         return agentMemoryService.vectorAgentMemory()
                 .store(agentId, entry)
-                .onFailure().recoverWithVoid();
+                .onFailure().recoverWithItem((Void) null);
     }
 
     /**
@@ -336,7 +338,7 @@ public class AgentToolService {
     // Helper methods
 
     private List<ToolDefinition> getAllTools() {
-        return toolRegistry.toToolDefinitions().stream()
+        return toolRegistry.getToolDefinitions().stream() // Changed from toToolDefinitions
                 .map(map -> new ToolDefinition(
                         (String) map.get("id"),
                         (String) map.get("name"),

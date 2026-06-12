@@ -125,7 +125,7 @@ public class ToolEnabledAgentExecutor {
                             sessionId,
                             userId,
                             task,
-                            response.content())
+                            response.answer()) // Using answer() instead of content()
                             .map(__ -> response);
                 })
                 .onFailure().invoke(ex -> {
@@ -150,12 +150,11 @@ public class ToolEnabledAgentExecutor {
         LOG.info("Processing {} tool calls for agent {}", toolCalls.size(), agentId);
 
         // Execute each tool call
-        return Uni.combine()
-                .all()
-                .unis(toolCalls.stream()
+        return Uni.join()
+                .all(toolCalls.stream()
                         .map(toolCall -> executeSingleToolCall(agentId, toolCall))
                         .collect(Collectors.toList()))
-                .asList()
+                .andCollectFailures()
                 .map(results -> augmentResponseWithToolResults(response, results));
     }
 
@@ -336,18 +335,18 @@ public class ToolEnabledAgentExecutor {
     private AgentResponse augmentResponseWithToolResults(
             AgentResponse response,
             List<ToolCallResult> toolResults) {
-        // In production: Update response content with tool results
-        String augmentedContent = response.content() + "\n\nTool Results:\n" +
+        String augmentedContent = response.answer() + "\n\nTool Results:\n" +
                 toolResults.stream()
                         .map(r -> "- " + r.toolName() + ": " + r.content())
                         .collect(Collectors.joining("\n"));
 
-        return new AgentResponse(
-                response.requestId(),
-                augmentedContent,
-                response.success(),
-                "TOOL_EXECUTION_COMPLETE",
-                response.reasoning());
+        return AgentResponse.builder()
+                .requestId(response.requestId())
+                .answer(augmentedContent)
+                .successful(response.successful())
+                .strategy("TOOL_EXECUTION_COMPLETE")
+                .steps(response.steps())
+                .build();
     }
 
     /**

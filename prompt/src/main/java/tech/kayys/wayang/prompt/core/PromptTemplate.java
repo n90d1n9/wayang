@@ -269,12 +269,13 @@ public final class PromptTemplate {
         if (!(o instanceof PromptTemplate that))
             return false;
         return Objects.equals(templateId, that.templateId)
-                && Objects.equals(tenantId, that.tenantId);
+                && Objects.equals(tenantId, that.tenantId)
+                && Objects.equals(activeVersion, that.activeVersion);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(templateId, tenantId);
+        return Objects.hash(templateId, tenantId, activeVersion);
     }
 
     @Override
@@ -315,19 +316,19 @@ public final class PromptTemplate {
             for (String placeholder : placeholders) {
                 if (!declaredNames.contains(placeholder)) {
                     warnings.add(new ValidationWarning(
-                            ValidationWarningType.UNDECLARED_VARIABLE,
+                            ValidationWarningType.PLACEHOLDER_UNDECLARED,
                             placeholder,
                             "Placeholder '{{" + placeholder + "}}' has no variable definition"));
                 }
             }
 
-            // Required declarations missing from body
+            // Declarations missing from body
             for (PromptVariableDefinition varDef : variableDefinitions) {
-                if (varDef.isRequired() && !placeholders.contains(varDef.getName())) {
+                if (!placeholders.contains(varDef.getName())) {
                     warnings.add(new ValidationWarning(
-                            ValidationWarningType.UNUSED_VARIABLE,
+                            ValidationWarningType.DECLARED_BUT_MISSING,
                             varDef.getName(),
-                            "Required variable '" + varDef.getName() + "' is not referenced in the template body"));
+                            "Variable '" + varDef.getName() + "' is not referenced in the template body"));
                 }
             }
         }
@@ -340,7 +341,8 @@ public final class PromptTemplate {
      */
     public boolean hasCondition() {
         return resolveActiveVersion()
-                .map(v -> v.getSystemPrompt() != null && !v.getSystemPrompt().isBlank())
+                .map(v -> v.getMetadata().get("condition"))
+                .map(condition -> condition != null && !condition.isBlank())
                 .orElse(false);
     }
 
@@ -349,7 +351,7 @@ public final class PromptTemplate {
      */
     public String getCondition() {
         return resolveActiveVersion()
-                .map(PromptVersion::getSystemPrompt)
+                .map(v -> v.getMetadata().get("condition"))
                 .orElse(null);
     }
 

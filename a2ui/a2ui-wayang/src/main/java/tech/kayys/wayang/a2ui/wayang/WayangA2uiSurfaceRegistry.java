@@ -1,5 +1,7 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.support.RecordCollections;
+
 import tech.kayys.wayang.a2ui.core.A2uiServerMessage;
 import tech.kayys.wayang.gollek.sdk.AgentRunEvents;
 import tech.kayys.wayang.gollek.sdk.AgentRunHistory;
@@ -26,7 +28,7 @@ public final class WayangA2uiSurfaceRegistry {
     private final List<Renderer<?>> renderers;
 
     private WayangA2uiSurfaceRegistry(List<Renderer<?>> renderers) {
-        this.renderers = renderers == null ? List.of() : List.copyOf(renderers);
+        this.renderers = RecordCollections.nonNullList(renderers);
     }
 
     public static WayangA2uiSurfaceRegistry readOnly() {
@@ -283,7 +285,7 @@ public final class WayangA2uiSurfaceRegistry {
 
         private List<A2uiServerMessage> render(Object model) {
             List<A2uiServerMessage> messages = renderer.apply(modelType.cast(model));
-            return messages == null ? List.of() : List.copyOf(messages);
+            return RecordCollections.nonNullList(messages);
         }
     }
 }

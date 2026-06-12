@@ -8,7 +8,7 @@ import org.eclipse.microprofile.health.HealthCheckResponseBuilder;
 import org.eclipse.microprofile.health.Readiness;
 
 import tech.kayys.wayang.agent.spi.AgentSkill;
-import tech.kayys.wayang.agent.spi.SkillRegistry;
+import tech.kayys.wayang.agent.spi.skills.SkillRegistry;
 
 import java.util.Map;
 
@@ -52,8 +52,8 @@ public class AgentHealthCheck implements HealthCheck {
             return builder.down().withData("reason", "No skills registered").build();
         }
 
-        Map<String, tech.kayys.wayang.agent.spi.SkillHealth> skillHealth = skillRegistry.checkHealth();
-        long healthy = skillHealth.values().stream().filter(tech.kayys.wayang.agent.spi.SkillHealth::healthy).count();
+        Map<String, tech.kayys.wayang.agent.spi.skills.SkillHealth> skillHealth = skillRegistry.checkHealth();
+        long healthy = skillHealth.values().stream().filter(tech.kayys.wayang.agent.spi.skills.SkillHealth::healthy).count();
         long unhealthy = total - healthy;
         double ratio = (double) unhealthy / total;
 

@@ -1,0 +1,24 @@
+{
+  "diagnosticsId": "a2ui.session-config.request-diagnostics-summary",
+  "passed": true,
+  "exitCode": 0,
+  "successfulExit": true,
+  "activeInput": "direct-config",
+  "status": "LOADED",
+  "contextPresent": true,
+  "configPresent": true,
+  "sourcePresent": false,
+  "sourceDiagnosticsPresent": false,
+  "sourceType": "none",
+  "sourceValid": false,
+  "sourceAllowed": false,
+  "validationErrorCount": 0,
+  "policyErrorCount": 0,
+  "attemptCount": 0,
+  "message": "A2UI session config loaded.",
+  "attributes": {
+    "contextKey": "a2ui",
+    "configKey": "sessionConfig",
+    "sourceKey": "sessionConfigSource"
+  }
+}

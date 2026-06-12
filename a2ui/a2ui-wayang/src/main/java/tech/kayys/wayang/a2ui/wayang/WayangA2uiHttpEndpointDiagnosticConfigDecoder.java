@@ -1,5 +1,9 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.DecodeValues;
+
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -11,11 +15,11 @@ public final class WayangA2uiHttpEndpointDiagnosticConfigDecoder {
 
     public static WayangA2uiHttpEndpointDiagnosticConfig fromMap(Map<?, ?> values) {
         if (values == null || values.isEmpty()) {
-            return WayangA2uiHttpEndpointDiagnosticConfig.defaults();
+            return WayangA2uiHttpEndpointDiagnosticConfig.defaultConfig();
         }
-        Map<String, Object> config = mergeProbeMap(WayangA2uiTransportMaps.copy(values));
+        Map<String, Object> config = mergeProbeMap(TransportMaps.copy(values));
         WayangA2uiHttpEndpointDiagnosticConfig base = baseProfile(
-                WayangA2uiDecodeValues.text(config.get(WayangA2uiHttpEndpointDiagnosticConfig.KEY_PROFILE)));
+                DecodeValues.text(config.get(WayangA2uiHttpEndpointDiagnosticConfig.KEY_PROFILE)));
         return new WayangA2uiHttpEndpointDiagnosticConfig(
                 bool(
                         config,
@@ -50,7 +54,7 @@ public final class WayangA2uiHttpEndpointDiagnosticConfigDecoder {
         return switch (normalizeProfile(profile)) {
             case WayangA2uiHttpEndpointDiagnosticConfig.PROFILE_DISCOVERY_ONLY ->
                     WayangA2uiHttpEndpointDiagnosticConfig.discoveryOnly();
-            default -> WayangA2uiHttpEndpointDiagnosticConfig.defaults();
+            default -> WayangA2uiHttpEndpointDiagnosticConfig.defaultConfig();
         };
     }
 
@@ -59,13 +63,13 @@ public final class WayangA2uiHttpEndpointDiagnosticConfigDecoder {
         if (!(probes instanceof Map<?, ?> probeMap) || probeMap.isEmpty()) {
             return config;
         }
-        Map<String, Object> merged = new LinkedHashMap<>(WayangA2uiTransportMaps.copy(probeMap));
+        Map<String, Object> merged = new LinkedHashMap<>(TransportMaps.copy(probeMap));
         config.forEach((key, value) -> {
             if (!WayangA2uiHttpEndpointDiagnosticConfig.KEY_PROBES.equals(key)) {
                 merged.put(key, value);
             }
         });
-        return WayangA2uiTransportMaps.freeze(merged);
+        return TransportMaps.freeze(merged);
     }
 
     private static boolean bool(
@@ -74,20 +78,20 @@ public final class WayangA2uiHttpEndpointDiagnosticConfigDecoder {
             String alias,
             boolean fallback) {
         if (config.containsKey(key)) {
-            return WayangA2uiDecodeValues.bool(config.get(key), fallback);
+            return DecodeValues.bool(config.get(key), fallback);
         }
         if (config.containsKey(alias)) {
-            return WayangA2uiDecodeValues.bool(config.get(alias), fallback);
+            return DecodeValues.bool(config.get(alias), fallback);
         }
         return fallback;
     }
 
     private static Map<String, Object> map(Map<String, Object> config, String key, String alias) {
         if (config.get(key) instanceof Map<?, ?> map) {
-            return WayangA2uiTransportMaps.copy(map);
+            return TransportMaps.copy(map);
         }
         if (config.get(alias) instanceof Map<?, ?> map) {
-            return WayangA2uiTransportMaps.copy(map);
+            return TransportMaps.copy(map);
         }
         return Map.of();
     }

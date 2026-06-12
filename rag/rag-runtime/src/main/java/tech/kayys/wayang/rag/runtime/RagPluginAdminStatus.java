@@ -6,7 +6,14 @@ import java.util.List;
 public record RagPluginAdminStatus(
                 String tenantId,
                 RagPluginTenantStrategyResolution strategy,
-                List<RagPluginManager.PluginInspection> plugins,
+                List<RagPluginInspection> plugins,
                 List<String> activePluginIds,
                 Instant observedAt) {
+
+    public RagPluginAdminStatus {
+        tenantId = RagPluginSelectionConfig.normalizeTenant(tenantId);
+        plugins = RagRuntimeLists.copy(plugins);
+        activePluginIds = RagRuntimeLists.copy(activePluginIds);
+        observedAt = observedAt == null ? Instant.now() : observedAt;
+    }
 }

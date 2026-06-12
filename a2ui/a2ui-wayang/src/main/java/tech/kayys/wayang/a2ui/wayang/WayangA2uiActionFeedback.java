@@ -1,5 +1,7 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.support.RecordNumbers;
+
 import java.util.Objects;
 
 /**
@@ -11,7 +13,7 @@ public record WayangA2uiActionFeedback(
 
     public WayangA2uiActionFeedback {
         result = Objects.requireNonNull(result, "result");
-        sequence = Math.max(1, sequence);
+        sequence = RecordNumbers.oneBased(sequence);
     }
 
     public static WayangA2uiActionFeedback of(WayangA2uiActionResult result, int sequence) {

@@ -8,5 +8,6 @@ public enum WayangA2uiTransportPayloadKind {
     JSONL,
     DATA_PART_JSON,
     DATA_PART_MAP,
-    SURFACE_CATALOG
+    SURFACE_CATALOG,
+    ACTION_BINDING_REPORT
 }

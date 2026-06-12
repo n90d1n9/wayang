@@ -1,5 +1,7 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.transport.TransportProjection;
+
 import java.util.List;
 import java.util.Map;
 
@@ -12,7 +14,7 @@ public final class WayangA2uiTransportEnvelope {
             WayangA2uiTransportPayloadKind kind,
             String body,
             Map<?, ?> dataPart) {
-        return WayangA2uiTransportProjection.request(kind, body, dataPart);
+        return TransportProjection.request(kind, body, dataPart);
     }
 
     public static Map<String, Object> response(
@@ -25,7 +27,7 @@ public final class WayangA2uiTransportEnvelope {
             Map<?, ?> metadata,
             WayangA2uiTransportOutcome outcome,
             boolean empty) {
-        return WayangA2uiTransportProjection.response(
+        return TransportProjection.response(
                 mimeType,
                 bodyEncoding,
                 body,

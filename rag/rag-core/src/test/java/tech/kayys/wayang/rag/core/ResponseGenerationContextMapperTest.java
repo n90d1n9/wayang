@@ -1,0 +1,115 @@
+package tech.kayys.wayang.rag.core;
+
+import org.junit.jupiter.api.Test;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+class ResponseGenerationContextMapperTest {
+
+    private static final ResponseGenerationContextMapper.Defaults DEFAULTS =
+            new ResponseGenerationContextMapper.Defaults("gollek", "qwen-test", 0.7, 1000, true, true);
+
+    @Test
+    void mapsWorkflowContextDefensivelyAndKeepsMetadataAligned() {
+        Map<String, Object> firstMetadata = new LinkedHashMap<>();
+        firstMetadata.put("sourcePath", "first.md");
+        Map<String, Object> secondMetadata = new LinkedHashMap<>();
+        secondMetadata.put("sourcePath", "second.md");
+        secondMetadata.put("nullable", null);
+
+        List<Object> contexts = new ArrayList<>(
+                Arrays.asList("First context", null, " ", 42, "Second context"));
+        List<Object> metadata = new ArrayList<>(List.of(
+                firstMetadata,
+                Map.of("sourcePath", "null.md"),
+                Map.of("sourcePath", "blank.md"),
+                Map.of("sourcePath", "number.md"),
+                secondMetadata));
+        Map<String, Object> rawContext = new LinkedHashMap<>();
+        rawContext.put("query", "What should I deploy?");
+        rawContext.put("contexts", contexts);
+        rawContext.put("metadata", metadata);
+        rawContext.put("conversationHistory", List.of(
+                Map.of("role", "user", "content", "Earlier question"),
+                Map.of("role", "assistant", "content", "Earlier answer"),
+                Map.of("role", 10, "content", "ignored")));
+        rawContext.put("provider", "local");
+        rawContext.put("model", "tiny");
+        rawContext.put("temperature", "0.25");
+        rawContext.put("maxTokens", "2048");
+        rawContext.put("includeCitations", "false");
+        rawContext.put("useCache", false);
+        rawContext.put("templateId", "ops");
+        rawContext.put("api_key", "secret");
+
+        ResponseGenerationExecutor.GenerationContext generationContext =
+                ResponseGenerationContextMapper.from(rawContext, DEFAULTS);
+        contexts.set(0, "mutated");
+        firstMetadata.put("sourcePath", "mutated.md");
+        secondMetadata.put("sourcePath", "mutated.md");
+
+        assertThat(generationContext.query()).isEqualTo("What should I deploy?");
+        assertThat(generationContext.contexts()).containsExactly("First context", "Second context");
+        assertThat(generationContext.contextMetadata()).hasSize(2);
+        assertThat(generationContext.contextMetadata().get(0)).containsEntry("sourcePath", "first.md");
+        assertThat(generationContext.contextMetadata().get(1))
+                .containsEntry("sourcePath", "second.md")
+                .containsKey("nullable");
+        assertThat(generationContext.conversationHistory())
+                .extracting(ConversationTurn::role)
+                .containsExactly("user", "assistant");
+        assertThat(generationContext.config().provider()).isEqualTo("local");
+        assertThat(generationContext.config().model()).isEqualTo("tiny");
+        assertThat(generationContext.config().temperature()).isEqualTo(0.25f);
+        assertThat(generationContext.config().maxTokens()).isEqualTo(2048);
+        assertThat(generationContext.includeCitations()).isFalse();
+        assertThat(generationContext.config().enableCitations()).isFalse();
+        assertThat(generationContext.useCache()).isFalse();
+        assertThat(generationContext.templateId()).isEqualTo("ops");
+        assertThat(generationContext.apiKey()).isEqualTo("secret");
+        assertThatThrownBy(() -> generationContext.contexts().add("other"))
+                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> generationContext.contextMetadata().get(0).put("other", "value"))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void fallsBackToDefaultsForMalformedScalarsAndSupportsSingleContextMetadata() {
+        Map<String, Object> rawContext = new LinkedHashMap<>();
+        rawContext.put("query", 42);
+        rawContext.put("contexts", "Single context");
+        rawContext.put("metadata", Map.of("sourcePath", "single.md"));
+        rawContext.put("conversationHistory", List.of("ignored", Map.of("role", "user")));
+        rawContext.put("provider", 10);
+        rawContext.put("model", "");
+        rawContext.put("temperature", "hot");
+        rawContext.put("maxTokens", new Object());
+        rawContext.put("includeCitations", "true");
+        rawContext.put("useCache", "not-a-boolean");
+        rawContext.put("templateId", 123);
+        rawContext.put("apiKey", " ");
+
+        ResponseGenerationExecutor.GenerationContext generationContext =
+                ResponseGenerationContextMapper.from(rawContext, DEFAULTS);
+
+        assertThat(generationContext.query()).isNull();
+        assertThat(generationContext.contexts()).containsExactly("Single context");
+        assertThat(generationContext.contextMetadata()).containsExactly(Map.of("sourcePath", "single.md"));
+        assertThat(generationContext.conversationHistory()).isEmpty();
+        assertThat(generationContext.config().provider()).isEqualTo("gollek");
+        assertThat(generationContext.config().model()).isEqualTo("qwen-test");
+        assertThat(generationContext.config().temperature()).isEqualTo(0.7f);
+        assertThat(generationContext.config().maxTokens()).isEqualTo(1000);
+        assertThat(generationContext.includeCitations()).isTrue();
+        assertThat(generationContext.useCache()).isTrue();
+        assertThat(generationContext.templateId()).isEqualTo("default");
+        assertThat(generationContext.apiKey()).isNull();
+    }
+}

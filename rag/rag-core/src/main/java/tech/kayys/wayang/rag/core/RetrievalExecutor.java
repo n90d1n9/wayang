@@ -353,7 +353,7 @@ public class RetrievalExecutor extends AbstractWorkflowExecutor {
 
         Map<String, Object> filters = (Map<String, Object>) context.getOrDefault("filters", Map.of());
         String storeType = (String) context.getOrDefault("storeType", "in-memory");
-        String tenantId = (String) context.getOrDefault("tenantId", "default");
+        String tenantId = (String) context.getOrDefault(RagMetadataKeys.TENANT_ID, "default");
 
         RetrievalConfig config = new RetrievalConfig(topK, (float) minScore, 512, 50, enableReranking,
                 RerankingModel.COHERE_RERANK, false, 0.7f, false, 3, false, 0, filters, List.of(), false, false);

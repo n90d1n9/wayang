@@ -31,18 +31,6 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- Backend adapters -->
-        <dependency>
-            <groupId>tech.kayys.wayang</groupId>
-            <artifactId>wayang-backend-gollek</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>tech.kayys.wayang</groupId>
-            <artifactId>wayang-backend-gamelan</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-
         <!-- Quarkus runtime -->
         <dependency>
             <groupId>io.quarkus</groupId>

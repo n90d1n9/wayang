@@ -3,6 +3,7 @@ package tech.kayys.wayang.rag;
 import tech.kayys.wayang.rag.plugin.api.RagPipelinePlugin;
 import tech.kayys.wayang.rag.plugin.api.RagPluginTuningConfig;
 import tech.kayys.wayang.rag.plugin.api.RagPluginExecutionContext;
+import tech.kayys.wayang.rag.plugin.api.RagPluginSupport;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -10,10 +11,7 @@ import jakarta.inject.Inject;
 import tech.kayys.wayang.rag.core.RagResult;
 import tech.kayys.wayang.rag.core.RagScoredChunk;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -21,13 +19,13 @@ import java.util.stream.Collectors;
 public class SafetyFilterPlugin implements RagPipelinePlugin {
 
     @Inject
-    RagPluginTuningConfig tuningConfig;
+    RagPluginTuningConfig tuningConfig = RagPluginTuningConfig.defaults();
 
     public SafetyFilterPlugin() {
     }
 
     public SafetyFilterPlugin(RagPluginTuningConfig tuningConfig) {
-        this.tuningConfig = tuningConfig;
+        this.tuningConfig = tuningConfig == null ? RagPluginTuningConfig.defaults() : tuningConfig;
     }
 
     @Override
@@ -46,7 +44,7 @@ public class SafetyFilterPlugin implements RagPipelinePlugin {
         if (blocked.isEmpty()) {
             return context;
         }
-        return context.withQuery(redact(context.query(), blocked, maskValue()));
+        return context.withQuery(RagPluginSupport.redactTermsIgnoreCase(context.query(), blocked, maskValue()));
     }
 
     @Override
@@ -56,7 +54,9 @@ public class SafetyFilterPlugin implements RagPipelinePlugin {
             return chunks == null ? List.of() : chunks;
         }
         return chunks.stream()
-                .filter(chunk -> !containsBlocked(chunk.chunk().text(), blocked))
+                .filter(chunk -> chunk != null
+                        && chunk.chunk() != null
+                        && !RagPluginSupport.containsAnyTermIgnoreCase(chunk.chunk().text(), blocked))
                 .collect(Collectors.toList());
     }
 
@@ -67,50 +67,19 @@ public class SafetyFilterPlugin implements RagPipelinePlugin {
             return result;
         }
         String answer = result.answer();
-        String redacted = redact(answer, blocked, maskValue());
+        String redacted = RagPluginSupport.redactTermsIgnoreCase(answer, blocked, maskValue());
         if (answer == null || answer.equals(redacted)) {
             return result;
         }
-        Map<String, Object> metadata = new HashMap<>();
-        if (result.metadata() != null) {
-            metadata.putAll(result.metadata());
-        }
-        metadata.put("plugin.safety_filter.answer_redacted", true);
-        return new RagResult(result.query(), result.chunks(), redacted, Map.copyOf(metadata));
-    }
-
-    static boolean containsBlocked(String text, Set<String> blockedTerms) {
-        if (text == null || text.isEmpty() || blockedTerms == null || blockedTerms.isEmpty()) {
-            return false;
-        }
-        String normalized = text.toLowerCase(Locale.ROOT);
-        return blockedTerms.stream().anyMatch(normalized::contains);
-    }
-
-    static String redact(String text, Set<String> blockedTerms, String mask) {
-        if (text == null || text.isEmpty() || blockedTerms == null || blockedTerms.isEmpty()) {
-            return text;
-        }
-        String effectiveMask = (mask == null || mask.isBlank()) ? "[REDACTED]" : mask;
-        String redacted = text;
-        for (String term : blockedTerms) {
-            if (!term.isEmpty()) {
-                redacted = redacted.replaceAll("(?i)" + java.util.regex.Pattern.quote(term), effectiveMask);
-            }
-        }
-        return redacted;
+        return new RagResult(
+                result.query(),
+                result.chunks(),
+                redacted,
+                RagPluginSupport.metadataWith(result.metadata(), "plugin.safety_filter.answer_redacted", true));
     }
 
     private Set<String> blockedTerms() {
-        String raw = tuningConfig.safetyFilterBlockedTerms();
-        if (raw == null || raw.isBlank()) {
-            return Set.of();
-        }
-        return java.util.Arrays.stream(raw.split(","))
-                .map(String::trim)
-                .map(token -> token.toLowerCase(Locale.ROOT))
-                .filter(token -> !token.isEmpty())
-                .collect(Collectors.toSet());
+        return RagPluginSupport.lowercaseCsvTerms(tuningConfig.safetyFilterBlockedTerms());
     }
 
     private String maskValue() {

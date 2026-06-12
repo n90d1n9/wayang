@@ -81,10 +81,8 @@ public class RagRetrievalEvalService {
             throw new BadRequestException("dataset.queries must not be empty");
         }
 
-        Map<String, Object> requestFilters = request == null || request.filters() == null ? Map.of()
-                : Map.copyOf(request.filters());
-        Map<String, Object> datasetFilters = dataset.defaultFilters() == null ? Map.of()
-                : Map.copyOf(dataset.defaultFilters());
+        Map<String, Object> requestFilters = request == null ? Map.of() : request.filters();
+        Map<String, Object> datasetFilters = RagRetrievalEvalFilters.copy(dataset.defaultFilters());
 
         RetrievalConfig retrievalConfig = withThresholds(RetrievalConfig.defaults(), topK, (float) minSimilarity);
 
@@ -98,7 +96,10 @@ public class RagRetrievalEvalService {
                 throw new BadRequestException("dataset.queries[" + i + "].query must not be blank");
             }
 
-            Map<String, Object> effectiveFilters = mergeFilters(datasetFilters, requestFilters, queryCase.filters());
+            Map<String, Object> effectiveFilters = RagRetrievalEvalFilters.merge(
+                    datasetFilters,
+                    requestFilters,
+                    queryCase.filters());
             long startedNanos = System.nanoTime();
             List<RagScoredChunk> chunks = nativeRagCoreService.retrieve(
                     tenantId,
@@ -205,23 +206,6 @@ public class RagRetrievalEvalService {
                 defaults.excludedFields(),
                 defaults.enableGrouping(),
                 defaults.enableDeduplication());
-    }
-
-    private static Map<String, Object> mergeFilters(
-            Map<String, Object> datasetFilters,
-            Map<String, Object> requestFilters,
-            Map<String, Object> caseFilters) {
-        java.util.LinkedHashMap<String, Object> merged = new java.util.LinkedHashMap<>();
-        if (datasetFilters != null) {
-            merged.putAll(datasetFilters);
-        }
-        if (requestFilters != null) {
-            merged.putAll(requestFilters);
-        }
-        if (caseFilters != null) {
-            merged.putAll(caseFilters);
-        }
-        return Map.copyOf(merged);
     }
 
     private static Set<String> normalizeExpectedIds(List<String> expectedIds) {

@@ -1,5 +1,13 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpSmokeProbeProjection;
+import tech.kayys.wayang.a2ui.wayang.http.HttpSmokeProbeResponseDecoder;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+import tech.kayys.wayang.a2ui.wayang.support.RecordNumbers;
+
 import java.util.Map;
 import java.util.Objects;
 
@@ -16,12 +24,12 @@ public record WayangA2uiHttpSmokeProbeResult(
         Map<String, Object> headers) {
 
     public WayangA2uiHttpSmokeProbeResult {
-        statusCode = Math.max(0, statusCode);
-        routeOperation = routeOperation == null ? "" : routeOperation.trim();
-        allow = allow == null ? "" : allow.trim();
-        outcome = outcome == null ? "" : outcome.trim();
+        statusCode = RecordNumbers.nonNegative(statusCode);
+        routeOperation = RecordValues.text(routeOperation);
+        allow = RecordValues.text(allow);
+        outcome = RecordValues.text(outcome);
         summary = Objects.requireNonNull(summary, "summary");
-        headers = WayangA2uiTransportMaps.copy(headers);
+        headers = TransportMaps.copy(headers);
     }
 
     public static WayangA2uiHttpSmokeProbeResult run(WayangA2uiHttpBridgeAdapter adapter) {
@@ -30,15 +38,7 @@ public record WayangA2uiHttpSmokeProbeResult(
     }
 
     public static WayangA2uiHttpSmokeProbeResult from(WayangA2uiHttpResponse response) {
-        WayangA2uiHttpResponse resolved = Objects.requireNonNull(response, "response");
-        return new WayangA2uiHttpSmokeProbeResult(
-                resolved.statusCode(),
-                resolved.successful(),
-                header(resolved, WayangA2uiHttpResponse.HEADER_A2UI_ROUTE_OPERATION),
-                header(resolved, WayangA2uiHttpResponse.HEADER_ALLOW),
-                header(resolved, WayangA2uiHttpResponse.HEADER_A2UI_OUTCOME),
-                WayangA2uiHttpSmokeSummary.from(resolved),
-                resolved.headers());
+        return HttpSmokeProbeResponseDecoder.from(response);
     }
 
     public static WayangA2uiHttpSmokeProbeResult fromMap(Map<?, ?> values) {
@@ -47,6 +47,17 @@ public record WayangA2uiHttpSmokeProbeResult(
 
     public static WayangA2uiHttpSmokeProbeResult fromJson(String json) {
         return WayangA2uiHttpSmokeProbeResultDecoder.fromJson(json);
+    }
+
+    public static WayangA2uiHttpSmokeProbeResult empty() {
+        return new WayangA2uiHttpSmokeProbeResult(
+                0,
+                false,
+                "",
+                "",
+                "",
+                WayangA2uiHttpSmokeSummary.empty(),
+                Map.of());
     }
 
     public boolean smokeRoute() {
@@ -67,16 +78,11 @@ public record WayangA2uiHttpSmokeProbeResult(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpSmokeProbeProjection.probe(this);
+        return HttpSmokeProbeProjection.probe(this);
     }
 
     public String toJson() {
-        return WayangA2uiTransportJson.json(toMap(), "Unable to encode A2UI HTTP smoke probe result");
-    }
-
-    private static String header(WayangA2uiHttpResponse response, String name) {
-        Object value = response.headers().get(name);
-        return value == null ? "" : String.valueOf(value);
+        return TransportJson.json(toMap(), "Unable to encode A2UI HTTP smoke probe result");
     }
 
 }

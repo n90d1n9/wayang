@@ -1,5 +1,9 @@
 package tech.kayys.wayang.agent.core.registry;
 
+import tech.kayys.wayang.agent.spi.BackendProvider;
+import tech.kayys.wayang.agent.spi.InferenceBackend;
+import tech.kayys.wayang.agent.spi.WorkflowBackend;
+
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;

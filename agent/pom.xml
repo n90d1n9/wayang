@@ -46,36 +46,46 @@
         <!-- Core: Agent and skill implementation, discovery, loading, validation -->
         <module>agent-core</module>
 
-        <!-- Orchestration: Agent orchestration strategies (ReAct, Reflexion, ToolCalling) -->
+        <!-- Orchestration: backend-agnostic planning and tool definition helpers -->
         <module>agent-orchestration</module>
 
-        <!-- Integration: Backend and service integrations -->
-        <module>agent-integration-gamelan</module>
-
-        <!-- Backend Adapters: Implement backend-agnostic SPI -->
-        <module>agent-backend-gamelan</module>
+        <!-- Gollek inference backend adapter: current SDK/SPI bridge -->
         <module>agent-backend-gollek</module>
 
-        <!-- Adapters: Service adapters -->
-        <module>agent-adapter</module>
+        <!-- Gamelan workflow backend adapter: current SDK/SPI bridge -->
+        <module>agent-backend-gamelan</module>
 
-        <!-- Skills: Built-in and custom skills -->
+        <!-- Gamelan workflow integration services: agent memory + graph telemetry -->
+        <module>agent-integration-gamelan</module>
+
+        <!-- Built-in runtime skills on the active AgentSkill contract -->
         <module>agent-skills-builtin</module>
 
-        <!-- Skill Management: Lifecycle management and auditing -->
+        <!-- Programmatic compatibility adapters over the active SPI -->
+        <module>agent-adapter</module>
+
+        <!-- MCP bridge: external MCP tools exposed as active AgentSkill instances -->
+        <module>agent-mcp</module>
+
+        <!-- Hermes Agent mode: persistent learning loop, memory prompt, and skill creation -->
+        <module>agent-hermes</module>
+
+        <!-- Skill lifecycle management over the active SkillRegistry SPI -->
         <module>skill-management</module>
+
+        <!-- Skill audit trail and usage analytics utilities -->
         <module>skill-audit</module>
 
-        <!-- API: REST API endpoints -->
+        <!-- REST API over active agent execution and skill contracts -->
         <module>agent-api</module>
 
-        <!-- CLI Tools: Command-line utilities -->
+        <!-- Skills CLI: command-line lifecycle wrapper over active skill contracts -->
         <module>skills-cli</module>
 
-        <!-- Examples: Demo agents and use cases -->
+        <!-- Examples: deterministic active agent client and skill usage demos -->
         <module>agent-examples</module>
 
-        <!-- Testing: Chaos engineering and resilience testing -->
+        <!-- Harness: compile-ready chaos engineering and packaging support -->
         <module>agent-shaker</module>
     </modules>
 </project>

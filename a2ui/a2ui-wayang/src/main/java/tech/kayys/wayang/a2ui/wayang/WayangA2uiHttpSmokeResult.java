@@ -1,5 +1,9 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpSmokeResultProjection;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
 import java.util.Map;
 import java.util.Objects;
 
@@ -17,7 +21,7 @@ public record WayangA2uiHttpSmokeResult(
     public WayangA2uiHttpSmokeResult {
         suiteResult = Objects.requireNonNull(suiteResult, "suiteResult");
         expectationResult = Objects.requireNonNull(expectationResult, "expectationResult");
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        attributes = TransportMaps.copy(attributes);
     }
 
     public boolean passed() {
@@ -29,10 +33,10 @@ public record WayangA2uiHttpSmokeResult(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpSmokeResultProjection.result(this);
+        return HttpSmokeResultProjection.result(this);
     }
 
     public String toJson() {
-        return WayangA2uiTransportJson.json(toMap(), "Unable to encode A2UI HTTP smoke result");
+        return TransportJson.json(toMap(), "Unable to encode A2UI HTTP smoke result");
     }
 }

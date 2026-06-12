@@ -6,6 +6,8 @@ import java.util.Map;
 
 @ApplicationScoped
 public class RagRuntimeConfig {
+    static final String DEFAULT_EMBEDDING_MODEL = "hash-1536";
+
     private String openAiApiKey;
     private String anthropicApiKey;
     private String azureApiKey;
@@ -16,7 +18,7 @@ public class RagRuntimeConfig {
     private boolean logResponses = false;
     private String vectorstoreBackend = "postgres";
     private int embeddingDimension = 1536;
-    private String embeddingModel = "hash-1536";
+    private String embeddingModel = DEFAULT_EMBEDDING_MODEL;
     private String embeddingVersion = "v1";
     private String ragPluginEnabledIds = "*";
     private String ragPluginOrder = "";

@@ -17,4 +17,9 @@ public record RagQueryRequest(
         GenerationConfig generationConfig,
         List<String> collections,
         Map<String, Object> filters) {
+
+    public RagQueryRequest {
+        collections = RagRuntimeDefaults.normalizeCollections(collections);
+        filters = RagRuntimeMetadata.copy(filters);
+    }
 }

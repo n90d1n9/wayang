@@ -1,11 +1,13 @@
 package tech.kayys.wayang.agent.core.skills.adapters;
 
 import tech.kayys.wayang.agent.spi.skills.SkillContext;
+import tech.kayys.wayang.agent.spi.skills.SkillContextKeys;
 import tech.kayys.wayang.agent.spi.skills.SkillMetadata;
 import io.smallrye.mutiny.Uni;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -20,15 +22,17 @@ public class PromptContextProvider {
     private final Map<String, String> promptAttributes;
 
     public PromptContextProvider(SkillContext context) {
-        this.context = context;
-        this.promptAttributes = new HashMap<>();
+        this.context = Objects.requireNonNull(context, "context");
+        this.promptAttributes = new LinkedHashMap<>();
     }
 
     /**
      * Inject prompt context into skill execution.
      */
     public PromptContextProvider withPromptContext(String key, String value) {
-        promptAttributes.put(key, value);
+        if (key != null && !key.isBlank() && value != null) {
+            promptAttributes.put(key.trim(), value);
+        }
         return this;
     }
 
@@ -36,21 +40,25 @@ public class PromptContextProvider {
      * Get skill metadata for prompt engineering.
      */
     public Optional<String> getPromptTemplate() {
-        return Optional.ofNullable(promptAttributes.get("template"));
+        String template = promptAttributes.get(SkillContextKeys.KEY_PROMPT_TEMPLATE);
+        return template == null || template.isBlank() ? Optional.empty() : Optional.of(template);
     }
 
     /**
      * Enhance prompt with skill metadata.
      */
     public String enrichPrompt(String basePrompt) {
-        StringBuilder enhanced = new StringBuilder(basePrompt);
+        StringBuilder enhanced = new StringBuilder(basePrompt == null ? "" : basePrompt);
+        SkillMetadata metadata = context.metadata();
         
-        if (context.metadata() != null) {
-            enhanced.append("\n\n## Available Skill: ").append(context.metadata().name());
-            enhanced.append("\n").append(context.metadata().description());
+        if (metadata != null) {
+            enhanced.append("\n\n## Available Skill: ").append(metadata.name());
+            if (metadata.description() != null && !metadata.description().isBlank()) {
+                enhanced.append("\n").append(metadata.description());
+            }
             
-            if (!context.metadata().tags().isEmpty()) {
-                enhanced.append("\nTags: ").append(String.join(", ", context.metadata().tags()));
+            if (!metadata.tags().isEmpty()) {
+                enhanced.append("\nTags: ").append(String.join(", ", metadata.tags()));
             }
         }
         
@@ -61,13 +69,18 @@ public class PromptContextProvider {
      * Extract prompt variables from skill context.
      */
     public Map<String, String> getPromptVariables() {
-        Map<String, String> vars = new HashMap<>(promptAttributes);
-        if (context.metadata() != null) {
-            vars.put("skillName", context.metadata().name());
-            vars.put("skillDescription", context.metadata().description());
-            vars.put("skillVersion", context.metadata().version());
+        Map<String, String> vars = new LinkedHashMap<>(promptAttributes);
+        putIfPresent(vars, SkillContextKeys.KEY_SKILL_ID, context.skillId());
+        SkillMetadata metadata = context.metadata();
+        if (metadata != null) {
+            putIfPresent(vars, SkillContextKeys.KEY_SKILL_NAME, metadata.name());
+            putIfPresent(vars, SkillContextKeys.KEY_SKILL_DESCRIPTION, metadata.description());
+            putIfPresent(vars, SkillContextKeys.KEY_SKILL_VERSION, metadata.version());
+            if (!metadata.tags().isEmpty()) {
+                vars.put(SkillContextKeys.KEY_SKILL_TAGS, String.join(",", metadata.tags()));
+            }
         }
-        return vars;
+        return Map.copyOf(vars);
     }
 
     /**
@@ -75,5 +88,11 @@ public class PromptContextProvider {
      */
     public Uni<PromptContextProvider> enrich() {
         return Uni.createFrom().item(this);
+    }
+
+    private static void putIfPresent(Map<String, String> variables, String key, String value) {
+        if (value != null && !value.isBlank()) {
+            variables.put(key, value);
+        }
     }
 }

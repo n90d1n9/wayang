@@ -40,15 +40,15 @@ public class GenerationConfig {
         this.topP = topP;
         this.frequencyPenalty = frequencyPenalty;
         this.presencePenalty = presencePenalty;
-        this.stopSequences = stopSequences != null ? stopSequences : List.of();
+        this.stopSequences = RagCollections.copyList(stopSequences);
         this.systemPrompt = systemPrompt;
-        this.additionalParams = additionalParams != null ? additionalParams : Map.of();
+        this.additionalParams = RagMetadata.copy(additionalParams);
         this.enableCitations = enableCitations;
         this.enableGrounding = enableGrounding;
         this.citationStyle = citationStyle;
         this.enableFactualityChecks = enableFactualityChecks;
         this.enableBiasDetection = enableBiasDetection;
-        this.safetySettings = safetySettings != null ? safetySettings : Map.of();
+        this.safetySettings = RagMetadata.copy(safetySettings);
     }
 
     public static GenerationConfig defaults() {

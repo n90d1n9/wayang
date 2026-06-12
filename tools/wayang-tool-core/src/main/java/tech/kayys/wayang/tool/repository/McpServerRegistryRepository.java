@@ -15,5 +15,7 @@ public interface McpServerRegistryRepository {
 
     Uni<McpServerRegistry> save(McpServerRegistry entity);
 
+    Uni<McpServerRegistry> update(McpServerRegistry entity);
+
     Uni<Boolean> deleteByRequestIdAndName(String requestId, String name);
 }

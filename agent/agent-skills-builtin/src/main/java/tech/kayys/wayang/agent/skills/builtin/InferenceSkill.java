@@ -4,58 +4,32 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
-import tech.kayys.wayang.agent.spi.*;
-import tech.kayys.gollek.engine.inference.InferenceService;
-import tech.kayys.wayang.agent.spi.InferenceRequest;
-import tech.kayys.wayang.agent.spi.Message;
+import tech.kayys.wayang.agent.spi.AgentSkill;
+import tech.kayys.wayang.agent.spi.InferenceBackend;
+import tech.kayys.wayang.agent.spi.skills.SkillCategory;
+import tech.kayys.wayang.agent.spi.skills.SkillDescriptor;
 
-/**
- * Built-in skill: LLM Inference.
- *
- * <p>
- * Executes an LLM prompt through the Gollek inference engine,
- * enabling agents to delegate sub-questions to different models.
- *
- * <p>
- * Input schema:
- * <ul>
- * <li>{@code prompt} (string, required) — the prompt to send to the LLM</li>
- * <li>{@code model} (string, optional) — override the default model</li>
- * <li>{@code systemPrompt} (string, optional) — system context</li>
- * <li>{@code maxTokens} (integer, optional, default 512)</li>
- * <li>{@code temperature} (number, optional, default 0.7)</li>
- * </ul>
- *
- * <p>
- * Output schema:
- * <ul>
- * <li>{@code response} (string) — LLM-generated text</li>
- * <li>{@code tokensUsed} (integer)</li>
- * <li>{@code durationMs} (long)</li>
- * <li>{@code model} (string)</li>
- * </ul>
- *
- * @author Bhangun
- */
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 @ApplicationScoped
-@SkillDescriptor(id = "inference", name = "LLM Inference", description = "Execute a prompt through a configured LLM provider and return the generated response.", version = "1.0.0", category = SkillCategory.INFERENCE, inputs = {
-        @SkillDescriptor.Input(name = "prompt", description = "The prompt to send to the LLM"),
-        @SkillDescriptor.Input(name = "model", required = false, description = "Override the default model"),
-        @SkillDescriptor.Input(name = "systemPrompt", required = false, description = "System context for the LLM"),
+@SkillDescriptor(id = "inference", name = "LLM Inference", description = "Executes a prompt through the configured inference backend and returns the generated response.", version = "1.0.0", category = SkillCategory.INFERENCE, inputs = {
+        @SkillDescriptor.Input(name = "prompt", description = "The prompt to send to the model"),
+        @SkillDescriptor.Input(name = "model", required = false, description = "Optional model override"),
+        @SkillDescriptor.Input(name = "systemPrompt", required = false, description = "System context"),
         @SkillDescriptor.Input(name = "maxTokens", type = "integer", required = false, description = "Max tokens to generate"),
         @SkillDescriptor.Input(name = "temperature", type = "number", required = false, description = "Sampling temperature")
 }, outputs = {
         @SkillDescriptor.Output(name = "response", description = "The generated text response"),
         @SkillDescriptor.Output(name = "tokensUsed", type = "integer"),
-        @SkillDescriptor.Output(name = "durationMs", type = "long")
-}, triggers = { "infer", "generate text", "ask llm", "prompt",
-        "complete" }, aliases = { "llm", "generate", "complete" })
+        @SkillDescriptor.Output(name = "model")
+}, triggers = { "infer", "generate text", "ask llm", "prompt", "complete" }, aliases = { "llm", "generate", "complete" }, priority = 10)
 public class InferenceSkill implements AgentSkill {
 
     private static final Logger LOG = Logger.getLogger(InferenceSkill.class);
 
     @Inject
-    InferenceService inferenceService;
+    InferenceBackend inferenceBackend;
 
     @Override
     public String id() {
@@ -69,12 +43,12 @@ public class InferenceSkill implements AgentSkill {
 
     @Override
     public String description() {
-        return "Execute a prompt through a configured LLM provider and return the generated response.";
+        return "Executes a prompt through the configured inference backend.";
     }
 
     @Override
-    public SkillCategory category() {
-        return SkillCategory.INFERENCE;
+    public String category() {
+        return SkillCategory.INFERENCE.name();
     }
 
     @Override
@@ -83,61 +57,48 @@ public class InferenceSkill implements AgentSkill {
     }
 
     @Override
-    public Uni<SkillResult> execute(SkillContext ctx) {
-        ctx.requireInput("prompt");
-        long start = System.currentTimeMillis();
-
-        String prompt = ctx.getStringInput("prompt");
-        String model = ctx.getStringInput("model");
-        String sysPrompt = ctx.getStringInput("systemPrompt", "You are a helpful assistant.");
-        int maxTokens = ctx.getIntInput("maxTokens", 512);
-        double temperature = ((Number) ctx.getInputs().getOrDefault("temperature", 0.7)).doubleValue();
-
-        LOG.debugf("InferenceSkill: prompt length=%d, model=%s, tenant=%s",
-                prompt.length(), model, ctx.getTenantId());
-
-        InferenceRequest.Builder reqBuilder = InferenceRequest.builder()
-                .requestId("skill-inference-" + ctx.getInvocationId())
-                .message(Message.system(sysPrompt))
-                .message(Message.user(prompt))
-                .parameter("max_tokens", maxTokens)
-                .parameter("temperature", temperature)
-                .metadata("tenantId", ctx.getTenantId())
-                .metadata("skillInvocation", ctx.getInvocationId());
-
-        if (model != null && !model.isBlank())
-            reqBuilder.model(model);
-
-        return inferenceService.inferAsync(reqBuilder.build())
-                .map(resp -> {
-                    long duration = System.currentTimeMillis() - start;
-                    return SkillResult.builder()
-                            .skillId(id())
-                            .invocationId(ctx.getInvocationId())
-                            .status(SkillResult.Status.SUCCESS)
-                            .observation(resp.getContent())
-                            .output("response", resp.getContent())
-                            .output("tokensUsed", resp.getTokensUsed())
-                            .output("durationMs", duration)
-                            .output("model", resp.getModel())
-                            .durationMs(duration)
-                            .build();
-                })
-                .onFailure().recoverWithItem(err -> {
-                    LOG.errorf(err, "InferenceSkill failed for invocation=%s", ctx.getInvocationId());
-                    return SkillResult.failure(id(), err);
-                });
+    public boolean canHandle(Map<String, Object> inputs) {
+        return inputs != null && inputs.containsKey("prompt");
     }
 
     @Override
-    public SkillValidation validate(java.util.Map<String, Object> inputs) {
-        if (!inputs.containsKey("prompt") || inputs.get("prompt") == null) {
-            return SkillValidation.error("Missing required input: prompt");
+    public Uni<Map<String, Object>> execute(Map<String, Object> context) {
+        Map<String, Object> inputs = context == null ? Map.of() : context;
+        String prompt = BuiltinSkillSupport.stringInput(inputs, "prompt");
+        if (prompt == null || prompt.isBlank()) {
+            return Uni.createFrom().item(BuiltinSkillSupport.failure("Input 'prompt' is required"));
         }
-        Object prompt = inputs.get("prompt");
-        if (prompt.toString().isBlank()) {
-            return SkillValidation.error("Input 'prompt' must not be blank");
+        if (inferenceBackend == null) {
+            return Uni.createFrom().item(BuiltinSkillSupport.failure("Inference backend is not configured"));
         }
-        return SkillValidation.success();
+
+        String model = BuiltinSkillSupport.stringInput(inputs, "model");
+        String systemPrompt = BuiltinSkillSupport.stringInput(inputs, "systemPrompt", "You are a helpful assistant.");
+        int maxTokens = BuiltinSkillSupport.intInput(inputs, "maxTokens", 512);
+        double temperature = BuiltinSkillSupport.doubleInput(inputs, "temperature", 0.7);
+        String tenantId = BuiltinSkillSupport.stringInput(inputs, "tenantId");
+        long start = System.currentTimeMillis();
+
+        return inferenceBackend.infer(BuiltinSkillSupport.textRequest(
+                        "skill-inference-" + java.util.UUID.randomUUID(),
+                        model,
+                        systemPrompt,
+                        prompt,
+                        maxTokens,
+                        temperature,
+                        tenantId))
+                .map(response -> {
+                    String content = BuiltinSkillSupport.responseContent(response);
+                    Map<String, Object> outputs = new LinkedHashMap<>();
+                    outputs.put("response", content);
+                    outputs.put("tokensUsed", BuiltinSkillSupport.totalTokens(response));
+                    outputs.put("durationMs", System.currentTimeMillis() - start);
+                    outputs.put("model", BuiltinSkillSupport.responseModel(response, model));
+                    return BuiltinSkillSupport.success(content, outputs);
+                })
+                .onFailure().recoverWithItem(error -> {
+                    LOG.errorf(error, "Inference skill failed");
+                    return BuiltinSkillSupport.error(error);
+                });
     }
 }

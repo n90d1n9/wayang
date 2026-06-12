@@ -1,5 +1,14 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpScenarioProjection;
+import tech.kayys.wayang.a2ui.wayang.http.HttpScenarioSuiteMetrics;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+import tech.kayys.wayang.a2ui.wayang.support.RecordNumbers;
+import tech.kayys.wayang.a2ui.wayang.support.DecodeCollections;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -26,26 +35,21 @@ public record WayangA2uiHttpScenarioSuiteReport(
         Map<String, Object> attributes) {
 
     public WayangA2uiHttpScenarioSuiteReport {
-        suiteId = suiteId == null || suiteId.isBlank() ? "a2ui-http-suite" : suiteId.trim();
-        scenarioCount = Math.max(0, scenarioCount);
-        passedScenarioCount = Math.max(0L, passedScenarioCount);
-        failedScenarioCount = Math.max(0L, failedScenarioCount);
-        exchangeCount = Math.max(0L, exchangeCount);
-        successfulCount = Math.max(0L, successfulCount);
-        clientErrorCount = Math.max(0L, clientErrorCount);
-        serverErrorCount = Math.max(0L, serverErrorCount);
-        handledCount = Math.max(0L, handledCount);
-        rejectedCount = Math.max(0L, rejectedCount);
-        issueCount = Math.max(0L, issueCount);
-        scenarioIds = scenarioIds == null
-                ? List.of()
-                : scenarioIds.stream()
-                        .filter(value -> value != null && !value.isBlank())
-                        .map(String::trim)
-                        .toList();
-        scenarios = WayangA2uiTransportMaps.copyMaps(scenarios);
-        issues = WayangA2uiTransportMaps.copyMaps(issues);
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        suiteId = RecordValues.textOrDefault(suiteId, "a2ui-http-suite");
+        scenarioCount = RecordNumbers.nonNegative(scenarioCount);
+        passedScenarioCount = RecordNumbers.nonNegative(passedScenarioCount);
+        failedScenarioCount = RecordNumbers.nonNegative(failedScenarioCount);
+        exchangeCount = RecordNumbers.nonNegative(exchangeCount);
+        successfulCount = RecordNumbers.nonNegative(successfulCount);
+        clientErrorCount = RecordNumbers.nonNegative(clientErrorCount);
+        serverErrorCount = RecordNumbers.nonNegative(serverErrorCount);
+        handledCount = RecordNumbers.nonNegative(handledCount);
+        rejectedCount = RecordNumbers.nonNegative(rejectedCount);
+        issueCount = RecordNumbers.nonNegative(issueCount);
+        scenarioIds = DecodeCollections.nonBlankTexts(scenarioIds);
+        scenarios = TransportMaps.copyMaps(scenarios);
+        issues = TransportMaps.copyMaps(issues);
+        attributes = TransportMaps.copy(attributes);
     }
 
     public static WayangA2uiHttpScenarioSuiteReport from(WayangA2uiHttpScenarioSuiteResult result) {
@@ -63,16 +67,10 @@ public record WayangA2uiHttpScenarioSuiteReport(
                 resolved.handledCount(),
                 resolved.rejectedCount(),
                 resolved.hasTransportErrors(),
-                reports.stream()
-                        .mapToLong(WayangA2uiHttpScenarioReport::issueCount)
-                        .sum(),
+                HttpScenarioSuiteMetrics.issueCount(reports),
                 resolved.scenarioIds(),
-                reports.stream()
-                        .map(WayangA2uiHttpScenarioReport::toMap)
-                        .toList(),
-                reports.stream()
-                        .flatMap(report -> report.issues().stream())
-                        .toList(),
+                HttpScenarioSuiteMetrics.scenarioMaps(reports),
+                HttpScenarioSuiteMetrics.issues(reports),
                 resolved.attributes());
     }
 
@@ -85,10 +83,10 @@ public record WayangA2uiHttpScenarioSuiteReport(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpScenarioProjection.suiteReport(this);
+        return HttpScenarioProjection.suiteReport(this);
     }
 
     public String toJson() {
-        return WayangA2uiTransportJson.json(toMap(), "Unable to encode A2UI HTTP scenario suite report");
+        return TransportJson.json(toMap(), "Unable to encode A2UI HTTP scenario suite report");
     }
 }

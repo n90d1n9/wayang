@@ -4,43 +4,30 @@
     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>tech.kayys.gollek</groupId>
-    <artifactId>gollek-plugin-storage-parent</artifactId>
+    <parent>
+        <groupId>tech.kayys.wayang</groupId>
+        <artifactId>wayang-agentic-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <groupId>tech.kayys.wayang</groupId>
+    <artifactId>wayang-storage-parent</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>gollek-plugin-storage-parent</name>
-    <description>gollek Plugin</description>
-
+    <name>wayang-storage-parent</name>
+    <description>Wayang storage extension boundary</description>
 
     <properties>
         <maven.compiler.source>25</maven.compiler.source>
         <maven.compiler.target>25</maven.compiler.target>
     </properties>
 
-    <dependencyManagement>
-        <dependencies>
-            <!-- Import Gollek BOM for internal module versions -->
-            <dependency>
-                <groupId>tech.kayys.gollek</groupId>
-                <artifactId>gollek-bom</artifactId>
-                <version>${project.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
-    <dependencies>
-        <dependency>
-            <groupId>tech.kayys.gollek</groupId>
-            <artifactId>gollek-spi-inference</artifactId>
-        </dependency>
-    </dependencies>
-
     <modules>
-        <module>gollek-plugin-storage-s3</module>
-        <module>gollek-plugin-storage-gcs</module>
-        <module>gollek-plugin-storage-azure</module>
+        <module>storage-spi</module>
+        <module>storage-s3</module>
+        <module>storage-gcs</module>
+        <module>storage-azure</module>
     </modules>
 </project>

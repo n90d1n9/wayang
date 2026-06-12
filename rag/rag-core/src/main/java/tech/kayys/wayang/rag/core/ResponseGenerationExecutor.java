@@ -13,17 +13,16 @@ import tech.kayys.gamelan.sdk.executor.core.SimpleNodeExecutionResult;
 import tech.kayys.gamelan.sdk.executor.core.AbstractWorkflowExecutor;
 import tech.kayys.gamelan.engine.protocol.CommunicationType;
 import tech.kayys.gamelan.sdk.executor.core.Executor;
-import tech.kayys.gollek.sdk.core.GollekSdk;
-import tech.kayys.gollek.spi.Message;
-import tech.kayys.gollek.spi.inference.InferenceRequest;
-import tech.kayys.gollek.spi.inference.InferenceResponse;
+import tech.kayys.wayang.agent.spi.InferenceBackend;
+import tech.kayys.wayang.agent.spi.InferenceRequest;
+import tech.kayys.wayang.agent.spi.InferenceResponse;
+import tech.kayys.wayang.agent.spi.InferenceTypes;
 import tech.kayys.wayang.security.secrets.core.SecretManager;
 import tech.kayys.wayang.security.secrets.dto.RetrieveSecretRequest;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * RAG RESPONSE GENERATION EXECUTOR - INTERNAL IMPLEMENTATION
@@ -51,7 +50,7 @@ public class ResponseGenerationExecutor extends AbstractWorkflowExecutor {
         }
 
         @Inject
-        GollekSdk gollekSdk;
+        InferenceBackend inferenceBackend;
         @Inject
         PromptTemplateService promptTemplateService;
         @Inject
@@ -187,6 +186,10 @@ public class ResponseGenerationExecutor extends AbstractWorkflowExecutor {
                 String secretPath = String.format("services/%s/api-key", genCtx.config().provider());
                 LOG.debug("Resolving API key from Vault for tenant: {}, path: {}", tenantId, secretPath);
 
+                if (secretManager == null) {
+                        return Uni.createFrom().item(System.getenv("OPENAI_API_KEY"));
+                }
+
                 return secretManager.retrieve(RetrieveSecretRequest.latest(tenantId, secretPath))
                                 .map(secret -> secret.data().get("api_key"))
                                 .onFailure().recoverWithItem(() -> {
@@ -200,96 +203,86 @@ public class ResponseGenerationExecutor extends AbstractWorkflowExecutor {
                 LOG.debug("Generating response for query: '{}' using model: {}",
                                 genCtx.query(), genCtx.config().model());
 
-                return Uni.createFrom().item(() -> {
-                        try {
-                                List<Message> messages = buildMessages(genCtx);
+                if (inferenceBackend == null) {
+                        return Uni.createFrom().failure(
+                                        new IllegalStateException("No InferenceBackend configured for RAG generation"));
+                }
 
-                                InferenceRequest request = InferenceRequest.builder()
-                                                .model(genCtx.config().model())
-                                                .preferredProvider(genCtx.config().provider())
-                                                .messages(messages)
-                                                .temperature(genCtx.config().temperature())
-                                                .maxTokens(genCtx.config().maxTokens())
-                                                .apiKey(apiKey)
-                                                .build();
+                InferenceRequest request = InferenceRequest.builder()
+                                .requestId(workflowRunId + "-rag-generation")
+                                .model(genCtx.config().model())
+                                .messages(buildMessages(genCtx))
+                                .temperature((double) genCtx.config().temperature())
+                                .maxTokens(genCtx.config().maxTokens())
+                                .topP((double) genCtx.config().topP())
+                                .stopSequences(genCtx.config().stopSequences())
+                                .timeout(Duration.ofSeconds(timeoutSeconds))
+                                .metadata(inferenceMetadata(genCtx, apiKey))
+                                .build();
 
-                                InferenceResponse response = gollekSdk.createCompletion(request);
-                                String responseText = response.getContent();
+                return inferenceBackend.infer(request)
+                                .map(response -> {
+                                        String responseText = response.message() != null
+                                                        ? response.message().content()
+                                                        : "";
+                                        responseText = guardrailEngine.validateAndSanitize(responseText,
+                                                        genCtx.config());
 
-                                responseText = guardrailEngine.validateAndSanitize(responseText, genCtx.config());
+                                        List<Citation> citations = Collections.emptyList();
+                                        if (genCtx.includeCitations() && !genCtx.contexts().isEmpty()) {
+                                                citations = citationService.generateCitations(
+                                                                responseText, genCtx.contexts(),
+                                                                genCtx.contextMetadata());
+                                        }
 
-                                List<Citation> citations = Collections.emptyList();
-                                if (genCtx.includeCitations() && !genCtx.contexts().isEmpty()) {
-                                        citations = citationService.generateCitations(
-                                                        responseText, genCtx.contexts(), genCtx.contextMetadata());
-                                }
-
-                                int tokensUsed = response.getTokensUsed();
-
-                                return new GenerationResult(responseText, citations, tokensUsed);
-                        } catch (tech.kayys.gollek.sdk.exception.SdkException e) {
-                                throw new RuntimeException("Inference failed", e);
-                        }
-                });
+                                        return new GenerationResult(
+                                                        responseText,
+                                                        citations,
+                                                        tokensUsed(response, responseText));
+                                });
         }
 
-        private List<Message> buildMessages(GenerationContext genCtx) {
-                List<Message> messages = new ArrayList<>();
+        private Map<String, Object> inferenceMetadata(GenerationContext genCtx, String apiKey) {
+                Map<String, Object> metadata = new LinkedHashMap<>();
+                metadata.put("preferredProvider", genCtx.config().provider());
+                metadata.put("ragTemplateId", genCtx.templateId());
+                if (apiKey != null && !apiKey.isBlank()) {
+                        metadata.put("apiKey", apiKey);
+                }
+                if (genCtx.config().additionalParams() != null) {
+                        metadata.putAll(genCtx.config().additionalParams());
+                }
+                return metadata;
+        }
+
+        private int tokensUsed(InferenceResponse response, String responseText) {
+                if (response.usage() != null) {
+                        return response.usage().totalTokens();
+                }
+                return Math.max(1, responseText.length() / 4);
+        }
+
+        private List<InferenceTypes.ChatMessage> buildMessages(GenerationContext genCtx) {
+                List<InferenceTypes.ChatMessage> messages = new ArrayList<>();
 
                 String systemPrompt = promptTemplateService.getSystemPrompt(genCtx.config());
-                messages.add(Message.system(systemPrompt));
+                messages.add(new InferenceTypes.SystemMessage(systemPrompt));
 
                 String userPrompt = promptTemplateService.buildUserPrompt(
                                 genCtx.query(), genCtx.contexts(), genCtx.conversationHistory());
-                messages.add(Message.user(userPrompt));
+                messages.add(new InferenceTypes.UserMessage(userPrompt));
 
                 return messages;
         }
 
-        @SuppressWarnings("unchecked")
         private GenerationContext extractConfiguration(Map<String, Object> context) {
-                String query = (String) context.get("query");
-                List<String> contexts = (List<String>) context.getOrDefault("contexts", List.of());
-                List<Map<String, Object>> contextMetadata = (List<Map<String, Object>>) context.getOrDefault("metadata",
-                                List.of());
-                List<ConversationTurn> history = extractConversationHistory(context);
-
-                String provider = (String) context.getOrDefault("provider", defaultProvider);
-                String model = (String) context.getOrDefault("model", defaultModel);
-                String apiKey = (String) context.getOrDefault("apiKey", System.getenv("OPENAI_API_KEY"));
-
-                double temperature = context.containsKey("temperature")
-                                ? ((Number) context.get("temperature")).doubleValue()
-                                : defaultTemperature;
-                int maxTokens = context.containsKey("maxTokens") ? ((Number) context.get("maxTokens")).intValue()
-                                : defaultMaxTokens;
-                boolean includeCitations = context.containsKey("includeCitations")
-                                ? (Boolean) context.get("includeCitations")
-                                : defaultIncludeCitations;
-                boolean useCache = context.containsKey("useCache") ? (Boolean) context.get("useCache")
-                                : defaultUseCache;
-                String templateId = (String) context.getOrDefault("templateId", "default");
-
-                GenerationConfig config = new GenerationConfig(provider, model, (float) temperature, maxTokens,
-                                1.0f, 0.0f, 0.0f, List.of(), "You are a helpful assistant.",
-                                Map.of(), includeCitations, false, CitationStyle.INLINE_NUMBERED,
-                                false, false, Map.of());
-
-                return new GenerationContext(query, contexts, contextMetadata, history,
-                                config, includeCitations, useCache, templateId, apiKey);
-        }
-
-        @SuppressWarnings("unchecked")
-        private List<ConversationTurn> extractConversationHistory(Map<String, Object> context) {
-                if (!context.containsKey("conversationHistory"))
-                        return List.of();
-
-                List<Map<String, Object>> historyList = (List<Map<String, Object>>) context.get("conversationHistory");
-
-                return historyList.stream()
-                                .map(turn -> new ConversationTurn(
-                                                (String) turn.get("role"), (String) turn.get("content"), Instant.now()))
-                                .collect(Collectors.toList());
+                return ResponseGenerationContextMapper.from(context, new ResponseGenerationContextMapper.Defaults(
+                                defaultProvider,
+                                defaultModel,
+                                defaultTemperature,
+                                defaultMaxTokens,
+                                defaultIncludeCitations,
+                                defaultUseCache));
         }
 
         private Uni<Boolean> validateConfiguration(GenerationContext genCtx) {
@@ -328,6 +321,9 @@ public class ResponseGenerationExecutor extends AbstractWorkflowExecutor {
         @Override
         public boolean canHandle(NodeExecutionTask task) {
                 Map<String, Object> context = task.context();
+                if (context == null) {
+                        return false;
+                }
                 return context.containsKey("query") &&
                                 (context.containsKey("contexts") || context.containsKey("metadata"));
         }

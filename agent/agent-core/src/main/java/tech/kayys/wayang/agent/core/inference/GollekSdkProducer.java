@@ -15,6 +15,10 @@ import tech.kayys.gollek.sdk.exception.SdkException;
 /**
  * CDI producer that bridges the {@link GollekSdkFactory} with Quarkus dependency injection.
  *
+ * <p>This is a <b>passive alternative</b> producer for wayang-gollek.
+ * It only activates when gollek's own CDI beans (e.g., {@code LocalGollekSdk})
+ * are not available on the classpath.
+ *
  * <p>Resolution order:
  * <ol>
  *   <li>If a CDI-managed {@code GollekSdk} implementation is already available
@@ -29,6 +33,8 @@ import tech.kayys.gollek.sdk.exception.SdkException;
  * based on which module is on the classpath.
  */
 @ApplicationScoped
+@Alternative
+@Priority(100)
 public class GollekSdkProducer {
 
     private static final Logger log = LoggerFactory.getLogger(GollekSdkProducer.class);
@@ -38,12 +44,14 @@ public class GollekSdkProducer {
      *
      * <p>Tries CDI-managed implementations first (e.g., {@code LocalGollekSdk});
      * falls back to ServiceLoader-based discovery via {@code GollekSdkFactory}.
+     * 
+     * <p>This producer is an {@link Alternative} with priority 200, making it a
+     * passive fallback when gollek's own beans are not available.
      */
     @Produces
     @Singleton
-    @Default
     @Alternative
-    @Priority(1)
+    @Priority(200)
     public GollekSdk gollekSdk(jakarta.enterprise.inject.spi.BeanManager beanManager) {
         // 1. If a CDI-managed implementation exists (e.g. LocalGollekSdk @ApplicationScoped),
         //    use it directly — no factory needed.

@@ -1,0 +1,15 @@
+{
+  "method": "GET",
+  "rawPath": "/api/a2ui/route-catalog?tenant=demo",
+  "body": "",
+  "bodyPresent": false,
+  "bodyLength": 0,
+  "headers": {
+    "Accept": [
+      "application/json"
+    ]
+  },
+  "attributes": {
+    "traceId": "trace-1"
+  }
+}

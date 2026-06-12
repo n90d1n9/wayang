@@ -9,6 +9,9 @@ import java.nio.file.StandardOpenOption;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * Audit logger for agent actions.
@@ -37,24 +40,46 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  * @version 1.0.0
  * @since 2026-04-06
  */
-public class AgentAuditLogger {
+public class AgentAuditLogger implements AutoCloseable {
 
     private static final Logger LOG = Logger.getLogger(AgentAuditLogger.class);
 
     private final AuditSink sink;
     private final boolean async;
+    private final ExecutorService executor;
 
     private AgentAuditLogger(AuditSink sink, boolean async) {
-        this.sink = sink;
+        this.sink = Objects.requireNonNull(sink, "sink");
         this.async = async;
+        this.executor = async ? Executors.newSingleThreadExecutor(runnable -> {
+            Thread thread = new Thread(runnable, "agent-audit-logger");
+            thread.setDaemon(true);
+            return thread;
+        }) : null;
     }
 
     /**
      * Create file-based audit logger.
      */
     public static AgentAuditLogger fileBased(Path logFile) throws IOException {
-        Files.createDirectories(logFile.getParent());
+        Objects.requireNonNull(logFile, "logFile");
+        Path parent = logFile.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
         return new AgentAuditLogger(new FileAuditSink(logFile), false);
+    }
+
+    /**
+     * Create async file-based audit logger.
+     */
+    public static AgentAuditLogger fileBasedAsync(Path logFile) throws IOException {
+        Objects.requireNonNull(logFile, "logFile");
+        Path parent = logFile.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        return new AgentAuditLogger(new FileAuditSink(logFile), true);
     }
 
     /**
@@ -62,6 +87,27 @@ public class AgentAuditLogger {
      */
     public static AgentAuditLogger memoryBased() {
         return new AgentAuditLogger(new MemoryAuditSink(), false);
+    }
+
+    /**
+     * Create async memory-based audit logger.
+     */
+    public static AgentAuditLogger memoryBasedAsync() {
+        return new AgentAuditLogger(new MemoryAuditSink(), true);
+    }
+
+    /**
+     * Create audit logger backed by a custom sink.
+     */
+    public static AgentAuditLogger sinkBased(AuditSink sink) {
+        return new AgentAuditLogger(sink, false);
+    }
+
+    /**
+     * Create async audit logger backed by a custom sink.
+     */
+    public static AgentAuditLogger sinkBasedAsync(AuditSink sink) {
+        return new AgentAuditLogger(sink, true);
     }
 
     // ── Agent Execution ─────────────────────────────────────────────────────
@@ -73,10 +119,10 @@ public class AgentAuditLogger {
         AuditEvent event = new AuditEvent(
             "agent.execution",
             agentId,
-            Map.of(
+            auditAttributes(
                 "strategy", strategy,
                 "prompt", truncate(prompt, 100),
-                "duration_ms", durationMs,
+                "duration_ms", positiveDuration(durationMs),
                 "success", success
             )
         );
@@ -90,7 +136,7 @@ public class AgentAuditLogger {
         AuditEvent event = new AuditEvent(
             "agent.step",
             agentId,
-            Map.of(
+            auditAttributes(
                 "step_type", stepType,
                 "details", truncate(details, 200)
             )
@@ -107,9 +153,9 @@ public class AgentAuditLogger {
         AuditEvent event = new AuditEvent(
             "inference.call",
             backend,
-            Map.of(
+            auditAttributes(
                 "model", model,
-                "duration_ms", durationMs,
+                "duration_ms", positiveDuration(durationMs),
                 "success", success
             )
         );
@@ -125,9 +171,9 @@ public class AgentAuditLogger {
         AuditEvent event = new AuditEvent(
             "tool.execution",
             toolName,
-            Map.of(
+            auditAttributes(
                 "input", truncate(input, 200),
-                "duration_ms", durationMs,
+                "duration_ms", positiveDuration(durationMs),
                 "success", success
             )
         );
@@ -143,10 +189,10 @@ public class AgentAuditLogger {
         AuditEvent event = new AuditEvent(
             "memory.operation",
             tier,
-            Map.of(
+            auditAttributes(
                 "operation", operation,
                 "key", key,
-                "duration_ms", durationMs
+                "duration_ms", positiveDuration(durationMs)
             )
         );
         record(event);
@@ -161,7 +207,7 @@ public class AgentAuditLogger {
         AuditEvent event = new AuditEvent(
             "error",
             component,
-            Map.of(
+            auditAttributes(
                 "error_type", errorType,
                 "message", truncate(message, 500)
             )
@@ -176,27 +222,135 @@ public class AgentAuditLogger {
      */
     public void logSecurityEvent(String eventType, String details, String tenantId) {
         AuditEvent event = new AuditEvent(
-            "security." + eventType,
+            "security." + normalize(eventType, "unknown"),
             tenantId,
-            Map.of("details", truncate(details, 500))
+            auditAttributes("details", truncate(details, 500))
         );
         record(event);
+    }
+
+    /**
+     * Return memory-sink events when this logger uses an in-memory sink.
+     */
+    public List<AuditEvent> getEvents() {
+        if (sink instanceof MemoryAuditSink memoryAuditSink) {
+            return memoryAuditSink.getEvents();
+        }
+        return List.of();
+    }
+
+    /**
+     * Clear memory-sink events when this logger uses an in-memory sink.
+     */
+    public void clearEvents() {
+        if (sink instanceof MemoryAuditSink memoryAuditSink) {
+            memoryAuditSink.clear();
+        }
+    }
+
+    /**
+     * Wait until all previously submitted async records are persisted.
+     */
+    public void flush() {
+        if (!async) {
+            return;
+        }
+        try {
+            Future<?> marker = executor.submit(() -> {
+            });
+            marker.get();
+        } catch (Exception error) {
+            LOG.errorf(error, "Failed to flush audit logger");
+            if (error instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    @Override
+    public void close() {
+        flush();
+        if (executor != null) {
+            executor.shutdown();
+        }
     }
 
     // ── Internal ────────────────────────────────────────────────────────────
 
     private void record(AuditEvent event) {
         if (async) {
-            // TODO: Implement async recording
-            sink.record(event);
+            executor.submit(() -> safeRecord(event));
         } else {
-            sink.record(event);
+            safeRecord(event);
         }
     }
 
-    private String truncate(String value, int maxLength) {
+    private void safeRecord(AuditEvent event) {
+        try {
+            sink.record(event);
+        } catch (RuntimeException error) {
+            LOG.errorf("Failed to record audit event: %s (%s)", event, error.getMessage());
+        }
+    }
+
+    private static String truncate(String value, int maxLength) {
         if (value == null) return "";
         return value.length() > maxLength ? value.substring(0, maxLength) + "..." : value;
+    }
+
+    private static long positiveDuration(long durationMs) {
+        return Math.max(0L, durationMs);
+    }
+
+    private static Map<String, Object> auditAttributes(Object... keyValues) {
+        if (keyValues == null || keyValues.length == 0) {
+            return Map.of();
+        }
+        Map<String, Object> attributes = new LinkedHashMap<>();
+        for (int i = 0; i + 1 < keyValues.length; i += 2) {
+            Object key = keyValues[i];
+            Object value = keyValues[i + 1];
+            if (key != null && value != null && !String.valueOf(key).isBlank()) {
+                attributes.put(String.valueOf(key).trim(), snapshotValue(value));
+            }
+        }
+        return attributes.isEmpty() ? Map.of() : Map.copyOf(attributes);
+    }
+
+    private static Map<String, Object> copyAttributes(Map<String, Object> values) {
+        if (values == null || values.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> copied = new LinkedHashMap<>();
+        values.forEach((key, value) -> {
+            if (key != null && value != null && !key.isBlank()) {
+                copied.put(key.trim(), snapshotValue(value));
+            }
+        });
+        return copied.isEmpty() ? Map.of() : Map.copyOf(copied);
+    }
+
+    private static Object snapshotValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> copied = new LinkedHashMap<>();
+            map.forEach((key, item) -> {
+                if (key != null && item != null && !String.valueOf(key).isBlank()) {
+                    copied.put(String.valueOf(key).trim(), snapshotValue(item));
+                }
+            });
+            return copied.isEmpty() ? Map.of() : Map.copyOf(copied);
+        }
+        if (value instanceof List<?> list) {
+            return List.copyOf(list.stream()
+                    .filter(Objects::nonNull)
+                    .map(AgentAuditLogger::snapshotValue)
+                    .toList());
+        }
+        return value;
+    }
+
+    private static String normalize(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value.trim();
     }
 
     // ── Audit Event Record ──────────────────────────────────────────────────
@@ -212,6 +366,13 @@ public class AgentAuditLogger {
 
         public AuditEvent(String eventType, String component, Map<String, Object> attributes) {
             this(Instant.now(), eventType, component, attributes);
+        }
+
+        public AuditEvent {
+            timestamp = timestamp == null ? Instant.now() : timestamp;
+            eventType = normalize(eventType, "unknown");
+            component = normalize(component, "unknown");
+            attributes = copyAttributes(attributes);
         }
 
         @Override
@@ -237,7 +398,7 @@ public class AgentAuditLogger {
         private final Path logFile;
 
         FileAuditSink(Path logFile) {
-            this.logFile = logFile;
+            this.logFile = Objects.requireNonNull(logFile, "logFile");
         }
 
         @Override

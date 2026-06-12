@@ -10,12 +10,16 @@ public record RagChunk(
         String text,
         Map<String, Object> metadata) {
 
+    public RagChunk {
+        metadata = RagMetadata.copy(metadata);
+    }
+
     public static RagChunk of(String documentId, int chunkIndex, String text, Map<String, Object> metadata) {
         return new RagChunk(
                 UUID.randomUUID().toString(),
                 documentId,
                 chunkIndex,
                 text,
-                metadata == null ? Map.of() : Map.copyOf(metadata));
+                metadata);
     }
 }

@@ -233,7 +233,7 @@ public class EpisodicMemoryExecutor extends AbstractMemoryExecutor {
                             "operation", "search",
                             "memoryType", "episodic",
                             "agentId", agentId,
-                            "query", query,
+                            "query", query != null ? query : "",
                             "eventType", eventType,
                             "count", results.size(),
                             "limit", limit,

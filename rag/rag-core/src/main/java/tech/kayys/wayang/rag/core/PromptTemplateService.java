@@ -1,14 +1,10 @@
 package tech.kayys.wayang.rag.core;
 
 import jakarta.enterprise.context.ApplicationScoped;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import java.util.List;
 
 @ApplicationScoped
 class PromptTemplateService {
-
-    private static final Logger LOG = LoggerFactory.getLogger(PromptTemplateService.class);
 
     private static final String DEFAULT_SYSTEM_PROMPT = """
             You are a helpful AI assistant that answers questions based on the provided context.
@@ -31,23 +27,54 @@ class PromptTemplateService {
 
         StringBuilder prompt = new StringBuilder();
 
-        if (!history.isEmpty()) {
+        if (history != null && hasValidHistory(history)) {
             prompt.append("Previous conversation:\n");
             for (ConversationTurn turn : history) {
-                prompt.append(turn.role()).append(": ").append(turn.content()).append("\n");
+                if (isValidTurn(turn)) {
+                    prompt.append(turn.role()).append(": ").append(turn.content()).append("\n");
+                }
             }
             prompt.append("\n");
         }
 
-        if (!contexts.isEmpty()) {
+        if (contexts != null && hasValidContexts(contexts)) {
             prompt.append("Context:\n");
             for (int i = 0; i < contexts.size(); i++) {
-                prompt.append(String.format("[%d] %s\n\n", i + 1, contexts.get(i)));
+                String context = contexts.get(i);
+                if (!isBlank(context)) {
+                    prompt.append(String.format("[%d] %s\n\n", i + 1, context));
+                }
             }
         }
 
-        prompt.append("Question: ").append(query);
+        prompt.append("Question: ").append(query == null ? "" : query);
 
         return prompt.toString();
+    }
+
+    private boolean hasValidHistory(List<ConversationTurn> history) {
+        for (ConversationTurn turn : history) {
+            if (isValidTurn(turn)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isValidTurn(ConversationTurn turn) {
+        return turn != null && turn.hasContent();
+    }
+
+    private boolean hasValidContexts(List<String> contexts) {
+        for (String context : contexts) {
+            if (!isBlank(context)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }

@@ -45,43 +45,30 @@ class EnhancedPromptModuleTest {
         
         @Test
         void testJinja2RenderingEngine() {
-            // Only test if Pebble is available
-            try {
-                Jinja2RenderingEngine engine = new Jinja2RenderingEngine();
-                assertEquals(PromptVersion.RenderingStrategy.JINJA2, engine.getStrategy());
-                
-                List<PromptVariableValue> vars = List.of(
-                    new PromptVariableValue("name", "John", PromptVariableDefinition.VariableSource.INPUT, false, System.currentTimeMillis()),
-                    new PromptVariableValue("items", List.of("apple", "banana"), PromptVariableDefinition.VariableSource.INPUT, false, System.currentTimeMillis())
-                );
-                
-                // Test basic variable substitution
-                String result = engine.expand("Hello {{name}}!", vars);
-                assertEquals("Hello John!", result);
-            } catch (Exception e) {
-                // If Pebble is not available, skip this test
-                System.out.println("Skipping Jinja2 test due to missing dependency: " + e.getMessage());
-            }
+            Jinja2RenderingEngine engine = new Jinja2RenderingEngine();
+            assertEquals(PromptVersion.RenderingStrategy.JINJA2, engine.getStrategy());
+
+            List<PromptVariableValue> vars = List.of(
+                new PromptVariableValue("name", "John", PromptVariableDefinition.VariableSource.INPUT, false, System.currentTimeMillis()),
+                new PromptVariableValue("items", List.of("apple", "banana"), PromptVariableDefinition.VariableSource.INPUT, false, System.currentTimeMillis())
+            );
+
+            String result = engine.expand("Hello {{ name }}: {% for item in items %}{{ item }}{% if not loop.last %}, {% endif %}{% endfor %}.", vars);
+            assertEquals("Hello John: apple, banana.", result);
         }
         
         @Test
         void testFreeMarkerRenderingEngine() {
-            // Only test if FreeMarker is available
-            try {
-                FreeMarkerRenderingEngine engine = new FreeMarkerRenderingEngine();
-                assertEquals(PromptVersion.RenderingStrategy.FREEMARKER, engine.getStrategy());
-                
-                List<PromptVariableValue> vars = List.of(
-                    new PromptVariableValue("name", "John", PromptVariableDefinition.VariableSource.INPUT, false, System.currentTimeMillis())
-                );
-                
-                // Test basic variable substitution
-                String result = engine.expand("Hello ${name}!", vars);
-                assertEquals("Hello John!", result);
-            } catch (Exception e) {
-                // If FreeMarker is not available, skip this test
-                System.out.println("Skipping FreeMarker test due to missing dependency: " + e.getMessage());
-            }
+            FreeMarkerRenderingEngine engine = new FreeMarkerRenderingEngine();
+            assertEquals(PromptVersion.RenderingStrategy.FREEMARKER, engine.getStrategy());
+
+            List<PromptVariableValue> vars = List.of(
+                new PromptVariableValue("name", "John", PromptVariableDefinition.VariableSource.INPUT, false, System.currentTimeMillis()),
+                new PromptVariableValue("items", List.of("apple", "banana"), PromptVariableDefinition.VariableSource.INPUT, false, System.currentTimeMillis())
+            );
+
+            String result = engine.expand("Hello ${name}: <#list items as item>${item}<#sep>, </#list>.", vars);
+            assertEquals("Hello John: apple, banana.", result);
         }
     }
     
@@ -298,8 +285,13 @@ class EnhancedPromptModuleTest {
             assertNotNull(simpleEngine);
             assertEquals(PromptVersion.RenderingStrategy.SIMPLE, simpleEngine.getStrategy());
             
-            // Other strategies (JINJA2, FREEMARKER) may or may not be available
-            // depending on dependencies
+            RenderingEngine jinja2Engine = registry.forStrategy(PromptVersion.RenderingStrategy.JINJA2);
+            assertNotNull(jinja2Engine);
+            assertEquals(PromptVersion.RenderingStrategy.JINJA2, jinja2Engine.getStrategy());
+
+            RenderingEngine freeMarkerEngine = registry.forStrategy(PromptVersion.RenderingStrategy.FREEMARKER);
+            assertNotNull(freeMarkerEngine);
+            assertEquals(PromptVersion.RenderingStrategy.FREEMARKER, freeMarkerEngine.getStrategy());
         }
     }
 }

@@ -9,6 +9,7 @@ public enum AgentType {
     CODER(AgentRole.CODER),
     ANALYTICS(AgentRole.ANALYST),
     ORCHESTRATOR(AgentRole.ORCHESTRATOR),
+    HERMES(AgentRole.ORCHESTRATOR),
     EVALUATOR(AgentRole.EVALUATOR),
     SPECIALIST(AgentRole.SPECIALIST);
 

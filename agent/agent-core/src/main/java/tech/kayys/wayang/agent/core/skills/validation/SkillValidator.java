@@ -1,5 +1,7 @@
 package tech.kayys.wayang.agent.core.skills.validation;
 
+import tech.kayys.wayang.agent.spi.skills.SkillMetadataKeys;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -91,7 +93,13 @@ public class SkillValidator {
 
         // Extract and validate frontmatter
         String yamlBlock = content.substring(3, closingIdx).trim();
-        Map<String, Object> frontmatter = parseYaml(yamlBlock);
+        Map<String, Object> frontmatter;
+        try {
+            frontmatter = parseYaml(yamlBlock);
+        } catch (IllegalArgumentException e) {
+            errors.add("Failed to parse YAML frontmatter: " + e.getMessage());
+            return;
+        }
         validateFrontmatter(frontmatter, skillName, skillPath, errors, warnings);
 
         // Validate body content
@@ -212,8 +220,8 @@ public class SkillValidator {
     /**
      * Validate metadata object structure.
      */
-    private void validateMetadataObject(Map<String, Object> metadata, List<String> warnings) {
-        if (!metadata.containsKey("version")) {
+    private void validateMetadataObject(Map<?, ?> metadata, List<String> warnings) {
+        if (!metadata.containsKey(SkillMetadataKeys.KEY_VERSION)) {
             warnings.add("Metadata missing recommended 'version' field");
         }
 
@@ -273,64 +281,24 @@ public class SkillValidator {
                                                Map<String, Object> providedParameters) {
         List<String> errors = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
+        Map<String, Object> inputs = providedParameters != null ? providedParameters : Map.of();
 
-        if (allowedParameters == null || providedParameters == null) {
-            return new ValidationResult(skillName, true, errors, warnings);
+        SkillParameterSchema schema;
+        try {
+            schema = SkillParameterSchema.resolveOrEmpty(allowedParameters, warnings);
+        } catch (SkillParameterSchema.SkillParameterSchemaException e) {
+            errors.add("Invalid parameter schema: " + e.getMessage());
+            return new ValidationResult(skillName, false, errors, warnings);
         }
 
-        Map<String, Object> schema = null;
-
-        // Parse schema from JSON string if needed
-        if (allowedParameters instanceof String jsonStr) {
-            try {
-                schema = parseJsonParameters(jsonStr);
-            } catch (Exception e) {
-                warnings.add("Failed to parse parameter schema: " + e.getMessage());
-                return new ValidationResult(skillName, true, errors, warnings);
-            }
-        } else if (allowedParameters instanceof Map<?, ?> map) {
-            schema = (Map<String, Object>) map;
-        }
-
-        if (schema == null || schema.isEmpty()) {
-            return new ValidationResult(skillName, true, errors, warnings);
-        }
-
-        // Check for required parameters
-        for (Map.Entry<String, Object> entry : schema.entrySet()) {
-            String paramName = entry.getKey();
-            Object paramSchema = entry.getValue();
-
-            if (paramSchema instanceof Map<?, ?> paramMap) {
-                boolean required = Boolean.TRUE.equals(paramMap.get("required"));
-                if (required && !providedParameters.containsKey(paramName)) {
-                    errors.add("Missing required parameter: " + paramName);
-                }
-            }
-        }
-
-        // Check for unexpected parameters (warning only)
-        for (String paramName : providedParameters.keySet()) {
-            if (!schema.containsKey(paramName)) {
-                warnings.add("Parameter '" + paramName + "' not defined in skill schema");
-            }
-        }
+        SkillParameterSchema.ParameterValidation validation = schema.validate(inputs);
+        errors.addAll(validation.errors());
+        warnings.addAll(validation.warnings());
 
         return new ValidationResult(skillName, errors.isEmpty(), errors, warnings);
     }
 
     // ── Internal Helpers ───────────────────────────────────────────────────
-
-    /**
-     * Parse JSON parameters into a Map.
-     */
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> parseJsonParameters(String json) throws Exception {
-        // Simple JSON parsing - can be replaced with Jackson if needed
-        Map<String, Object> result = new HashMap<>();
-        // For now, return empty map to indicate parsing would be needed
-        return result;
-    }
 
     /**
      * Parse YAML content into a Map.
@@ -341,12 +309,18 @@ public class SkillValidator {
             org.yaml.snakeyaml.Yaml snakeYaml = new org.yaml.snakeyaml.Yaml();
             Object result = snakeYaml.load(yaml);
             if (result instanceof Map<?, ?> map) {
-                return (Map<String, Object>) map;
+                return toStringObjectMap(map);
             }
+            if (result == null) {
+                return new HashMap<>();
+            }
+            throw new IllegalArgumentException("YAML frontmatter must be a mapping");
         } catch (Exception e) {
-            // Return empty map on parse error
+            if (e instanceof IllegalArgumentException argumentException) {
+                throw argumentException;
+            }
+            throw new IllegalArgumentException(e.getMessage(), e);
         }
-        return new HashMap<>();
     }
 
     /**
@@ -355,6 +329,17 @@ public class SkillValidator {
     private String getString(Map<String, Object> map, String key) {
         Object value = map.get(key);
         return value != null ? value.toString() : null;
+    }
+
+    private Map<String, Object> toStringObjectMap(Map<?, ?> map) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        map.forEach((key, value) -> {
+            if (!(key instanceof String stringKey) || stringKey.isBlank()) {
+                throw new IllegalArgumentException("YAML frontmatter keys must be non-blank strings");
+            }
+            result.put(stringKey, value);
+        });
+        return result;
     }
 
     // ── Validation Result ──────────────────────────────────────────────────

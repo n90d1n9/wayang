@@ -2,8 +2,8 @@ package tech.kayys.wayang.tool.impl;
 
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-import tech.kayys.gollek.spi.tool.Tool;
-import tech.kayys.gollek.spi.registry.ToolRegistry;
+import tech.kayys.wayang.tool.spi.ToolRegistry;
+import tech.kayys.wayang.tools.spi.Tool;
 
 import java.util.ArrayList;
 import java.util.List;

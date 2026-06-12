@@ -1,5 +1,7 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpRouteProjection;
+
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -68,7 +70,7 @@ public record WayangA2uiHttpRouteCatalog(List<WayangA2uiHttpRoute> routes) {
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpRouteProjection.catalog(this);
+        return HttpRouteProjection.catalog(this);
     }
 
     private static String normalizeRootPath(String rootPath) {

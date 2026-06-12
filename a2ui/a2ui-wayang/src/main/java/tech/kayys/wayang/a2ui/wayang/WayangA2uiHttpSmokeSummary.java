@@ -1,5 +1,12 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpSmokeProbeProjection;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+import tech.kayys.wayang.a2ui.wayang.support.RecordNumbers;
+
 import java.util.List;
 import java.util.Map;
 
@@ -19,15 +26,15 @@ public record WayangA2uiHttpSmokeSummary(
         Map<String, Object> body) {
 
     public WayangA2uiHttpSmokeSummary {
-        exitCode = Math.max(0, exitCode);
-        suiteId = suiteId == null ? "" : suiteId.trim();
-        scenarioCount = Math.max(0, scenarioCount);
-        issueCount = Math.max(0, issueCount);
-        routeCount = Math.max(0, routeCount);
-        issues = WayangA2uiTransportMaps.copyMaps(issues);
+        exitCode = RecordNumbers.nonNegative(exitCode);
+        suiteId = RecordValues.text(suiteId);
+        scenarioCount = RecordNumbers.nonNegative(scenarioCount);
+        issueCount = RecordNumbers.nonNegative(issueCount);
+        routeCount = RecordNumbers.nonNegative(routeCount);
+        issues = TransportMaps.copyMaps(issues);
         issueCount = Math.max(issueCount, issues.size());
-        metadata = WayangA2uiTransportMaps.copy(metadata);
-        body = WayangA2uiTransportMaps.copy(body);
+        metadata = TransportMaps.copy(metadata);
+        body = TransportMaps.copy(body);
     }
 
     public static WayangA2uiHttpSmokeSummary from(WayangA2uiHttpResponse response) {
@@ -50,16 +57,30 @@ public record WayangA2uiHttpSmokeSummary(
         return WayangA2uiHttpSmokeSummaryDecoder.fromJson(json);
     }
 
+    public static WayangA2uiHttpSmokeSummary empty() {
+        return new WayangA2uiHttpSmokeSummary(
+                false,
+                WayangA2uiHttpSmokeResult.EXIT_FAILURE,
+                "",
+                0,
+                0,
+                0,
+                false,
+                List.of(),
+                Map.of(),
+                Map.of());
+    }
+
     public boolean successfulExit() {
         return passed && exitCode == WayangA2uiHttpSmokeResult.EXIT_SUCCESS;
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpSmokeProbeProjection.summary(this);
+        return HttpSmokeProbeProjection.summary(this);
     }
 
     public String toJson() {
-        return WayangA2uiTransportJson.json(toMap(), "Unable to encode A2UI HTTP smoke summary");
+        return TransportJson.json(toMap(), "Unable to encode A2UI HTTP smoke summary");
     }
 
 }

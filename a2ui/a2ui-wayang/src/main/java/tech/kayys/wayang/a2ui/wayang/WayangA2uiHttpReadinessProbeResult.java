@@ -1,5 +1,9 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpReadinessProbeProjection;
+import tech.kayys.wayang.a2ui.wayang.http.HttpReadinessProbeResponseDecoder;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+
 import tech.kayys.wayang.gollek.sdk.WayangReadinessReport;
 
 import java.util.List;
@@ -11,27 +15,56 @@ import java.util.Objects;
  */
 public record WayangA2uiHttpReadinessProbeResult(
         WayangA2uiHttpBindingReportProbeResult bindingReportProbe,
+        WayangA2uiHttpActionBindingProbeResult actionBindingProbe,
         WayangA2uiHttpSmokeProbeResult smokeProbe,
         boolean smokeRequired) {
 
     public static final String READINESS_ID = "a2ui.http.readiness";
 
+    public WayangA2uiHttpReadinessProbeResult(
+            WayangA2uiHttpBindingReportProbeResult bindingReportProbe,
+            WayangA2uiHttpSmokeProbeResult smokeProbe,
+            boolean smokeRequired) {
+        this(
+                bindingReportProbe,
+                WayangA2uiHttpActionBindingProbeResult.compatibilityFallback(),
+                smokeProbe,
+                smokeRequired);
+    }
+
     public WayangA2uiHttpReadinessProbeResult {
         bindingReportProbe = Objects.requireNonNull(bindingReportProbe, "bindingReportProbe");
-        smokeProbe = smokeProbe == null ? emptySmokeProbe() : smokeProbe;
+        actionBindingProbe = actionBindingProbe == null
+                ? WayangA2uiHttpActionBindingProbeResult.compatibilityFallback()
+                : actionBindingProbe;
+        smokeProbe = smokeProbe == null ? WayangA2uiHttpSmokeProbeResult.empty() : smokeProbe;
     }
 
     public static WayangA2uiHttpReadinessProbeResult run(WayangA2uiHttpBridgeAdapter adapter) {
         WayangA2uiHttpBridgeAdapter resolved = Objects.requireNonNull(adapter, "adapter");
         WayangA2uiHttpBindingReportProbeResult bindingReportProbe = resolved.bindingReportProbe();
-        boolean smokeRequired = bindingReportProbe.routeOperations().contains(WayangA2uiHttpRoute.OPERATION_SMOKE);
-        WayangA2uiHttpSmokeProbeResult smokeProbe = smokeRequired ? resolved.smokeProbe() : emptySmokeProbe();
-        return new WayangA2uiHttpReadinessProbeResult(bindingReportProbe, smokeProbe, smokeRequired);
+        WayangA2uiHttpActionBindingProbeResult actionBindingProbe = resolved.actionBindingProbe();
+        boolean smokeRequired = bindingReportProbe.requiresSmokeProbe();
+        WayangA2uiHttpSmokeProbeResult smokeProbe = smokeRequired
+                ? resolved.smokeProbe()
+                : WayangA2uiHttpSmokeProbeResult.empty();
+        return new WayangA2uiHttpReadinessProbeResult(
+                bindingReportProbe,
+                actionBindingProbe,
+                smokeProbe,
+                smokeRequired);
+    }
+
+    public static WayangA2uiHttpReadinessProbeResult empty() {
+        return new WayangA2uiHttpReadinessProbeResult(
+                WayangA2uiHttpBindingReportProbeResult.empty(),
+                WayangA2uiHttpActionBindingProbeResult.compatibilityFallback(),
+                WayangA2uiHttpSmokeProbeResult.empty(),
+                false);
     }
 
     public static WayangA2uiHttpReadinessProbeResult from(WayangA2uiHttpResponse response) {
-        WayangA2uiHttpResponse resolved = Objects.requireNonNull(response, "response");
-        return fromMap(readinessBody(resolved.body()));
+        return HttpReadinessProbeResponseDecoder.from(response);
     }
 
     public static WayangA2uiHttpReadinessProbeResult fromMap(Map<?, ?> values) {
@@ -46,12 +79,16 @@ public record WayangA2uiHttpReadinessProbeResult(
         return bindingReportProbe.passed();
     }
 
+    public boolean actionBindingPassed() {
+        return actionBindingProbe.passed();
+    }
+
     public boolean smokePassed() {
         return !smokeRequired || smokeProbe.passed();
     }
 
     public boolean passed() {
-        return bindingReportPassed() && smokePassed();
+        return bindingReportPassed() && actionBindingPassed() && smokePassed();
     }
 
     public int exitCode() {
@@ -61,7 +98,7 @@ public record WayangA2uiHttpReadinessProbeResult(
     }
 
     public List<Map<String, Object>> issues() {
-        return WayangA2uiHttpReadinessProbeProjection.issues(this);
+        return HttpReadinessProbeProjection.issues(this);
     }
 
     public int issueCount() {
@@ -69,62 +106,15 @@ public record WayangA2uiHttpReadinessProbeResult(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpReadinessProbeProjection.readiness(this);
+        return HttpReadinessProbeProjection.readiness(this);
     }
 
     public WayangReadinessReport standardReadiness() {
-        return WayangA2uiHttpReadinessProbeProjection.standardReadiness(this);
+        return HttpReadinessProbeProjection.standardReadiness(this);
     }
 
     public String toJson() {
-        return WayangA2uiTransportJson.json(toMap(), "Unable to encode A2UI HTTP readiness probe result");
-    }
-
-    private static WayangA2uiHttpSmokeProbeResult emptySmokeProbe() {
-        return new WayangA2uiHttpSmokeProbeResult(
-                0,
-                false,
-                "",
-                "",
-                "",
-                new WayangA2uiHttpSmokeSummary(
-                        false,
-                        WayangA2uiHttpSmokeResult.EXIT_FAILURE,
-                        "",
-                        0,
-                        0,
-                        0,
-                        false,
-                        List.of(),
-                        Map.of(),
-                        Map.of()),
-                Map.of());
-    }
-
-    private static Map<String, Object> readinessBody(String body) {
-        if (body == null || body.isBlank()) {
-            return Map.of();
-        }
-        try {
-            WayangA2uiTransportResponse transport = WayangA2uiTransportResponse.fromJson(body);
-            return bodyMap(transport.body());
-        } catch (IllegalArgumentException ignored) {
-            return bodyMap(body);
-        }
-    }
-
-    private static Map<String, Object> bodyMap(String body) {
-        if (body == null || body.isBlank()) {
-            return Map.of();
-        }
-        try {
-            return WayangA2uiTransportJson.map(
-                    body,
-                    "A2UI HTTP readiness probe result JSON must not be blank",
-                    "Unable to decode A2UI HTTP readiness probe result JSON");
-        } catch (IllegalArgumentException ignored) {
-            return Map.of();
-        }
+        return TransportJson.json(toMap(), "Unable to encode A2UI HTTP readiness probe result");
     }
 
 }

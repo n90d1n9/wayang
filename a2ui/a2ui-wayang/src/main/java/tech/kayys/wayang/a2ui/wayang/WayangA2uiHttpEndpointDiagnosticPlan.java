@@ -1,8 +1,14 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpEndpointDiagnosticPlanProjection;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportJson;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+import tech.kayys.wayang.a2ui.wayang.support.RecordCollections;
+
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * JSON-friendly payload for one mounted A2UI endpoint diagnostics run.
@@ -20,24 +26,24 @@ public record WayangA2uiHttpEndpointDiagnosticPlan(
     public static final String KEY_ATTRIBUTES = "attributes";
 
     public WayangA2uiHttpEndpointDiagnosticPlan {
-        diagnosticsId = diagnosticsId == null || diagnosticsId.isBlank()
-                ? WayangA2uiHttpEndpointDiagnostics.DEFAULT_ID
-                : diagnosticsId.trim();
-        config = config == null ? WayangA2uiHttpEndpointDiagnosticConfig.defaults() : config;
-        requests = requests == null
-                ? List.of()
-                : requests.stream()
-                        .filter(Objects::nonNull)
-                        .toList();
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        diagnosticsId = RecordValues.textOrDefault(
+                diagnosticsId,
+                WayangA2uiHttpEndpointDiagnostics.DEFAULT_ID);
+        config = config == null ? WayangA2uiHttpEndpointDiagnosticConfig.defaultConfig() : config;
+        requests = RecordCollections.nonNullList(requests);
+        attributes = TransportMaps.copy(attributes);
+    }
+
+    public static WayangA2uiHttpEndpointDiagnosticPlan defaultPlan() {
+        return new WayangA2uiHttpEndpointDiagnosticPlan(
+                WayangA2uiHttpEndpointDiagnostics.DEFAULT_ID,
+                WayangA2uiHttpEndpointDiagnosticConfig.defaultConfig(),
+                List.of(),
+                Map.of());
     }
 
     public static WayangA2uiHttpEndpointDiagnosticPlan defaults() {
-        return new WayangA2uiHttpEndpointDiagnosticPlan(
-                WayangA2uiHttpEndpointDiagnostics.DEFAULT_ID,
-                WayangA2uiHttpEndpointDiagnosticConfig.defaults(),
-                List.of(),
-                Map.of());
+        return defaultPlan();
     }
 
     public static WayangA2uiHttpEndpointDiagnosticPlan fromMap(Map<?, ?> values) {
@@ -57,11 +63,11 @@ public record WayangA2uiHttpEndpointDiagnosticPlan(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpEndpointDiagnosticPlanProjection.plan(this);
+        return HttpEndpointDiagnosticPlanProjection.plan(this);
     }
 
     public String toJson() {
-        return WayangA2uiTransportJson.json(toMap(), "Unable to encode A2UI HTTP endpoint diagnostic plan");
+        return TransportJson.json(toMap(), "Unable to encode A2UI HTTP endpoint diagnostic plan");
     }
 
 }

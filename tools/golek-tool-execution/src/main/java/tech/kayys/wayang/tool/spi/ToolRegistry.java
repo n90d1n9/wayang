@@ -1,7 +1,7 @@
 package tech.kayys.wayang.tool.spi;
 
 import io.smallrye.mutiny.Uni;
-import tech.kayys.gollek.spi.tool.Tool;
+import tech.kayys.wayang.tools.spi.Tool;
 import java.util.List;
 
 /**

@@ -8,4 +8,9 @@ public record RagEvalQueryCase(
         String query,
         List<String> expectedIds,
         Map<String, Object> filters) {
+
+    public RagEvalQueryCase {
+        expectedIds = RagCollections.copyList(expectedIds);
+        filters = RagMetadata.copy(filters);
+    }
 }

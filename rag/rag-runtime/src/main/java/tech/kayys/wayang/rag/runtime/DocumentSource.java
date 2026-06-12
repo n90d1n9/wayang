@@ -7,4 +7,8 @@ record DocumentSource(
                 String path,
                 String content,
                 Map<String, String> metadata) {
+
+    DocumentSource {
+        metadata = RagRuntimeMetadata.copyStrings(metadata);
+    }
 }

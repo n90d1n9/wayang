@@ -240,8 +240,7 @@ public class SemanticMemoryExecutor extends AbstractMemoryExecutor {
 
                     // Group by category
                     Map<String, List<Map<String, Object>>> groupedByCategory = entries.stream()
-                            .collect(Collectors.groupingBy(e -> (String) ((Map<String, Object>) e.get("metadata"))
-                                    .getOrDefault("category", defaultCategory)));
+                            .collect(Collectors.groupingBy(this::resolveEntryCategory));
 
                     LOG.info("Retrieved semantic context: agentId={}, category={}, count={}",
                             agentId, category, entries.size());
@@ -332,6 +331,14 @@ public class SemanticMemoryExecutor extends AbstractMemoryExecutor {
             category = (String) context.get("knowledgeCategory");
         }
         return category != null && !category.isBlank() ? category : defaultCategory;
+    }
+
+    private String resolveEntryCategory(Map<String, Object> entry) {
+        Object category = entry.get("category");
+        if (category instanceof String value && !value.isBlank()) {
+            return value;
+        }
+        return defaultCategory;
     }
 
     /**

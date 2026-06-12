@@ -67,7 +67,7 @@ gollek:
 
       redis:
         url: redis://localhost:6379
-        key-prefix: gollek:agent:
+        key-prefix: "gollek:agent:"
         ttl-seconds: 3600
 
       pg-vector:

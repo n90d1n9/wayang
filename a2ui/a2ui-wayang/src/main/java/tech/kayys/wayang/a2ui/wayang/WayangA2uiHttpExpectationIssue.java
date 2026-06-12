@@ -1,5 +1,10 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpExpectationProjection;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+
 import java.util.Map;
 
 /**
@@ -14,14 +19,14 @@ public record WayangA2uiHttpExpectationIssue(
         Map<String, Object> attributes) {
 
     public WayangA2uiHttpExpectationIssue {
-        targetId = targetId == null || targetId.isBlank() ? "a2ui-http-target" : targetId.trim();
-        field = field == null || field.isBlank() ? "expectation" : field.trim();
-        expected = expected == null ? "" : expected.trim();
-        actual = actual == null ? "" : actual.trim();
-        message = message == null || message.isBlank()
-                ? "A2UI HTTP harness expectation did not match."
-                : message.trim();
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        targetId = RecordValues.textOrDefault(targetId, "a2ui-http-target");
+        field = RecordValues.textOrDefault(field, "expectation");
+        expected = RecordValues.text(expected);
+        actual = RecordValues.text(actual);
+        message = RecordValues.textOrDefault(
+                message,
+                "A2UI HTTP harness expectation did not match.");
+        attributes = TransportMaps.copy(attributes);
     }
 
     public static WayangA2uiHttpExpectationIssue of(
@@ -40,7 +45,7 @@ public record WayangA2uiHttpExpectationIssue(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpExpectationProjection.issue(this);
+        return HttpExpectationProjection.issue(this);
     }
 
     private static String string(Object value) {

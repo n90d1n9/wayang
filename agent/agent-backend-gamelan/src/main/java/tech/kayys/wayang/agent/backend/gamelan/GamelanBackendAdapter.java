@@ -3,67 +3,38 @@ package tech.kayys.wayang.agent.backend.gamelan;
 import io.smallrye.mutiny.Uni;
 import org.jboss.logging.Logger;
 import tech.kayys.gamelan.engine.execution.ExecutionHistory;
-import tech.kayys.gamelan.engine.run.CreateRunRequest;
 import tech.kayys.gamelan.engine.run.RunResponse;
 import tech.kayys.gamelan.sdk.client.GamelanClient;
 import tech.kayys.gamelan.sdk.client.GamelanClientConfig;
-import tech.kayys.wayang.agent.spi.*;
+import tech.kayys.wayang.agent.spi.WorkflowBackend;
+import tech.kayys.wayang.agent.spi.WorkflowTypes.CreateRunRequest;
+import tech.kayys.wayang.agent.spi.WorkflowTypes.ExecutionEvent;
+import tech.kayys.wayang.agent.spi.WorkflowTypes.RunHistory;
+import tech.kayys.wayang.agent.spi.WorkflowTypes.RunStatus;
+import tech.kayys.wayang.agent.spi.WorkflowTypes.Signal;
+import tech.kayys.wayang.agent.spi.WorkflowTypes.WorkflowCapabilities;
+import tech.kayys.wayang.agent.spi.WorkflowTypes.WorkflowRun;
+import tech.kayys.wayang.agent.spi.WorkflowTypes.WorkflowRunId;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Objects;
 
 /**
- * Backend adapter that wraps Gamelan SDK to implement the backend-agnostic
- * {@link WorkflowBackend} SPI.
- *
- * <p>
- * This adapter translates between wayang-gollek's backend-agnostic SPI types
- * and Gamelan SDK's native types, enabling any code that depends on
- * {@code WorkflowBackend} to work with Gamelan without direct coupling.
- * </p>
- *
- * <h3>Usage:</h3>
- * <pre>{@code
- * // Programmatic (no Quarkus)
- * GamelanClientConfig config = GamelanClientConfig.builder()
- *     .transport(TransportType.LOCAL)
- *     .build();
- * GamelanClient client = GamelanClient.create(config);
- * WorkflowBackend backend = new GamelanBackendAdapter(client);
- * backend.initialize(config);
- *
- * Uni<WorkflowRun> run = backend.createRun(createRequest);
- * }</pre>
- *
- * <h3>Features:</h3>
- * <ul>
- *   <li>Full workflow lifecycle (create, start, suspend, resume, cancel, signal)</li>
- *   <li>History and status queries</li>
- *   <li>Capability detection from Gamelan transport type</li>
- *   <li>Graceful lifecycle management</li>
- * </ul>
- *
- * @author Wayang Team
- * @version 1.0.0
- * @since 2026-04-06
+ * Adapts the current Gamelan workflow SDK to the backend-agnostic Wayang
+ * {@link WorkflowBackend} contract.
  */
 public class GamelanBackendAdapter implements WorkflowBackend {
 
     private static final Logger LOG = Logger.getLogger(GamelanBackendAdapter.class);
 
     private final GamelanClient gamelanClient;
-    private WorkflowCapabilities capabilities;
-    private volatile boolean initialized = false;
+    private volatile WorkflowCapabilities capabilities = defaultCapabilities("UNKNOWN");
+    private volatile boolean initialized;
 
-    /**
-     * Create adapter with pre-configured Gamelan Client instance.
-     *
-     * @param gamelanClient configured Gamelan Client instance
-     */
     public GamelanBackendAdapter(GamelanClient gamelanClient) {
-        this.gamelanClient = gamelanClient != null ? gamelanClient : GamelanClient.builder().build();
+        this.gamelanClient = Objects.requireNonNull(gamelanClient, "gamelanClient");
     }
 
     @Override
@@ -80,185 +51,140 @@ public class GamelanBackendAdapter implements WorkflowBackend {
     public Uni<WorkflowRun> createRun(CreateRunRequest request) {
         ensureInitialized();
 
-        LOG.debugf("Creating workflow run for workflow %s", request.workflowId());
-
-        CreateRunRequest gamelanRequest = mapToGamelanCreateRequest(request);
-
-        return gamelanClient.runs().createRun(gamelanRequest)
-            .map(this::mapFromGamelanRun)
-            .onFailure().transform(err -> {
-                LOG.errorf(err, "Failed to create workflow run for workflow %s", request.workflowId());
-                return new RuntimeException("Failed to create workflow run: " + err.getMessage(), err);
-            });
+        return gamelanClient.runs()
+                .create(request.workflowId())
+                .inputs(request.metadata())
+                .correlationId(request.runId())
+                .label("tenantId", request.tenantId())
+                .execute()
+                .map(response -> toWorkflowRun(response, request))
+                .onFailure().transform(error -> {
+                    LOG.errorf(error, "Failed to create Gamelan workflow run for workflow %s", request.workflowId());
+                    return new RuntimeException("Failed to create workflow run: " + error.getMessage(), error);
+                });
     }
 
     @Override
-    public Uni<RunResponse> startRun(WorkflowRunId runId, Map<String, Object> inputs) {
+    public Uni<tech.kayys.wayang.agent.spi.WorkflowTypes.RunResponse> startRun(
+            WorkflowRunId runId,
+            Map<String, Object> inputs) {
         ensureInitialized();
 
-        LOG.debugf("Starting workflow run %s", runId);
-
-        return gamelanClient.runs().startRun(runId.id())
-            .map(this::mapFromGamelanRunResponse)
-            .onFailure().transform(err -> {
-                LOG.errorf(err, "Failed to start workflow run %s", runId);
-                return new RuntimeException("Failed to start workflow run: " + err.getMessage(), err);
-            });
+        return gamelanClient.runs()
+                .start(runId.id())
+                .map(this::toRunResponse)
+                .onFailure().transform(error -> wrap("start", runId, error));
     }
 
     @Override
-    public Uni<RunResponse> suspendRun(WorkflowRunId runId) {
+    public Uni<tech.kayys.wayang.agent.spi.WorkflowTypes.RunResponse> suspendRun(WorkflowRunId runId) {
         ensureInitialized();
 
-        LOG.debugf("Suspending workflow run %s", runId);
-
-        return gamelanClient.runs().suspendRun(runId.id(), "Suspended by agent", null)
-            .map(this::mapFromGamelanRunResponse)
-            .onFailure().transform(err -> {
-                LOG.errorf(err, "Failed to suspend workflow run %s", runId);
-                return new RuntimeException("Failed to suspend workflow run: " + err.getMessage(), err);
-            });
+        return gamelanClient.runs()
+                .suspend(runId.id())
+                .reason("Suspended by Wayang agent")
+                .execute()
+                .map(this::toRunResponse)
+                .onFailure().transform(error -> wrap("suspend", runId, error));
     }
 
     @Override
-    public Uni<RunResponse> resumeRun(WorkflowRunId runId, Map<String, Object> inputs) {
+    public Uni<tech.kayys.wayang.agent.spi.WorkflowTypes.RunResponse> resumeRun(
+            WorkflowRunId runId,
+            Map<String, Object> inputs) {
         ensureInitialized();
 
-        LOG.debugf("Resuming workflow run %s", runId);
-
-        return gamelanClient.runs().resumeRun(runId.id(), inputs, null)
-            .map(this::mapFromGamelanRunResponse)
-            .onFailure().transform(err -> {
-                LOG.errorf(err, "Failed to resume workflow run %s", runId);
-                return new RuntimeException("Failed to resume workflow run: " + err.getMessage(), err);
-            });
+        return gamelanClient.runs()
+                .resume(runId.id())
+                .data(inputs == null ? Map.of() : inputs)
+                .execute()
+                .map(this::toRunResponse)
+                .onFailure().transform(error -> wrap("resume", runId, error));
     }
 
     @Override
-    public Uni<RunResponse> cancelRun(WorkflowRunId runId, String reason) {
+    public Uni<tech.kayys.wayang.agent.spi.WorkflowTypes.RunResponse> cancelRun(
+            WorkflowRunId runId,
+            String reason) {
         ensureInitialized();
 
-        LOG.debugf("Cancelling workflow run %s: %s", runId, reason);
-
-        return gamelanClient.runs().cancelRun(runId.id(), reason)
-            .map(v -> new RunResponse(
-                runId,
-                null,
-                new RunStatus(runId, "cancelled", 0, 0, 0, Instant.now(), null),
-                Map.of(),
-                reason,
-                0,
-                Instant.now()
-            ))
-            .onFailure().transform(err -> {
-                LOG.errorf(err, "Failed to cancel workflow run %s", runId);
-                return new RuntimeException("Failed to cancel workflow run: " + err.getMessage(), err);
-            });
+        return gamelanClient.runs()
+                .cancel(runId.id(), reason)
+                .replaceWith(() -> new tech.kayys.wayang.agent.spi.WorkflowTypes.RunResponse(
+                        runId,
+                        null,
+                        new RunStatus(runId, "cancelled", 0, 0, 0, Instant.now(), Instant.now()),
+                        Map.of(),
+                        reason,
+                        0,
+                        Instant.now()))
+                .onFailure().transform(error -> wrap("cancel", runId, error));
     }
 
     @Override
-    public Uni<RunResponse> signalRun(WorkflowRunId runId, Signal signal) {
+    public Uni<tech.kayys.wayang.agent.spi.WorkflowTypes.RunResponse> signalRun(
+            WorkflowRunId runId,
+            Signal signal) {
         ensureInitialized();
 
-        LOG.debugf("Sending signal %s to workflow run %s", signal.name(), runId);
-
-        return gamelanClient.runs().signal(runId.id(), signal.name(), null, signal.payload())
-            .map(v -> new RunResponse(
-                runId,
-                null,
-                null,
-                Map.of(),
-                null,
-                0,
-                Instant.now()
-            ))
-            .onFailure().transform(err -> {
-                LOG.errorf(err, "Failed to send signal to workflow run %s", runId);
-                return new RuntimeException("Failed to send signal: " + err.getMessage(), err);
-            });
+        return gamelanClient.runs()
+                .signal(runId.id())
+                .name(signal.name())
+                .payload(signal.payload() == null ? Map.of() : signal.payload())
+                .execute()
+                .replaceWith(() -> new tech.kayys.wayang.agent.spi.WorkflowTypes.RunResponse(
+                        runId,
+                        null,
+                        null,
+                        Map.of(),
+                        null,
+                        0,
+                        Instant.now()))
+                .onFailure().transform(error -> wrap("signal", runId, error));
     }
 
     @Override
     public Uni<RunHistory> getRunHistory(WorkflowRunId runId) {
         ensureInitialized();
 
-        LOG.debugf("Getting run history for %s", runId);
-
-        return gamelanClient.runs().getExecutionHistory(runId.id())
-            .map(this::mapFromGamelanHistory)
-            .onFailure().transform(err -> {
-                LOG.errorf(err, "Failed to get run history for %s", runId);
-                return new RuntimeException("Failed to get run history: " + err.getMessage(), err);
-            });
+        return gamelanClient.runs()
+                .getHistory(runId.id())
+                .map(this::toRunHistory)
+                .onFailure().transform(error -> wrap("history", runId, error));
     }
 
     @Override
     public Uni<RunStatus> getRunStatus(WorkflowRunId runId) {
         ensureInitialized();
 
-        LOG.debugf("Getting run status for %s", runId);
-
-        return gamelanClient.runs().getRun(runId.id())
-            .map(response -> new RunStatus(
-                runId,
-                response.status(),
-                0,  // currentStep - not available in simple response
-                0,  // totalSteps - not available in simple response
-                0,  // durationMs - not available in simple response
-                response.createdAt() != null ? response.createdAt() : Instant.now(),
-                response.completedAt()
-            ))
-            .onFailure().transform(err -> {
-                LOG.errorf(err, "Failed to get run status for %s", runId);
-                return new RuntimeException("Failed to get run status: " + err.getMessage(), err);
-            });
+        return gamelanClient.runs()
+                .get(runId.id())
+                .map(this::toRunStatus)
+                .onFailure().transform(error -> wrap("status", runId, error));
     }
 
     @Override
     public boolean isHealthy() {
-        if (!initialized) {
-            return false;
-        }
-
-        try {
-            // GamelanClient doesn't have explicit health check, so we assume healthy if initialized
-            return true;
-        } catch (Exception e) {
-            LOG.debugf("Gamelan health check failed: %s", e.getMessage());
-            return false;
-        }
+        return initialized;
     }
 
     @Override
     public WorkflowCapabilities capabilities() {
-        if (capabilities == null) {
-            detectCapabilities();
-        }
+        ensureInitialized();
         return capabilities;
     }
 
     @Override
     public void initialize(Map<String, Object> config) {
         if (initialized) {
-            LOG.debug("GamelanBackendAdapter already initialized");
             return;
         }
-
-        LOG.info("Initializing GamelanBackendAdapter");
-
-        try {
-            if (gamelanClient == null) {
-                throw new IllegalStateException("GamelanClient instance is null");
-            }
-
-            detectCapabilities();
-            initialized = true;
-
-            LOG.info("GamelanBackendAdapter initialized successfully");
-        } catch (Exception e) {
-            LOG.errorf(e, "Failed to initialize GamelanBackendAdapter");
-            throw new RuntimeException("Failed to initialize GamelanBackendAdapter", e);
-        }
+        GamelanClientConfig clientConfig = gamelanClient.config();
+        String transport = clientConfig != null && clientConfig.transport() != null
+                ? clientConfig.transport().name()
+                : "UNKNOWN";
+        capabilities = defaultCapabilities(transport);
+        initialized = true;
     }
 
     @Override
@@ -266,144 +192,128 @@ public class GamelanBackendAdapter implements WorkflowBackend {
         if (!initialized) {
             return;
         }
-
-        LOG.info("Shutting down GamelanBackendAdapter");
-
         try {
             gamelanClient.close();
+        } finally {
             initialized = false;
-            LOG.info("GamelanBackendAdapter shut down successfully");
-        } catch (Exception e) {
-            LOG.errorf(e, "Error shutting down GamelanBackendAdapter");
         }
     }
 
-    // ── Type Mapping ─────────────────────────────────────────────────────
-
-    /**
-     * Map backend-agnostic CreateRunRequest to Gamelan CreateRunRequest.
-     */
-    private CreateRunRequest mapToGamelanCreateRequest(CreateRunRequest request) {
-        // Build Gamelan CreateRunRequest
-        // Note: Actual fields depend on Gamelan's CreateRunRequest structure
-        return CreateRunRequest.builder()
-            .workflowId(request.workflowId())
-            .runId(request.runId())
-            .tenantId(request.tenantId())
-            .metadata(request.metadata())
-            .build();
-    }
-
-    /**
-     * Map Gamelan RunResponse to backend-agnostic WorkflowRun.
-     */
-    private WorkflowRun mapFromGamelanRun(RunResponse response) {
+    private WorkflowRun toWorkflowRun(RunResponse response, CreateRunRequest request) {
+        WorkflowRunId runId = workflowRunId(response);
         return new WorkflowRun(
-            new WorkflowRunId(response.runId()),
-            response.workflowId(),
-            response.tenantId(),
-            response.createdAt() != null ? response.createdAt() : Instant.now(),
-            new RunStatus(
-                new WorkflowRunId(response.runId()),
-                response.status(),
-                0, 0, 0,
-                response.createdAt() != null ? response.createdAt() : Instant.now(),
-                response.completedAt()
-            ),
-            response.metadata() != null ? response.metadata() : Map.of()
-        );
+                runId,
+                firstNonBlank(response.getWorkflowId(), request.workflowId()),
+                request.tenantId(),
+                instantOrNow(response.getCreatedAt()),
+                toRunStatus(response),
+                request.metadata());
     }
 
-    /**
-     * Map Gamelan RunResponse to backend-agnostic RunResponse.
-     */
-    private RunResponse mapFromGamelanRunResponse(RunResponse response) {
-        return new RunResponse(
-            new WorkflowRunId(response.runId()),
-            response.workflowId(),
-            new RunStatus(
-                new WorkflowRunId(response.runId()),
-                response.status(),
-                0, 0, 0,
-                response.createdAt() != null ? response.createdAt() : Instant.now(),
-                response.completedAt()
-            ),
-            response.outputs() != null ? response.outputs() : Map.of(),
-            response.error(),
-            0,  // durationMs - not available in response
-            response.updatedAt() != null ? response.updatedAt() : Instant.now()
-        );
+    private tech.kayys.wayang.agent.spi.WorkflowTypes.RunResponse toRunResponse(RunResponse response) {
+        return new tech.kayys.wayang.agent.spi.WorkflowTypes.RunResponse(
+                workflowRunId(response),
+                response.getWorkflowId(),
+                toRunStatus(response),
+                response.getOutputs() == null ? Map.of() : response.getOutputs(),
+                response.getErrorMessage(),
+                response.getDurationMs() == null ? 0 : response.getDurationMs(),
+                instantOrNow(response.getCompletedAt()));
     }
 
-    /**
-     * Map Gamelan ExecutionHistory to backend-agnostic RunHistory.
-     */
-    private RunHistory mapFromGamelanHistory(ExecutionHistory history) {
-        List<ExecutionEvent> events = history.events() != null ?
-            history.events().stream()
-                .map(event -> new ExecutionEvent(
-                    event.timestamp() != null ? event.timestamp() : Instant.now(),
-                    event.eventType(),
-                    event.nodeId(),
-                    event.nodeName(),
-                    event.data() != null ? event.data() : Map.of(),
-                    event.error()
-                ))
-                .collect(Collectors.toList()) :
-            List.of();
+    private RunStatus toRunStatus(RunResponse response) {
+        WorkflowRunId runId = workflowRunId(response);
+        return new RunStatus(
+                runId,
+                firstNonBlank(response.getStatus(), response.getPhase(), "unknown"),
+                response.getNodesExecuted() == null ? 0 : response.getNodesExecuted(),
+                response.getNodesTotal() == null ? 0 : response.getNodesTotal(),
+                response.getDurationMs() == null ? 0 : response.getDurationMs(),
+                instantOrNow(response.getStartedAt()),
+                response.getCompletedAt());
+    }
+
+    private RunHistory toRunHistory(ExecutionHistory history) {
+        WorkflowRunId runId = new WorkflowRunId(history.getRunId() == null
+                ? ""
+                : history.getRunId().value());
+
+        List<ExecutionEvent> events = history.getEvents() == null
+                ? List.of()
+                : history.getEvents().stream()
+                        .map(event -> new ExecutionEvent(
+                                instantOrNow(event.getTimestamp()),
+                                event.getEventType() == null ? "unknown" : event.getEventType().name(),
+                                event.getSource(),
+                                event.getSource(),
+                                event.getPayload() == null ? Map.of() : event.getPayload(),
+                                event.getError() == null ? null : event.getError().toString()))
+                        .toList();
+
+        var currentState = history.getCurrentState();
+        long durationMs = history.getTotalDuration() == null ? 0 : history.getTotalDuration().toMillis();
+
+        RunStatus finalStatus = new RunStatus(
+                runId,
+                currentState == null ? "unknown" : currentState.map(Enum::name).orElse("unknown"),
+                0,
+                history.getStatistics() == null ? 0 : history.getStatistics().getTotalNodeExecutions(),
+                durationMs,
+                instantOrNow(history.getCreated()),
+                currentState != null && currentState.filter(state -> state.isTerminal()).isPresent()
+                        ? history.getLastUpdated()
+                        : null);
 
         return new RunHistory(
-            new WorkflowRunId(history.runId()),
-            history.workflowId(),
-            events,
-            history.inputs() != null ? history.inputs() : Map.of(),
-            history.outputs() != null ? history.outputs() : Map.of(),
-            new RunStatus(
-                new WorkflowRunId(history.runId()),
-                history.status(),
-                0, 0, 0,
-                history.startedAt() != null ? history.startedAt() : Instant.now(),
-                history.completedAt()
-            )
-        );
+                runId,
+                history.getWorkflowId() == null ? null : history.getWorkflowId().toString(),
+                events,
+                latestSnapshot(history.getInputSnapshots()),
+                latestSnapshot(history.getOutputSnapshots()),
+                finalStatus);
     }
 
-    // ── Capability Detection ─────────────────────────────────────────────
-
-    /**
-     * Detect capabilities from Gamelan client configuration.
-     */
-    private void detectCapabilities() {
-        try {
-            GamelanClientConfig config = gamelanClient.config();
-            String transport = config != null && config.transport() != null ?
-                config.transport().name() : "LOCAL";
-
-            boolean supportsSuspension = true;  // All transports support this
-            boolean supportsSignals = true;     // All transports support this
-            boolean supportsHistory = true;     // All transports support this
-            boolean supportsVersioning = true;  // Gamelan supports workflow versioning
-
-            this.capabilities = new WorkflowCapabilities(
-                supportsSuspension,
-                supportsSignals,
-                supportsHistory,
-                supportsVersioning,
-                1000,  // Reasonable default for max concurrent runs
-                List.of(transport)
-            );
-
-            LOG.debugf("Detected Gamelan capabilities: transport=%s, suspension=%s, signals=%s",
-                transport, supportsSuspension, supportsSignals);
-        } catch (Exception e) {
-            LOG.warnf("Failed to detect Gamelan capabilities, using defaults: %s", e.getMessage());
-            this.capabilities = new WorkflowCapabilities(
-                true, true, true, true, 1000, List.of("UNKNOWN")
-            );
+    private Map<String, Object> latestSnapshot(Map<Instant, Map<String, Object>> snapshots) {
+        if (snapshots == null || snapshots.isEmpty()) {
+            return Map.of();
         }
+        return snapshots.entrySet().stream()
+                .max(Map.Entry.comparingByKey())
+                .map(Map.Entry::getValue)
+                .orElse(Map.of());
     }
 
-    // ── Internal ─────────────────────────────────────────────────────────
+    private WorkflowRunId workflowRunId(RunResponse response) {
+        return new WorkflowRunId(response.getRunId() == null ? "" : response.getRunId());
+    }
+
+    private WorkflowCapabilities defaultCapabilities(String transport) {
+        return new WorkflowCapabilities(
+                true,
+                true,
+                true,
+                true,
+                1000,
+                List.of(transport));
+    }
+
+    private RuntimeException wrap(String operation, WorkflowRunId runId, Throwable error) {
+        LOG.errorf(error, "Failed to %s Gamelan workflow run %s", operation, runId);
+        return new RuntimeException("Failed to " + operation + " workflow run: " + error.getMessage(), error);
+    }
+
+    private Instant instantOrNow(Instant instant) {
+        return instant == null ? Instant.now() : instant;
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
+    }
 
     private void ensureInitialized() {
         if (!initialized) {

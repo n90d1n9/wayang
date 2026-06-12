@@ -1,13 +1,11 @@
 package tech.kayys.wayang.agent.core.tools;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import jakarta.enterprise.context.ApplicationScoped;
-import tech.kayys.gollek.tools.*;
-import tech.kayys.gollek.tools.spi.Tool;
-import tech.kayys.gollek.tools.spi.ToolContext;
-import tech.kayys.gollek.tools.spi.ToolResult;
+import tech.kayys.wayang.tools.spi.Tool;
+import tech.kayys.wayang.tools.spi.ToolContext;
+import tech.kayys.wayang.tools.spi.ToolResult;
 
 import java.util.Map;
 
@@ -15,7 +13,7 @@ import java.util.Map;
  * Think tool — allows the agent to reason internally before taking action.
  */
 @ApplicationScoped
-public class ThinkTool implements CodeTool {
+public class ThinkTool implements Tool {
 
     private static final Logger log = LoggerFactory.getLogger(ThinkTool.class);
 
@@ -37,14 +35,17 @@ public class ThinkTool implements CodeTool {
 
     @Override
     public Map<String, Object> inputSchema() {
-        return ToolRegistry.schema("thought", "Your internal reasoning or plan");
+        return Map.of(
+                "type", "object",
+                "properties", Map.of(
+                        "thought", Map.of("type", "string", "description", "Your internal reasoning or plan")),
+                "required", java.util.List.of("thought"));
     }
 
     @Override
-    public ToolResult execute(Map<String, Object> params, CodeToolContext context) {
+    public ToolResult execute(Map<String, Object> params, ToolContext context) {
         String thought = String.valueOf(params.getOrDefault("thought", ""));
         log.debug("[think] {}", thought);
-        System.out.println("\n  💭 " + thought.replace("\n", "\n     ") + "\n");
         return ToolResult.success("Thought recorded.");
     }
 }

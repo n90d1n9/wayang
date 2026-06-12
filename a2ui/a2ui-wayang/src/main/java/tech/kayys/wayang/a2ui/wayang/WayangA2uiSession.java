@@ -1,5 +1,9 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.action.ActionContextReader;
+import tech.kayys.wayang.a2ui.wayang.session.SessionConfigSource;
+import tech.kayys.wayang.a2ui.wayang.support.RecordCollections;
+
 import tech.kayys.wayang.a2ui.core.A2uiClientMessage;
 import tech.kayys.wayang.a2ui.core.A2uiJsonlCodec;
 import tech.kayys.wayang.a2ui.core.A2uiUserAction;
@@ -20,7 +24,7 @@ public final class WayangA2uiSession {
     private final WayangA2uiSessionState state;
 
     public WayangA2uiSession(WayangGollekSdk sdk) {
-        this(sdk, WayangA2uiSessionConfig.inspectOnly());
+        this(sdk, WayangA2uiSessionConfig.defaultConfig());
     }
 
     public WayangA2uiSession(WayangGollekSdk sdk, WayangA2uiActionPolicy policy) {
@@ -40,6 +44,10 @@ public final class WayangA2uiSession {
         this(sdk, config, null);
     }
 
+    public WayangA2uiSession(WayangGollekSdk sdk, SessionConfigSource configSource) {
+        this(sdk, WayangA2uiSessionConfig.fromSource(configSource));
+    }
+
     public WayangA2uiSession(
             WayangGollekSdk sdk,
             WayangA2uiSessionConfig config,
@@ -53,12 +61,19 @@ public final class WayangA2uiSession {
                 new WayangA2uiSessionState());
     }
 
+    public WayangA2uiSession(
+            WayangGollekSdk sdk,
+            SessionConfigSource configSource,
+            WayangA2uiSurfaceRegistry surfaceRegistry) {
+        this(sdk, WayangA2uiSessionConfig.fromSource(configSource), surfaceRegistry);
+    }
+
     public WayangA2uiSession(WayangA2uiActionRouter router) {
         this(router, new A2uiJsonlCodec());
     }
 
     public WayangA2uiSession(WayangA2uiActionRouter router, A2uiJsonlCodec codec) {
-        this(router, codec, WayangA2uiSessionConfig.inspectOnly(), new WayangA2uiSessionState());
+        this(router, codec, WayangA2uiSessionConfig.defaultConfig(), new WayangA2uiSessionState());
     }
 
     private WayangA2uiSession(
@@ -68,7 +83,7 @@ public final class WayangA2uiSession {
             WayangA2uiSessionState state) {
         this.router = Objects.requireNonNull(router, "router");
         this.codec = codec == null ? new A2uiJsonlCodec() : codec;
-        this.config = config == null ? WayangA2uiSessionConfig.inspectOnly() : config;
+        this.config = configOrDefault(config);
         this.state = state == null ? new WayangA2uiSessionState() : state;
     }
 
@@ -93,8 +108,7 @@ public final class WayangA2uiSession {
     }
 
     public WayangA2uiSessionResult handle(List<? extends A2uiClientMessage> messages) {
-        List<WayangA2uiActionResult> results = (messages == null ? List.<A2uiClientMessage>of() : messages).stream()
-                .filter(Objects::nonNull)
+        List<WayangA2uiActionResult> results = RecordCollections.nonNullList(messages).stream()
                 .map(state::apply)
                 .map(this::route)
                 .toList();
@@ -114,21 +128,24 @@ public final class WayangA2uiSession {
         return surfaceRegistry().surfaceCatalog();
     }
 
+    public WayangA2uiActionBindingReport actionBindingReport() {
+        return router.actionBindingReport();
+    }
+
     private WayangA2uiActionResult route(A2uiClientMessage message) {
         if (config.enabled()) {
             return router.route(message);
         }
         if (message instanceof A2uiUserAction action) {
-            Object runId = action.context().get("runId");
             return WayangA2uiActionResult.rejected(
                     action.name(),
-                    runId == null ? "" : String.valueOf(runId),
+                    ActionContextReader.text(action, "runId"),
                     "A2UI session is disabled.");
         }
         return WayangA2uiActionResult.rejected("", "", "A2UI session is disabled.");
     }
 
     private static WayangA2uiSessionConfig configOrDefault(WayangA2uiSessionConfig config) {
-        return config == null ? WayangA2uiSessionConfig.inspectOnly() : config;
+        return config == null ? WayangA2uiSessionConfig.defaultConfig() : config;
     }
 }

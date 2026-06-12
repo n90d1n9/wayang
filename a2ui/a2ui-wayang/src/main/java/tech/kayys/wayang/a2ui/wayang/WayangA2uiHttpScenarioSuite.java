@@ -1,9 +1,12 @@
 package tech.kayys.wayang.a2ui.wayang;
 
-import java.util.Arrays;
+import tech.kayys.wayang.a2ui.wayang.transport.TransportMaps;
+
+import tech.kayys.wayang.a2ui.wayang.support.RecordValues;
+import tech.kayys.wayang.a2ui.wayang.support.RecordCollections;
+
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Named collection of HTTP scenarios for grouped smoke and diagnostic runs.
@@ -14,17 +17,13 @@ public record WayangA2uiHttpScenarioSuite(
         Map<String, Object> attributes) {
 
     public WayangA2uiHttpScenarioSuite {
-        id = id == null || id.isBlank() ? "a2ui-http-suite" : id.trim();
-        scenarios = scenarios == null
-                ? List.of()
-                : scenarios.stream()
-                        .filter(Objects::nonNull)
-                        .toList();
-        attributes = WayangA2uiTransportMaps.copy(attributes);
+        id = RecordValues.textOrDefault(id, "a2ui-http-suite");
+        scenarios = RecordCollections.nonNullList(scenarios);
+        attributes = TransportMaps.copy(attributes);
     }
 
     public static WayangA2uiHttpScenarioSuite of(String id, WayangA2uiHttpScenario... scenarios) {
-        return of(id, scenarios == null ? List.of() : Arrays.asList(scenarios));
+        return of(id, RecordCollections.nonNullVarargs(scenarios));
     }
 
     public static WayangA2uiHttpScenarioSuite of(String id, List<WayangA2uiHttpScenario> scenarios) {
@@ -38,7 +37,7 @@ public record WayangA2uiHttpScenarioSuite(
         return new WayangA2uiHttpScenarioSuite(
                 id,
                 scenarios,
-                WayangA2uiTransportMetadata.merge(attributes, WayangA2uiTransportMaps.copy(extraAttributes)));
+                WayangA2uiTransportMetadata.merge(attributes, TransportMaps.copy(extraAttributes)));
     }
 
     public boolean empty() {

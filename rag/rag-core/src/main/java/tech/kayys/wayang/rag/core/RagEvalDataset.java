@@ -11,4 +11,9 @@ public record RagEvalDataset(
         String matchField,
         Map<String, Object> defaultFilters,
         List<RagEvalQueryCase> queries) {
+
+    public RagEvalDataset {
+        defaultFilters = RagMetadata.copy(defaultFilters);
+        queries = RagCollections.copyList(queries);
+    }
 }

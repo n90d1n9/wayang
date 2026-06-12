@@ -3,61 +3,18 @@ package tech.kayys.wayang.agent.skills.builtin;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import org.jboss.logging.Logger;
-import tech.kayys.wayang.agent.spi.*;
-import tech.kayys.wayang.agent.spi.EmbeddingRequest;
-import tech.kayys.wayang.agent.spi.InferenceEngine;
+import tech.kayys.wayang.agent.spi.AgentSkill;
+import tech.kayys.wayang.agent.spi.skills.SkillCategory;
+import tech.kayys.wayang.agent.spi.skills.SkillDescriptor;
+import tech.kayys.wayang.embedding.EmbeddingRequest;
+import tech.kayys.wayang.embedding.EmbeddingService;
 
-import java.time.Duration;
-import java.time.Instant;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
-/**
- * Generates dense vector embeddings for one or more text inputs using the
- * Gollek inference engine's embedding endpoint.
- *
- * <p>
- * Embeddings can be used downstream by other skills (e.g. {@code rag},
- * {@code memory_store}) to perform semantic similarity search.
- * </p>
- *
- * <h2>Inputs</h2>
- * <table border="1">
- * <tr>
- * <th>Key</th>
- * <th>Required</th>
- * <th>Description</th>
- * </tr>
- * <tr>
- * <td>text</td>
- * <td>yes*</td>
- * <td>Single text string to embed</td>
- * </tr>
- * <tr>
- * <td>texts</td>
- * <td>yes*</td>
- * <td>List of strings to batch-embed</td>
- * </tr>
- * <tr>
- * <td>model</td>
- * <td>no</td>
- * <td>Embedding model id (default: provider default)</td>
- * </tr>
- * </table>
- * <p>
- * *One of {@code text} or {@code texts} must be provided.
- * </p>
- *
- * <h2>Outputs</h2>
- * <ul>
- * <li>{@code embeddings} – list of {@code float[]} vectors (one per input)</li>
- * <li>{@code dimension} – vector dimensionality</li>
- * <li>{@code model} – model used</li>
- * </ul>
- */
 @ApplicationScoped
-@SkillDescriptor(id = "embedding", name = "Embedding", description = "Generates vector embeddings for text using the Gollek embedding endpoint.", version = "1.0.0", category = SkillCategory.GENERATION, inputs = {
+@SkillDescriptor(id = "embedding", name = "Embedding", description = "Generates vector embeddings for text using the active Wayang embedding service.", version = "1.0.0", category = SkillCategory.GENERATION, inputs = {
         @SkillDescriptor.Input(name = "text", required = false, description = "Single text string to embed"),
         @SkillDescriptor.Input(name = "texts", type = "array", required = false, description = "List of strings to batch-embed"),
         @SkillDescriptor.Input(name = "model", required = false, description = "Embedding model ID")
@@ -68,10 +25,8 @@ import java.util.stream.Collectors;
 }, triggers = { "embed", "embedding", "vector", "encode" }, priority = 55)
 public class EmbeddingSkill implements AgentSkill {
 
-    private static final Logger LOG = Logger.getLogger(EmbeddingSkill.class);
-
     @Inject
-    InferenceEngine inferenceEngine;
+    EmbeddingService embeddingService;
 
     @Override
     public String id() {
@@ -85,75 +40,60 @@ public class EmbeddingSkill implements AgentSkill {
 
     @Override
     public String description() {
-        return "Generates vector embeddings using the Gollek engine.";
+        return "Generates vector embeddings using the active Wayang embedding service.";
     }
 
     @Override
-    public String version() {
-        return "1.0.0";
-    }
-
-    @Override
-    public SkillCategory category() {
-        return SkillCategory.GENERATION;
+    public String category() {
+        return SkillCategory.GENERATION.name();
     }
 
     @Override
     public boolean canHandle(Map<String, Object> inputs) {
-        return inputs.containsKey("text") || inputs.containsKey("texts");
+        return inputs != null && (inputs.containsKey("text") || inputs.containsKey("texts"));
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public Uni<SkillResult> execute(SkillContext ctx) {
-        Instant start = Instant.now();
-
-        List<String> inputs;
-        String text = ctx.getStringInput("text", null);
-        if (text != null) {
-            inputs = List.of(text);
-        } else {
-            Object raw = ctx.inputs().get("texts");
-            if (raw instanceof List) {
-                inputs = (List<String>) raw;
-            } else {
-                return Uni.createFrom().item(SkillResult.builder()
-                        .skillId(id())
-                        .invocationId(ctx.invocationId())
-                        .status(SkillResult.Status.FAILURE)
-                        .observation("Input 'text' or 'texts' is required")
-                        .build());
-            }
+    public Uni<Map<String, Object>> execute(Map<String, Object> context) {
+        Map<String, Object> inputs = context == null ? Map.of() : context;
+        if (embeddingService == null) {
+            return Uni.createFrom().item(BuiltinSkillSupport.failure("Embedding service is not configured"));
         }
 
-        String model = ctx.getStringInput("model", "default");
+        List<String> texts = texts(inputs);
+        if (texts.isEmpty()) {
+            return Uni.createFrom().item(BuiltinSkillSupport.failure("Input 'text' or 'texts' is required"));
+        }
 
-        EmbeddingRequest embReq = EmbeddingRequest.builder()
-                .requestId(ctx.invocationId())
-                .model(model)
-                .inputs(inputs)
-                .build();
+        String model = BuiltinSkillSupport.stringInput(inputs, "model");
+        return embeddingService.embed(new EmbeddingRequest(texts, model, null, true))
+                .map(response -> {
+                    Map<String, Object> outputs = new LinkedHashMap<>();
+                    outputs.put("dimension", response.dimension());
+                    outputs.put("count", response.embeddings().size());
+                    outputs.put("model", response.model());
+                    outputs.put("provider", response.provider());
+                    outputs.put("embeddings", response.embeddings().stream()
+                            .map(BuiltinSkillSupport::boxedVector)
+                            .toList());
+                    return BuiltinSkillSupport.success(
+                            "Generated " + response.embeddings().size()
+                                    + " embedding(s) of dimension " + response.dimension(),
+                            outputs);
+                })
+                .onFailure().recoverWithItem(BuiltinSkillSupport::error);
+    }
 
-        return inferenceEngine.executeEmbedding(model, embReq).map(resp -> {
-            long durationMs = Duration.between(start, Instant.now()).toMillis();
-            String observation = "Generated " + resp.embeddings().size() + " embedding(s) of dimension "
-                    + resp.dimension();
-            return SkillResult.builder()
-                    .skillId(id())
-                    .invocationId(ctx.invocationId())
-                    .status(SkillResult.Status.SUCCESS)
-                    .observation(observation)
-                    .output("dimension", resp.dimension())
-                    .output("model", model)
-                    .output("count", resp.embeddings().size())
-                    .durationMs(durationMs)
-                    .build();
-        }).onFailure().recoverWithItem(err -> SkillResult.builder()
-                .skillId(id())
-                .invocationId(ctx.invocationId())
-                .status(SkillResult.Status.ERROR)
-                .observation(err.getMessage())
-                .error(err)
-                .build());
+    @SuppressWarnings("unchecked")
+    private List<String> texts(Map<String, Object> inputs) {
+        String text = BuiltinSkillSupport.stringInput(inputs, "text");
+        if (text != null) {
+            return List.of(text);
+        }
+        Object raw = inputs.get("texts");
+        if (raw instanceof List<?> values) {
+            return values.stream().map(Object::toString).toList();
+        }
+        return List.of();
     }
 }

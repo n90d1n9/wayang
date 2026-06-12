@@ -1,5 +1,7 @@
 package tech.kayys.wayang.a2ui.wayang;
 
+import tech.kayys.wayang.a2ui.wayang.http.HttpRouteProjection;
+
 import java.util.List;
 import java.util.Map;
 
@@ -135,7 +137,7 @@ public record WayangA2uiHttpRoute(
     }
 
     public Map<String, Object> toMap() {
-        return WayangA2uiHttpRouteProjection.route(this);
+        return HttpRouteProjection.route(this);
     }
 
     private static String normalizeOperation(String value) {

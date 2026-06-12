@@ -1,0 +1,262 @@
+{
+  "passed": true,
+  "exitCode": 0,
+  "bindingReportPassed": true,
+  "actionBindingPassed": true,
+  "smokeRequired": true,
+  "smokePassed": true,
+  "issueCount": 0,
+  "issues": [],
+  "bindingReportProbe": {
+    "statusCode": 200,
+    "httpSuccessful": true,
+    "routeOperation": "a2ui.bindingReport",
+    "allow": "GET, OPTIONS",
+    "outcome": "SUCCESS",
+    "contentType": "application/json",
+    "mimeType": "application/json",
+    "bodyEncoding": "json",
+    "bindingReportRoute": true,
+    "bindingReportResult": true,
+    "jsonContent": true,
+    "complete": true,
+    "passed": true,
+    "routeOperationCount": 6,
+    "handlerOperationCount": 6,
+    "missingHandlerCount": 0,
+    "orphanHandlerCount": 0,
+    "issueCount": 0,
+    "issues": [],
+    "routeOperations": [
+      "a2ui.exchange",
+      "a2ui.surfaceCatalog",
+      "a2ui.routeCatalog",
+      "a2ui.bindingReport",
+      "a2ui.smoke",
+      "a2ui.readiness"
+    ],
+    "handlerOperations": [
+      "a2ui.exchange",
+      "a2ui.surfaceCatalog",
+      "a2ui.routeCatalog",
+      "a2ui.bindingReport",
+      "a2ui.smoke",
+      "a2ui.readiness"
+    ],
+    "missingHandlerOperations": [],
+    "orphanHandlerOperations": [],
+    "metadata": {
+      "responseKind": "http-binding-report",
+      "complete": true,
+      "routeOperationCount": 6,
+      "handlerOperationCount": 6,
+      "missingHandlerCount": 0,
+      "orphanHandlerCount": 0
+    },
+    "body": {
+      "complete": true,
+      "routeOperationCount": 6,
+      "handlerOperationCount": 6,
+      "routeOperations": [
+        "a2ui.exchange",
+        "a2ui.surfaceCatalog",
+        "a2ui.routeCatalog",
+        "a2ui.bindingReport",
+        "a2ui.smoke",
+        "a2ui.readiness"
+      ],
+      "handlerOperations": [
+        "a2ui.exchange",
+        "a2ui.surfaceCatalog",
+        "a2ui.routeCatalog",
+        "a2ui.bindingReport",
+        "a2ui.smoke",
+        "a2ui.readiness"
+      ],
+      "missingHandlerOperations": [],
+      "orphanHandlerOperations": []
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Wayang-A2UI-Mime-Type": "application/json",
+      "X-Wayang-A2UI-Body-Encoding": "json",
+      "X-Wayang-A2UI-Outcome": "SUCCESS",
+      "X-Wayang-A2UI-Route-Operation": "a2ui.bindingReport",
+      "Allow": "GET, OPTIONS"
+    }
+  },
+  "actionBindingProbe": {
+    "statusCode": 200,
+    "httpSuccessful": true,
+    "routeOperation": "a2ui.exchange",
+    "allow": "POST, OPTIONS",
+    "outcome": "SUCCESS",
+    "contentType": "application/json",
+    "mimeType": "application/json",
+    "bodyEncoding": "json",
+    "exchangeRoute": true,
+    "actionBindingResult": true,
+    "jsonContent": true,
+    "complete": true,
+    "passed": true,
+    "policyActionCount": 5,
+    "handlerActionCount": 5,
+    "missingHandlerCount": 0,
+    "orphanHandlerCount": 0,
+    "issueCount": 0,
+    "issues": [],
+    "policyActions": [
+      "wayang.run.inspect",
+      "wayang.run.history",
+      "wayang.run.events",
+      "wayang.run.wait",
+      "wayang.run.cancel"
+    ],
+    "handlerActions": [
+      "wayang.run.inspect",
+      "wayang.run.history",
+      "wayang.run.events",
+      "wayang.run.wait",
+      "wayang.run.cancel"
+    ],
+    "missingHandlerActions": [],
+    "orphanHandlerActions": [],
+    "metadata": {
+      "responseKind": "action-binding-report",
+      "complete": true,
+      "policyActionCount": 5,
+      "handlerActionCount": 5,
+      "missingHandlerCount": 0,
+      "orphanHandlerCount": 0
+    },
+    "body": {
+      "complete": true,
+      "policyActionCount": 5,
+      "handlerActionCount": 5,
+      "policyActions": [
+        "wayang.run.inspect",
+        "wayang.run.history",
+        "wayang.run.events",
+        "wayang.run.wait",
+        "wayang.run.cancel"
+      ],
+      "handlerActions": [
+        "wayang.run.inspect",
+        "wayang.run.history",
+        "wayang.run.events",
+        "wayang.run.wait",
+        "wayang.run.cancel"
+      ],
+      "missingHandlerActions": [],
+      "orphanHandlerActions": []
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Wayang-A2UI-Mime-Type": "application/json",
+      "X-Wayang-A2UI-Body-Encoding": "json",
+      "X-Wayang-A2UI-Outcome": "SUCCESS",
+      "X-Wayang-A2UI-Route-Operation": "a2ui.exchange",
+      "Allow": "POST, OPTIONS"
+    }
+  },
+  "smokeProbe": {
+    "statusCode": 200,
+    "httpSuccessful": true,
+    "routeOperation": "a2ui.smoke",
+    "allow": "GET, OPTIONS",
+    "outcome": "SUCCESS",
+    "smokeRoute": true,
+    "passed": true,
+    "exitCode": 0,
+    "summary": {
+      "passed": true,
+      "exitCode": 0,
+      "suiteId": "a2ui-http-smoke-suite",
+      "scenarioCount": 1,
+      "issueCount": 0,
+      "routeCount": 6,
+      "smokeResult": true,
+      "successfulExit": true,
+      "issues": [],
+      "metadata": {
+        "responseKind": "http-smoke-result",
+        "passed": true,
+        "exitCode": 0,
+        "suiteId": "a2ui-http-smoke-suite",
+        "scenarioCount": 1,
+        "issueCount": 0,
+        "routeCount": 6
+      },
+      "body": {
+        "passed": true,
+        "exitCode": 0,
+        "suiteReport": {
+          "suiteId": "a2ui-http-smoke-suite",
+          "passed": true,
+          "scenarioCount": 1,
+          "passedScenarioCount": 1,
+          "failedScenarioCount": 0,
+          "exchangeCount": 0,
+          "successfulCount": 0,
+          "clientErrorCount": 0,
+          "serverErrorCount": 0,
+          "handledCount": 0,
+          "rejectedCount": 0,
+          "transportErrors": false,
+          "issueCount": 0,
+          "scenarioIds": [
+            "a2ui-http-discovery"
+          ],
+          "attributes": {
+            "suiteKind": "smoke",
+            "routeCount": 6
+          },
+          "scenarios": [
+            {
+              "scenarioId": "a2ui-http-discovery",
+              "passed": true,
+              "exchangeCount": 0,
+              "successfulCount": 0,
+              "clientErrorCount": 0,
+              "serverErrorCount": 0,
+              "handledCount": 0,
+              "rejectedCount": 0,
+              "transportErrors": false,
+              "statusCodes": [],
+              "outcomes": [],
+              "attributes": {
+                "scenarioKind": "discovery"
+              },
+              "exchanges": [],
+              "issueCount": 0,
+              "issues": []
+            }
+          ],
+          "issues": []
+        },
+        "expectationResult": {
+          "targetId": "a2ui-http-smoke-suite",
+          "expectationId": "a2ui-http-smoke-suite-pass",
+          "passed": true,
+          "issueCount": 0,
+          "validationIssues": [],
+          "attributes": {
+            "source": "contract"
+          }
+        },
+        "attributes": {
+          "suiteId": "a2ui-http-smoke-suite",
+          "routeCount": 6
+        }
+      }
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "X-Wayang-A2UI-Mime-Type": "application/json",
+      "X-Wayang-A2UI-Body-Encoding": "json",
+      "X-Wayang-A2UI-Outcome": "SUCCESS",
+      "X-Wayang-A2UI-Route-Operation": "a2ui.smoke",
+      "Allow": "GET, OPTIONS"
+    }
+  }
+}

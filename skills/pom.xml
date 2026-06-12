@@ -33,5 +33,6 @@
     </dependencies>
 
     <modules>
+        <module>skill-spi</module>
     </modules>
 </project>

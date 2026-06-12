@@ -1,0 +1,26 @@
+{
+  "diagnosticsId": "a2ui.http.operational-diagnostics",
+  "passed": true,
+  "exitCode": 0,
+  "successfulExit": true,
+  "issueCount": 0,
+  "issueCodes": [],
+  "bindingReportPassed": true,
+  "actionBindingPassed": true,
+  "smokeRequired": true,
+  "smokePassed": true,
+  "routeOperationCount": 6,
+  "routeHandlerOperationCount": 6,
+  "missingRouteHandlerCount": 0,
+  "orphanRouteHandlerCount": 0,
+  "policyActionCount": 5,
+  "actionHandlerCount": 5,
+  "missingActionHandlerCount": 0,
+  "orphanActionHandlerCount": 0,
+  "smokeScenarioCount": 1,
+  "smokeIssueCount": 0,
+  "smokeRouteCount": 6,
+  "attributes": {
+    "readinessId": "a2ui.http.readiness"
+  }
+}

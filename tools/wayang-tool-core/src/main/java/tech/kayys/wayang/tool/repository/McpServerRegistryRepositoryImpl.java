@@ -31,6 +31,11 @@ public class McpServerRegistryRepositoryImpl implements PanacheRepository<McpSer
     }
 
     @Override
+    public Uni<McpServerRegistry> update(McpServerRegistry entity) {
+        return persist(entity);
+    }
+
+    @Override
     public Uni<Boolean> deleteByRequestIdAndName(String requestId, String name) {
         return delete("requestId = ?1 and name = ?2", requestId, name)
                 .map(count -> count > 0);
