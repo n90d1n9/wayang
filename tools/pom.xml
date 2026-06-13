@@ -36,8 +36,8 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>${quarkus.platform.group-id}</groupId>
-                <artifactId>${quarkus.platform.artifact-id}</artifactId>
+                <groupId>io.quarkus</groupId>
+                <artifactId>quarkus-bom</artifactId>
                 <version>${quarkus.platform.version}</version>
                 <type>pom</type>
                 <scope>import</scope>

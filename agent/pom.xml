@@ -73,8 +73,11 @@
         <!-- Skill lifecycle management over the active SkillRegistry SPI -->
         <module>skill-management</module>
 
-        <!-- Skill audit trail and usage analytics utilities -->
+        <!-- Skill audit trail and compliance tracking -->
         <module>skill-audit</module>
+
+        <!-- Skill usage analytics and performance metrics -->
+        <module>skill-analytics</module>
 
         <!-- REST API over active agent execution and skill contracts -->
         <module>agent-api</module>

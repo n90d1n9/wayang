@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>tech.kayys.wayang</groupId>
+        <artifactId>agent-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>skill-analytics</artifactId>
+    <name>Wayang Agent - Skill Analytics</name>
+    <description>Skill usage analytics and performance metrics tracking</description>
+
+    <dependencies>
+        <!-- Wayang Agent Core -->
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>agent-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Skill Management -->
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>skill-management</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Skill Audit -->
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>skill-audit</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Quarkus -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-arc</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-reactive-pg-client</artifactId>
+        </dependency>
+
+        <!-- Metrics -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+        </dependency>
+
+        <!-- Jackson for JSON -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- Reactive Streams -->
+        <dependency>
+            <groupId>io.smallrye.reactive</groupId>
+            <artifactId>mutiny</artifactId>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.jboss.slf4j</groupId>
+            <artifactId>slf4j-jboss-logmanager</artifactId>
+        </dependency>
+
+        <!-- Testing -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-junit5</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>io.quarkus</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
