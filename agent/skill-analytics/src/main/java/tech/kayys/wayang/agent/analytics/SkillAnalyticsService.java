@@ -1,13 +1,10 @@
 package tech.kayys.wayang.agent.analytics;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import io.smallrye.mutiny.Uni;
-import org.eclipse.microprofile.metrics.Metadata;
-import org.eclipse.microprofile.metrics.MetricRegistry;
-import org.eclipse.microprofile.metrics.MetricUnits;
-import org.eclipse.microprofile.metrics.Tag;
-import org.eclipse.microprofile.metrics.Timer;
-import org.eclipse.microprofile.metrics.Counter;
-import org.eclipse.microprofile.metrics.Histogram;
 import org.jboss.logging.Logger;
 
 import jakarta.enterprise.context.ApplicationScoped;
@@ -17,6 +14,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 /**
  * Analytics service for tracking skill usage patterns and performance metrics.
@@ -34,7 +32,7 @@ public class SkillAnalyticsService {
     private static final Logger LOG = Logger.getLogger(SkillAnalyticsService.class);
     
     @Inject
-    MetricRegistry metricRegistry;
+    MeterRegistry meterRegistry;
     
     // In-memory storage for recent events (for quick analytics)
     private final Map<String, SkillMetrics> skillMetricsCache = new ConcurrentHashMap<>();
@@ -45,46 +43,30 @@ public class SkillAnalyticsService {
     private Counter successfulExecutions;
     private Counter failedExecutions;
     private Timer executionTimer;
-    private Histogram latencyHistogram;
+    private DistributionSummary latencyHistogram;
     
     void init() {
         // Initialize global metrics
-        totalExecutions = metricRegistry.counter(
-            Metadata.builder()
-                .withName("wayang.skill.executions.total")
-                .withDescription("Total number of skill executions")
-                .build()
-        );
+        totalExecutions = Counter.builder("wayang.skill.executions.total")
+            .description("Total number of skill executions")
+            .register(meterRegistry);
         
-        successfulExecutions = metricRegistry.counter(
-            Metadata.builder()
-                .withName("wayang.skill.executions.successful")
-                .withDescription("Number of successful skill executions")
-                .build()
-        );
+        successfulExecutions = Counter.builder("wayang.skill.executions.successful")
+            .description("Number of successful skill executions")
+            .register(meterRegistry);
         
-        failedExecutions = metricRegistry.counter(
-            Metadata.builder()
-                .withName("wayang.skill.executions.failed")
-                .withDescription("Number of failed skill executions")
-                .build()
-        );
+        failedExecutions = Counter.builder("wayang.skill.executions.failed")
+            .description("Number of failed skill executions")
+            .register(meterRegistry);
         
-        executionTimer = metricRegistry.timer(
-            Metadata.builder()
-                .withName("wayang.skill.execution.duration")
-                .withDescription("Skill execution duration")
-                .withUnit(MetricUnits.MILLISECONDS)
-                .build()
-        );
+        executionTimer = Timer.builder("wayang.skill.execution.duration")
+            .description("Skill execution duration")
+            .register(meterRegistry);
         
-        latencyHistogram = metricRegistry.histogram(
-            Metadata.builder()
-                .withName("wayang.skill.execution.latency")
-                .withDescription("Skill execution latency distribution")
-                .withUnit(MetricUnits.MILLISECONDS)
-                .build()
-        );
+        latencyHistogram = DistributionSummary.builder("wayang.skill.execution.latency")
+            .description("Skill execution latency distribution")
+            .baseUnit("milliseconds")
+            .register(meterRegistry);
     }
     
     /**
@@ -134,10 +116,9 @@ public class SkillAnalyticsService {
     private void handleExecutionCompleted(SkillUsageEvent event) {
         successfulExecutions.increment();
         
-        Timer.Context context = executionTimer.time();
         long duration = event.durationMs();
-        latencyHistogram.update(duration);
-        context.stop();
+        executionTimer.record(Duration.ofMillis(duration));
+        latencyHistogram.record(duration);
         
         SkillMetrics metrics = getOrCreateMetrics(event.skillId());
         metrics.recordSuccess(duration);

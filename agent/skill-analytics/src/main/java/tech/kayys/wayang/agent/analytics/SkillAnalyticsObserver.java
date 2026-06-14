@@ -143,7 +143,7 @@ public class SkillAnalyticsObserver {
                 .get();
             
             analytics.recordEvent(event).subscribe().with(
-                () -> LOG.debugf("Processed analytics event: %s", event.eventId()),
+                ignored -> LOG.debugf("Processed analytics event: %s", event.eventId()),
                 error -> LOG.errorf(error, "Failed to process analytics event: %s", event.eventId())
             );
         } catch (Exception e) {

@@ -47,6 +47,16 @@
             <version>${gollek.version}</version>
         </dependency>
         <dependency>
+            <groupId>tech.kayys.gollek</groupId>
+            <artifactId>gollek-sdk-core</artifactId>
+            <version>${gollek.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>tech.kayys.gollek</groupId>
+            <artifactId>gollek-spi-inference</artifactId>
+            <version>${gollek.version}</version>
+        </dependency>
+        <dependency>
             <groupId>io.smallrye.reactive</groupId>
             <artifactId>mutiny</artifactId>
             <version>2.5.1</version>

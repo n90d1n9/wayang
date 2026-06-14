@@ -42,10 +42,50 @@
             <version>0.1.0-SNAPSHOT</version>
         </dependency>
 
+        <!-- Explicit compile-scope deps for Gollek SDK classes used in WayangCodeCommand.
+             Without these, Gradle-generated POMs expose them only as 'runtime' scope
+             and the Maven compiler cannot find them. -->
+        <dependency>
+            <groupId>tech.kayys.gollek</groupId>
+            <artifactId>gollek-sdk-core</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>tech.kayys.gollek</groupId>
+            <artifactId>gollek-sdk-session</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>tech.kayys.gollek</groupId>
+            <artifactId>gollek-spi</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>tech.kayys.gollek</groupId>
+            <artifactId>gollek-spi-inference</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>tech.kayys.gollek</groupId>
+            <artifactId>gollek-spi-model</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>tech.kayys.gollek</groupId>
+            <artifactId>gollek-spi-provider</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+        </dependency>
+
         <dependency>
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>
             <version>4.7.5</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jboss.weld.se</groupId>
+            <artifactId>weld-se-core</artifactId>
+            <version>5.1.2.Final</version>
         </dependency>
 
         <dependency>
@@ -88,7 +128,25 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>tech.kayys.wayang.gollek.cli.WayangGollekCli</mainClass>
                                 </transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>
+                            <!-- Exclude beans.xml from Quarkus/third-party JARs that have empty/incompatible ones.
+                                 Our own module JARs (gollek-*) have valid beans.xml files that survive via
+                                 Weld SE's annotation scanning and Jandex index in the shaded jar. -->
+                            <filters>
+                                <filter>
+                                    <artifact>io.quarkus:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/beans.xml</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>io.quarkus.arc:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/beans.xml</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
                             <createDependencyReducedPom>false</createDependencyReducedPom>
                         </configuration>
                     </execution>

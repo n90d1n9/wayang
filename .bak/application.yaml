@@ -1,0 +1,163 @@
+quarkus:
+  application:
+    name: gollek-agent
+    version: 2.0.0
+  http:
+    port: 8080
+    cors:
+      ~: true
+      origins: "*"
+      methods: GET,POST,PUT,DELETE,OPTIONS
+      headers: Content-Type,Authorization,X-Tenant-Id,X-API-Key,X-Agent-Id
+  log:
+    level: INFO
+    category:
+      "tech.kayys.gollek.agent":
+        level: DEBUG
+  opentelemetry:
+    enabled: true
+    tracer:
+      exporter:
+        otlp:
+          endpoint: http://localhost:4317
+  datasource:
+    db-kind: postgresql
+    username: gollek
+    password: gollek_secret
+    reactive:
+      url: postgresql://localhost:5432/gollek
+      max-size: 20
+    jdbc:
+      url: jdbc:postgresql://localhost:5432/gollek
+  flyway:
+    migrate-at-start: true
+    locations: db/migration
+    baseline-on-migrate: true
+  redis:
+    hosts: redis://localhost:6379
+    timeout: 10s
+
+gollek:
+  models:
+    default-model: Qwen/Qwen2.5-0.5B-Instruct
+    default-provider: gguf
+    auto-download-enabled: true
+  agent:
+    default-strategy: react
+    default-max-steps: 10
+    default-timeout-seconds: 120
+    default-model: ${gollek.models.default-model}
+    multitenancy:
+      enabled: false
+      header-name: X-Tenant-Id
+    memory:
+      backend: in-memory
+      vector-dimensions: 1536
+      redis:
+        url: redis://localhost:6379
+        key-prefix: "gollek:agent:"
+        ttl-seconds: 3600
+      conversation:
+        max-history-per-session: 50
+        session-ttl-seconds: 7200
+    tool-calling:
+      mode: auto
+      max-parallel-calls: 5
+    mcp:
+      servers: []
+    a2a:
+      server-enabled: true
+      remote-agents: []
+    orchestrators:
+      react:
+        temperature: 0.7
+        max-tokens-per-step: 1024
+      plan-and-execute:
+        planner-temperature: 0.3
+        planner-max-tokens: 512
+        executor-temperature: 0.5
+        synthesiser-max-tokens: 512
+      chain-of-thought:
+        temperature: 0.0
+        max-tokens: 1024
+      reflexion:
+        max-reflections: 3
+    skills:
+      inference:
+        enabled: true
+        default-model: ${gollek.agent.default-model}
+        default-max-tokens: 1024
+        default-temperature: 0.7
+      rag:
+        enabled: true
+        default-top-k: 5
+        embedding-model: ${gollek.agent.default-model}
+        min-similarity: 0.3
+      code-execution:
+        enabled: true
+        python-executable: python3
+        node-executable: node
+        default-timeout-seconds: 10
+      http-call:
+        enabled: true
+        default-timeout-seconds: 15
+      summarization:
+        enabled: true
+      embedding:
+        enabled: true
+      memory-store:
+        enabled: true
+      data-analysis:
+        enabled: true
+      document-qa:
+        enabled: true
+      sql-query:
+        enabled: false
+    metrics:
+      enabled: true
+      include-tenant-tag: true
+
+"%dev":
+  quarkus:
+    log:
+      level: DEBUG
+    datasource:
+      devservices:
+        enabled: true
+        image-name: pgvector/pgvector:pg16
+    redis:
+      devservices:
+        enabled: true
+  gollek:
+    agent:
+      default-max-steps: 5
+      memory:
+        backend: in-memory
+
+"%test":
+  quarkus:
+    log:
+      level: WARN
+    datasource:
+      devservices:
+        enabled: true
+        image-name: pgvector/pgvector:pg16
+  gollek:
+    agent:
+      memory:
+        backend: in-memory
+      mcp:
+        servers: []
+      a2a:
+        remote-agents: []
+
+"%prod":
+  quarkus:
+    log:
+      level: INFO
+  gollek:
+    agent:
+      memory:
+        backend: redis
+      multitenancy:
+        enabled: true

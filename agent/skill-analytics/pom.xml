@@ -47,10 +47,10 @@
             <artifactId>quarkus-reactive-pg-client</artifactId>
         </dependency>
 
-        <!-- Metrics -->
+        <!-- Metrics - Micrometer via Quarkus extension for CDI MeterRegistry injection -->
         <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-core</artifactId>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-micrometer</artifactId>
         </dependency>
 
         <!-- Jackson for JSON -->

@@ -173,6 +173,7 @@ public class GollekInferenceService {
                         Message.Role.ASSISTANT,
                         lastResponse.getContent(),
                         null,
+                        null,
                         spiToolCalls,
                         null));
 

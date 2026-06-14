@@ -55,22 +55,15 @@ public class LLMToolSelector implements ToolSelector {
                 Message.user(query)
             );
 
-            ProviderRequest request = new ProviderRequest(
-                    UUID.randomUUID().toString(),
-                    "default",
-                    messages,
-                    Map.<String, Object>of("max_tokens", 500),
-                    List.<tech.kayys.gollek.spi.tool.ToolDefinition>of(),
-                    null,
-                    false,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    Map.of(),
-                    null
-            );
+            ProviderRequest request = ProviderRequest.builder()
+                    .requestId(UUID.randomUUID().toString())
+                    .model("default")
+                    .messages(messages)
+                    .parameter("max_tokens", 500)
+                    .tools(List.of())
+                    .streaming(false)
+                    .metadata(Map.of())
+                    .build();
 
             // Call LLM synchronously (blocking)
             InferenceResponse response = provider.infer(request)

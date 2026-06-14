@@ -9,8 +9,6 @@ import tech.kayys.gollek.factory.GollekSdkFactory;
 import tech.kayys.gollek.sdk.core.GollekSdk;
 import tech.kayys.gollek.sdk.session.ChatSession;
 import tech.kayys.gollek.sdk.session.ChatSessionImpl;
-import tech.kayys.gollek.spi.Message;
-import tech.kayys.gollek.spi.inference.InferenceRequest;
 import tech.kayys.gollek.spi.model.ModelInfo;
 
 import java.io.BufferedReader;
@@ -426,14 +424,11 @@ final class WayangCodeCommand implements Callable<Integer> {
         int[] exitCode = { 0 };
 
         try {
-            InferenceRequest req = InferenceRequest.builder()
-                    .prompt(userPrompt)
-                    .streaming(true)
-                    .model(chatSession.getModelId())
-                    .sessionId(chatSession.getSessionId())
-                    .build();
-
-            chatSession.stream(req)
+            // Use chatSession.stream(String) so that getHistoryWithPrompt() is called,
+            // which adds the user message to the list before the request is built.
+            // Building a raw InferenceRequest with .prompt() leaves messages empty,
+            // causing "At least one message is required" from downstream providers.
+            chatSession.stream(userPrompt)
                     .subscribe().with(
                             chunk -> {
                                 String delta = chunk.getDelta();
