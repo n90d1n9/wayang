@@ -23,6 +23,7 @@ import java.io.PrintWriter;
         description = "Wayang agentic platform CLI. Compatibility alias: wayang-gollek.",
         mixinStandardHelpOptions = true,
         subcommands = {
+                WayangCodeCommand.class,
                 WayangPlatformCommands.StatusCommand.class,
                 WayangPlatformCommands.ProductsCommand.class,
                 WayangPlatformCommands.SdkBoundariesCommand.class,

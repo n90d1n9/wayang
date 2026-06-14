@@ -85,12 +85,12 @@
         <module>embedding</module>
         <module>storage</module>
         <module>runtime-quarkus</module>
-        <module>wayang-gollek-sdk</module>
-        <module>wayang-gollek-sdk-storage</module>
-        <module>wayang-gollek-sdk-storage-s3</module>
-        <module>wayang-gollek-sdk-remote</module>
-        <module>wayang-gollek-cli</module>
-        <module>wayang-gollek-cli-remote</module>
+        <module>sdk/wayang-gollek-sdk</module>
+        <module>sdk/wayang-gollek-sdk-storage</module>
+        <module>sdk/wayang-gollek-sdk-storage-s3</module>
+        <module>sdk/wayang-gollek-sdk-remote</module>
+        <module>cli/wayang-gollek-cli</module>
+        <module>cli/wayang-gollek-cli-remote</module>
     </modules>
 
     <profiles>
