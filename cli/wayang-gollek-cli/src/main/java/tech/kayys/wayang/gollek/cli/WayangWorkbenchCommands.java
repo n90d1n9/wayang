@@ -78,7 +78,10 @@ final class WayangWorkbenchCommands {
                         context.out(),
                         json,
                         () -> client.commands().workbenchJson(workbench, query),
-                        () -> new PlainWorkbenchRenderer().render(workbench));
+                        () -> {
+                            var workspace = client.contexts().workspace(".", 200, false);
+                            return new PlainWorkbenchRenderer().render(workbench, workspace);
+                        });
                 return 0;
             } catch (RuntimeException e) {
                 return parent.context().commandFailure(e);

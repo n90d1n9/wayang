@@ -44,7 +44,7 @@ final class WayangGollekTuiView implements WayangWorkbenchRenderer<Element> {
         }
 
         Element editorPanel = panel("Editor (preview)",
-                text(editorContent).displayOnly())
+                text(editorContent))
                 .rounded()
                 .borderColor(Color.GREEN);
 
