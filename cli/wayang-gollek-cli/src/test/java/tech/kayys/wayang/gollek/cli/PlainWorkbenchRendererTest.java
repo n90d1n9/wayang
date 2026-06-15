@@ -9,7 +9,9 @@ class PlainWorkbenchRendererTest {
 
     @Test
     void rendersSameWorkbenchModelWithoutTamboui() {
-        String text = new PlainWorkbenchRenderer().render(WayangGollekSdk.local().workbench());
+        var sdk = WayangGollekSdk.local();
+        var workspace = sdk.inspectWorkspace(new tech.kayys.wayang.gollek.sdk.WorkspaceInspectionRequest(".", 80, false));
+        String text = new PlainWorkbenchRenderer().render(WayangGollekSdk.local().workbench(), workspace);
 
         assertThat(text)
                 .contains("Wayang Workbench")
