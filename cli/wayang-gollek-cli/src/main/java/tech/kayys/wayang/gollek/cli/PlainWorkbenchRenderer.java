@@ -4,11 +4,12 @@ import tech.kayys.wayang.gollek.sdk.ComponentStatus;
 import tech.kayys.wayang.gollek.sdk.ProductSurface;
 import tech.kayys.wayang.gollek.sdk.WayangPlatformStatus;
 import tech.kayys.wayang.gollek.sdk.WayangWorkbenchModel;
+import tech.kayys.wayang.gollek.sdk.WorkspaceSnapshot;
 
 final class PlainWorkbenchRenderer implements WayangWorkbenchRenderer<String> {
 
     @Override
-    public String render(WayangWorkbenchModel model) {
+    public String render(WayangWorkbenchModel model, WorkspaceSnapshot workspace) {
         WayangPlatformStatus status = model.status();
         StringBuilder out = new StringBuilder();
         out.append("Wayang Workbench\n");
