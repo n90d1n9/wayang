@@ -7,6 +7,8 @@ import tech.kayys.wayang.gollek.sdk.WayangPlatformStatus;
 import tech.kayys.wayang.gollek.sdk.WayangWorkbenchModel;
 
 import java.util.List;
+import java.nio.file.Path;
+import tech.kayys.wayang.gollek.sdk.WorkspaceSnapshot;
 
 import static dev.tamboui.toolkit.Toolkit.column;
 import static dev.tamboui.toolkit.Toolkit.gauge;
@@ -18,62 +20,58 @@ import static dev.tamboui.toolkit.Toolkit.text;
 final class WayangGollekTuiView implements WayangWorkbenchRenderer<Element> {
 
     @Override
-    public Element render(WayangWorkbenchModel model) {
+    public Element render(WayangWorkbenchModel model, WorkspaceSnapshot workspace) {
         WayangPlatformStatus status = model.status();
-        return column(
-                panel("Wayang",
-                        text(status.productName()).bold().cyan(),
-                        text("Agentic platform above Gollek inference/training and Gamelan workflows").dim(),
-                        text("Press q to exit").gray())
-                        .rounded()
-                        .borderColor(Color.CYAN),
-                row(
-                        componentPanel(status.gollek()),
-                        componentPanel(status.gamelan()),
-                        componentPanel(status.agentCore()))
-                        .spacing(2),
-                row(
-                        componentPanel(status.rag()),
-                        componentPanel(status.mcp()),
-                        panel("Skills",
-                                text("Active skills: " + status.activeSkills()).bold(),
-                                gauge(status.activeSkills() > 0 ? 1.0 : 0.15)
-                                        .label(status.activeSkills() + " registered")
-                                        .gaugeColor(status.activeSkills() > 0 ? Color.GREEN : Color.YELLOW))
-                                .rounded()
-                                .borderColor(Color.YELLOW))
-                        .spacing(2),
-                panel("Product Surfaces",
-                        list(model.productSurfaces().stream()
-                                .map(surface -> surface.name() + " - " + surface.role())
-                                .toList())
-                                .displayOnly())
-                        .rounded()
-                        .borderColor(Color.CYAN),
-                row(
-                        panel("Command Palette", list(model.commandPalette()).displayOnly())
-                                .rounded()
-                                .borderColor(Color.GREEN),
-                        panel("Next Actions", list(model.nextActions()).displayOnly())
-                                .rounded()
-                                .borderColor(Color.YELLOW))
-                        .spacing(2),
-                panel("Platform Notes", list(status.notes()).displayOnly())
-                        .rounded()
-                        .borderColor(Color.GRAY))
-                .spacing(1);
-    }
 
-    private Element componentPanel(ComponentStatus component) {
-        return panel(component.name(),
-                text(component.role()).dim(),
-                text("state: " + component.state()).bold(),
-                text(component.endpoint()),
-                gauge(component.healthPercent() / 100.0)
-                        .label(component.healthPercent() + "% ready")
-                        .gaugeColor(healthColor(component.healthPercent())))
+        // Left: Workspace file tree
+        Element workspacePanel = panel("Workspace",
+                list(workspace.importantPaths()).displayOnly())
                 .rounded()
-                .borderColor(healthColor(component.healthPercent()));
+                .borderColor(Color.CYAN);
+
+        // Center: Editor preview (first important path content)
+        String editorContent = "(No file selected)";
+        if (!workspace.importantPaths().isEmpty()) {
+            String first = workspace.importantPaths().get(0).replaceAll("/$", "");
+            Path root = Path.of(workspace.rootPath());
+            Path file = root.resolve(first);
+            try {
+                var lines = java.nio.file.Files.readAllLines(file);
+                editorContent = String.join("\n", lines.stream().limit(200).toList());
+            } catch (Exception e) {
+                editorContent = "Unable to read file: " + first + "\n" + e.getMessage();
+            }
+        }
+
+        Element editorPanel = panel("Editor (preview)",
+                text(editorContent).wrap().displayOnly())
+                .rounded()
+                .borderColor(Color.GREEN);
+
+        // Right: Completions / Suggestions (use workbench command palette as placeholders)
+        Element completionsPanel = panel("Completions",
+                list(model.commandPalette()).displayOnly())
+                .rounded()
+                .borderColor(Color.YELLOW);
+
+        // Bottom: Command palette and status
+        Element palettePanel = panel("Command Palette", list(model.commandPalette()).displayOnly())
+                .rounded()
+                .borderColor(Color.MAGENTA);
+
+        Element statusPanel = panel("Status",
+                text("Product: " + status.productName()).dim(),
+                text("Model default provider: " + (status.notes().isEmpty() ? "n/a" : status.notes().get(0))).dim())
+                .rounded()
+                .borderColor(Color.GRAY);
+
+        return column(
+                row(
+                        workspacePanel,
+                        editorPanel,
+                        completionsPanel).spacing(2),
+                row(palettePanel, statusPanel).spacing(2)
+        ).spacing(1);
     }
 
     List<String> previewLines(WayangWorkbenchModel model) {
@@ -96,3 +94,4 @@ final class WayangGollekTuiView implements WayangWorkbenchRenderer<Element> {
         return Color.RED;
     }
 }
+

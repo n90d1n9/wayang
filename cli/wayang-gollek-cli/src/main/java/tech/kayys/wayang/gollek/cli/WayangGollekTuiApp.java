@@ -23,6 +23,8 @@ final class WayangGollekTuiApp extends ToolkitApp {
 
     @Override
     protected Element render() {
-        return view.render(client.commands().workbench(WorkbenchCommandQuery.all()));
+        var model = client.commands().workbench(WorkbenchCommandQuery.all());
+        var workspace = client.contexts().workspace(".", 200, false);
+        return view.render(model, workspace);
     }
 }
