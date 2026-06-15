@@ -40,7 +40,7 @@ quarkus:
 # ═══════════════════════════════════════════════════════════════════
 gollek:
   models:
-    default-model: Qwen/Qwen2.5-0.5B-Instruct
+    default-model: gemma-4-E2B-it
     default-provider: gguf
     auto-download-enabled: true
 
