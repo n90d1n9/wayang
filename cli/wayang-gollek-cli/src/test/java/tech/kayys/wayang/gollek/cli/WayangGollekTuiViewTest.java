@@ -11,10 +11,12 @@ class WayangGollekTuiViewTest {
 
     @Test
     void buildsTambouiElementTreeFromWorkbenchModel() {
-        WayangWorkbenchModel model = WayangGollekSdk.local().workbench();
+        var sdk = WayangGollekSdk.local();
+        WayangWorkbenchModel model = sdk.workbench();
+        var workspace = sdk.inspectWorkspace(new tech.kayys.wayang.gollek.sdk.WorkspaceInspectionRequest(".", 80, false));
         WayangGollekTuiView view = new WayangGollekTuiView();
 
-        Element element = view.render(model);
+        Element element = view.render(model, workspace);
 
         assertThat(element).isNotNull();
         assertThat(view.previewLines(model))
