@@ -28,7 +28,7 @@ class WayangEditionBuildProfilesTest {
         Document pom = parentPom();
 
         assertThat(defaultModules(pom))
-                .contains("a2a", "agentic-commerce", "wayang-gollek-sdk")
+                .contains("a2a", "agentic-commerce", "sdk/wayang-gollek-sdk")
                 .doesNotContain("a2ui");
     }
 
@@ -41,7 +41,7 @@ class WayangEditionBuildProfilesTest {
     }
 
     private static Document parentPom() {
-        Path pom = Path.of(System.getProperty("user.dir")).resolve("../pom.xml").normalize();
+        Path pom = Path.of(System.getProperty("user.dir")).resolve("../../pom.xml").normalize();
         try {
             DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
             factory.setNamespaceAware(false);

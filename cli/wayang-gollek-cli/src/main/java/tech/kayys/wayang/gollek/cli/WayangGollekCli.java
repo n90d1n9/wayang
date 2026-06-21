@@ -8,8 +8,15 @@ import tech.kayys.wayang.gollek.sdk.WayangClient;
 import tech.kayys.wayang.gollek.sdk.WayangGollekSdk;
 
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.io.PrintStream;
 import java.io.PrintWriter;
+import java.lang.reflect.Method;
 
 /**
  * Root picocli application for the Wayang agentic platform command line.
@@ -98,12 +105,166 @@ public final class WayangGollekCli implements Runnable {
         CommandLine.usage(this, out);
     }
 
-    private WayangGollekSdk sdk() {
+    public WayangGollekSdk sdk() {
         if (injectedSdk != null) {
             return injectedSdk;
         }
         if (resolvedSdk == null) {
             resolvedSdk = Wayang.create(sdkOptions.toConfig());
+
+            // Apply preferred provider from ~/.wayang/config.json if present
+            try {
+                Path cfg = Paths.get(System.getProperty("user.home"), ".wayang", "config.json");
+                if (Files.exists(cfg)) {
+                    String content = Files.readString(cfg);
+                    Pattern p = Pattern.compile("\"provider\"\s*:\s*\"([^\"]+)\"");
+                    Matcher m = p.matcher(content);
+                    if (m.find()) {
+                        String provider = m.group(1).trim();
+                        try {
+                            // Use reflection so this compiles against older SDK jars that may not
+                            // have provider APIs yet.
+                            Method listMethod = null;
+                            Method setMethod = null;
+                            try {
+                                listMethod = resolvedSdk.getClass().getMethod("listAvailableProviders");
+                            } catch (NoSuchMethodException nsme) {
+                                // ignore
+                            }
+                            try {
+                                setMethod = resolvedSdk.getClass().getMethod("setPreferredProvider", String.class);
+                            } catch (NoSuchMethodException nsme) {
+                                // ignore
+                            }
+
+                            List<?> available = List.of();
+                            if (listMethod != null) {
+                                Object availObj = listMethod.invoke(resolvedSdk);
+                                if (availObj instanceof List<?> l) {
+                                    available = l;
+                                }
+                            }
+
+                            boolean found = false;
+                            for (Object o : available) {
+                                if (o == null) continue;
+                                if (o instanceof String s) {
+                                    if (s.equals(provider)) { found = true; break; }
+                                } else {
+                                    try {
+                                        Method idMethod = o.getClass().getMethod("id");
+                                        Object idv = idMethod.invoke(o);
+                                        if (idv != null && provider.equals(String.valueOf(idv))) { found = true; break; }
+                                    } catch (NoSuchMethodException ignored) {
+                                    }
+                                }
+                            }
+
+                            if (!found) {
+                                String known = available.isEmpty() ? "<unknown>" : available.stream().map(o -> {
+                                    if (o instanceof String s) return s;
+                                    try { Method idM = o.getClass().getMethod("id"); Object v = idM.invoke(o); return v == null ? "<unknown>" : String.valueOf(v); } catch (Exception ex) { return "<unknown>"; }
+                                }).toList().toString();
+                                out.println("  Preferred provider '" + provider + "' from ~/.wayang/config.json is not available. Known providers: " + known);
+
+                                // Attempt to auto-load provider JAR from local Maven repository if present
+                                try {
+                                    Method loadMethod = null; out.println("  Debug: probing sdk for dynamic loadProviderJar support...");
+                                    try { loadMethod = resolvedSdk.getClass().getMethod("loadProviderJar", String.class); out.println("  Debug: sdk exposes loadProviderJar"); } catch (NoSuchMethodException nsme) { out.println("  Debug: sdk does NOT expose loadProviderJar"); }
+                                    try {
+                                        loadMethod = resolvedSdk.getClass().getMethod("loadProviderJar", String.class);
+                                    } catch (NoSuchMethodException nsme) {
+                                        // SDK may not support dynamic loading
+                                    }
+                                    Path candidateDir = Paths.get(System.getProperty("user.home"), ".m2", "repository", "tech", "kayys", "gollek", "gollek-plugin-" + provider);
+                                    if (Files.exists(candidateDir)) {
+                                        java.util.Optional<Path> jarOpt = Files.walk(candidateDir)
+                                                .filter(x -> x.getFileName().toString().endsWith(".jar"))
+                                                .findFirst();
+                                        if (jarOpt.isPresent()) {
+                                            Path jarPath = jarOpt.get();
+                                            out.println("  Found provider JAR candidate: " + jarPath);
+                                            // If SDK exposes loadProviderJar, use it; else try to register capability via provider registry reflectively
+                                            if (loadMethod != null) {
+                                                try {
+                                                    loadMethod.invoke(resolvedSdk, jarPath.toString());
+                                                    out.println("  Loaded provider JAR via SDK: " + jarPath);
+                                                } catch (Throwable t) {
+                                                    out.println("  Warning: failed to invoke SDK.loadProviderJar: " + t.getMessage());
+                                                }
+                                            } else {
+                                                try {
+                                                    // reflectively register a capability descriptor into providerCapabilityRegistry
+                                                    Method regMethod = resolvedSdk.getClass().getMethod("providerCapabilityRegistry");
+                                                    Object registry = regMethod.invoke(resolvedSdk);
+                                                    if (registry != null) {
+                                                        Class<?> descClass = Class.forName("tech.kayys.wayang.gollek.sdk.WayangProviderCapabilityDescriptor");
+                                                        Class<?> stateClass = Class.forName("tech.kayys.wayang.gollek.sdk.WayangProviderCapabilityState");
+                                                        java.lang.reflect.Constructor<?> ctor = descClass.getConstructor(
+                                                                String.class, String.class, String.class, String.class,
+                                                                String.class, String.class, String.class, stateClass,
+                                                                java.util.List.class, java.util.List.class, java.util.List.class, java.util.Map.class);
+                                                        String moduleId = jarPath.getFileName().toString().replaceAll("\\\\.jar$", "");
+                                                        String providerIdGuess = provider;
+                                                        String capabilityId = providerIdGuess + ".inference";
+                                                        Object stateVal = java.lang.Enum.valueOf((Class<Enum>) stateClass, "AVAILABLE");
+                                                        Object descriptor = ctor.newInstance(
+                                                                capabilityId,
+                                                                providerIdGuess,
+                                                                "gollek",
+                                                                moduleId,
+                                                                "inference",
+                                                                Character.toUpperCase(providerIdGuess.charAt(0)) + providerIdGuess.substring(1) + " Provider",
+                                                                "Dynamically registered provider from JAR: " + jarPath.toString(),
+                                                                stateVal,
+                                                                java.util.List.of("coding-agent", "assistant-agent"),
+                                                                java.util.List.of(),
+                                                                java.util.List.of("gollek", "provider", "inference"),
+                                                                java.util.Map.of("jar", jarPath.toString())
+                                                        );
+                                                        Method registerMethod = registry.getClass().getMethod("register", descClass);
+                                                        registerMethod.invoke(registry, descriptor);
+                                                        out.println("  Registered provider capability for: " + providerIdGuess);
+                                                        found = true;
+                                                        if (setMethod != null) {
+                                                            setMethod.invoke(resolvedSdk, providerIdGuess);
+                                                            out.println("  Applied preferred provider from ~/.wayang/config.json after registration: " + providerIdGuess);
+                                                        }
+                                                    }
+                                                } catch (Throwable t) {
+                                                    out.println("  Warning: failed to register provider capability reflectively: " + t.getMessage());
+                                                }
+                                            }
+                                            // requery availability
+                                            if (listMethod != null) {
+                                                try {
+                                                    Object availObj2 = listMethod.invoke(resolvedSdk);
+                                                    if (availObj2 instanceof List<?> l2) {
+                                                        for (Object o2 : l2) {
+                                                            if (o2 instanceof String s2 && s2.equals(provider)) { found = true; break; }
+                                                        }
+                                                    }
+                                                } catch (Throwable ignored) {
+                                                }
+                                            }
+                                        }
+                                    }
+                                } catch (Throwable t) {
+                                    out.println("  Warning: provider auto-load attempt failed: " + t.getMessage());
+                                }
+                            } else if (setMethod != null) {
+                                setMethod.invoke(resolvedSdk, provider);
+                                out.println("  Applied preferred provider from ~/.wayang/config.json: " + provider);
+                            } else {
+                                out.println("  Note: preferred provider '" + provider + "' is available, but SDK does not expose setPreferredProvider API yet.");
+                            }
+                        } catch (Throwable t) {
+                            out.println("  Warning: failed to apply preferred provider '" + provider + "': " + t.getMessage());
+                        }
+                    }
+                }
+            } catch (Exception ignored) {
+            }
         }
         return resolvedSdk;
     }

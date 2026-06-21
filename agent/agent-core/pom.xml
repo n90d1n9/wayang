@@ -154,6 +154,12 @@
       <version>${gollek.version}</version>
       <optional>true</optional>
     </dependency>
+    <dependency>
+      <groupId>tech.kayys.wayang</groupId>
+      <artifactId>wayang-gollek-sdk</artifactId>
+      <version>${project.version}</version>
+      <optional>true</optional>
+    </dependency>
 
     <!-- Gollek Agent Skill Management - optional at runtime -->
     <!--

@@ -145,4 +145,19 @@ public final class RemoteWayangGollekSdk implements WayangGollekSdk {
     public AgentRunForgetResult forgetRun(String runId) {
         return transport.forgetRun(runId);
     }
+
+    @Override
+    public void setPreferredProvider(String providerId) {
+        throw new UnsupportedOperationException("Remote SDK does not support setting preferred provider yet.");
+    }
+
+    @Override
+    public java.util.Optional<String> getPreferredProvider() {
+        return java.util.Optional.empty();
+    }
+
+    @Override
+    public List<String> listAvailableProviders() {
+        return List.of();
+    }
 }

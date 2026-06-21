@@ -8,6 +8,11 @@ import tech.kayys.wayang.gollek.sdk.WayangGollekSdkProvider;
 import tech.kayys.wayang.gollek.sdk.WayangPlatformReadinessProfileRegistryConfig;
 
 import java.util.LinkedHashMap;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.Map;
 
 /**
@@ -128,7 +133,7 @@ final class WayangCliSdkOptions {
                 choose(endpoint, "WAYANG_ENDPOINT", ""),
                 choose(apiKey, "WAYANG_API_KEY", ""),
                 choose(defaultTenantId, "WAYANG_TENANT", "default"),
-                choose(defaultModelId, "WAYANG_MODEL", ""),
+                resolveDefaultModel(),
                 choose(runStorePath, "WAYANG_RUN_STORE", ""));
         AgentRunStoreRetentionPolicy retentionPolicy = retentionPolicy();
         if (retentionPolicy != null) {
@@ -253,6 +258,32 @@ final class WayangCliSdkOptions {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    /**
+     * Resolve default model id from CLI flag, env, or ~/.wayang/config.json
+     */
+    private String resolveDefaultModel() {
+        // 1) explicit flag
+        String direct = CliText.trimToEmpty(defaultModelId);
+        if (!direct.isEmpty()) return direct;
+        // 2) environment
+        String env = CliText.trimToEmpty(System.getenv("WAYANG_MODEL"));
+        if (!env.isEmpty()) return env;
+        // 3) ~/.wayang/config.json
+        try {
+            Path cfg = Paths.get(System.getProperty("user.home"), ".wayang", "config.json");
+            if (Files.exists(cfg)) {
+                String content = Files.readString(cfg);
+                Pattern p = Pattern.compile("\"model\"\s*:\s*\"([^\"]+)\"");
+                Matcher m = p.matcher(content);
+                if (m.find()) {
+                    return m.group(1).trim();
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return "";
     }
 
     private static void put(Map<String, Object> values, String key, String value) {

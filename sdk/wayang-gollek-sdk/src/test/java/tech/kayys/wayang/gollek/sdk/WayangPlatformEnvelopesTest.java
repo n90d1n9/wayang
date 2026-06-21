@@ -80,6 +80,8 @@ class WayangPlatformEnvelopesTest {
                 WayangSdkBoundaryCatalog.defaultBoundaries());
         Map<String, Object> detail = WayangPlatformEnvelopes.sdkBoundaryDetail(
                 WayangSdkBoundaryCatalog.require("run"));
+        Map<String, Object> validation = WayangPlatformEnvelopes.sdkBoundaryCatalogValidation(
+                WayangSdkBoundaryCatalog.validateDefault());
 
         assertThat(catalog)
                 .containsEntry("product", "Wayang")
@@ -109,6 +111,14 @@ class WayangPlatformEnvelopesTest {
                 .containsEntry("id", "run")
                 .containsEntry("intendedPackage", "tech.kayys.wayang.gollek.sdk.run")
                 .containsEntry("contractSchemas", List.of("wayang.run.planning", "wayang.run.lifecycle"));
+        assertThat(validation)
+                .containsEntry("product", "Wayang")
+                .containsEntry("valid", true)
+                .containsEntry("issueCount", 0)
+                .containsEntry("totalBoundaries", 9);
+        assertThat(validation.get("classPrefixes"))
+                .asList()
+                .contains("WayangPlatformContract", "Remote");
     }
 
     @Test
@@ -117,6 +127,7 @@ class WayangPlatformEnvelopesTest {
         Map<String, Object> catalog = WayangPlatformEnvelopes.productCatalog(null, null, null);
         Map<String, Object> profiles = WayangPlatformEnvelopes.profiles(null, " ", null);
         Map<String, Object> boundaryDetail = WayangPlatformEnvelopes.sdkBoundaryDetail(null);
+        Map<String, Object> boundaryValidation = WayangPlatformEnvelopes.sdkBoundaryCatalogValidation(null);
 
         assertThat(status)
                 .containsEntry("product", "Wayang")
@@ -133,6 +144,9 @@ class WayangPlatformEnvelopesTest {
                 .containsEntry("profiles", List.of());
         assertThat(boundaryDetail)
                 .containsEntry("boundaryId", "core");
+        assertThat(boundaryValidation)
+                .containsEntry("valid", true)
+                .containsEntry("issueCount", 0);
         assertThatThrownBy(() -> catalog.put("extra", "value"))
                 .isInstanceOf(UnsupportedOperationException.class);
     }

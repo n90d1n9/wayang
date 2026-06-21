@@ -3,6 +3,7 @@ package tech.kayys.wayang.gollek.sdk;
 import tech.kayys.wayang.agent.spi.AgentRequest;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 public interface WayangGollekSdk extends AutoCloseable {
@@ -97,6 +98,15 @@ public interface WayangGollekSdk extends AutoCloseable {
 
     default WayangSdkBoundary sdkBoundary(String boundaryId) {
         return WayangSdkBoundaryCatalog.require(boundaryId);
+    }
+
+    default WayangSdkBoundaryCatalogValidationReport sdkBoundaryCatalogValidation() {
+        return WayangSdkBoundaryCatalog.validateDefault();
+    }
+
+    default WayangSdkBoundaryCatalogValidationReport validateSdkBoundaries(
+            List<WayangSdkBoundary> boundaries) {
+        return WayangSdkBoundaryCatalog.validate(boundaries);
     }
 
     default SurfacePolicyAssessment assessRunPolicy(AgentRunRequest request) {
@@ -317,7 +327,19 @@ public interface WayangGollekSdk extends AutoCloseable {
     }
 
     default List<WayangProviderCapabilityDescriptor> providerCapabilities(WayangProviderCapabilityQuery query) {
-        return providerCapabilityRegistry().discover(query);
+        return providerCapabilityDiscovery(query).capabilities();
+    }
+
+    /** Dynamically register provider metadata from a provider JAR file. Implementations may probe the JAR to discover provider classes and register capabilities. */
+    default void loadProviderJar(String jarPath) {
+        throw new UnsupportedOperationException("loadProviderJar is not supported by this WayangGollekSdk implementation");
+    }
+
+    /**
+     * Optional YAFF transport provider (shared-memory) discovery.
+     */
+    default java.util.Optional<WayangYaffTransportProvider> yaffTransportProvider() {
+        return java.util.Optional.empty();
     }
 
     default WayangProviderCapabilityDescriptor providerCapability(String capabilityId) {
@@ -352,6 +374,14 @@ public interface WayangGollekSdk extends AutoCloseable {
     }
 
     WorkspaceSnapshot inspectWorkspace(WorkspaceInspectionRequest request);
+
+    /** Provider control: allow CLI and tooling to prefer a specific provider id. */
+    void setPreferredProvider(String providerId);
+
+    Optional<String> getPreferredProvider();
+
+    /** List known provider ids from capability registry. */
+    List<String> listAvailableProviders();
 
     HarnessPlan planHarness(HarnessPlanRequest request);
 

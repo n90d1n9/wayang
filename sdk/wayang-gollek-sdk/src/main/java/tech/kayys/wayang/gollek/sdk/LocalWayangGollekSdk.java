@@ -10,6 +10,8 @@ import java.util.UUID;
 
 public final class LocalWayangGollekSdk implements WayangGollekSdk {
 
+    private volatile String preferredProvider;
+
     private final WayangGollekSdkConfig config;
     private final WayangAgentRequestMapper requestMapper;
     private final LocalWorkspaceInspector workspaceInspector;
@@ -19,6 +21,7 @@ public final class LocalWayangGollekSdk implements WayangGollekSdk {
     private final WayangProviderCapabilityRegistry providerCapabilityRegistry;
     private final AgentRunPlanner runPlanner;
     private final WayangPlatformReadinessProfileRegistry readinessProfileRegistry;
+    private final WayangYaffTransportProvider discoveredYaffTransport;
 
     public LocalWayangGollekSdk() {
         this(WayangGollekSdkConfig.local());
@@ -119,6 +122,39 @@ public final class LocalWayangGollekSdk implements WayangGollekSdk {
                 this.workspaceInspector,
                 this.harnessPlanner,
                 this.skillRegistry);
+        this.preferredProvider = null;
+
+        // Discover YAFF transport providers via ServiceLoader and pick highest-priority
+        java.util.ServiceLoader<WayangYaffTransportProvider> sl = java.util.ServiceLoader.load(WayangYaffTransportProvider.class);
+        WayangYaffTransportProvider best = null;
+        for (WayangYaffTransportProvider p : sl) {
+            if (best == null || p.priority() < best.priority()) {
+                best = p;
+            }
+        }
+        // If control-plane URL is provided, prefer a control-plane transport
+        String ctrl = System.getProperty("WAYANG_YAFF_CONTROL_URL");
+        if (ctrl == null || ctrl.isBlank()) ctrl = System.getenv("WAYANG_YAFF_CONTROL_URL");
+        if (ctrl != null && !ctrl.isBlank()) {
+            try {
+                best = new ControlPlaneWayangYaffTransportProvider(ctrl);
+            } catch (Throwable t) {
+                // fallthrough to other discovery
+            }
+        }
+
+        // If still no provider discovered via ServiceLoader, try reflection-based delegate (gollek/stubs)
+        if (best == null) {
+            try {
+                // common external adapter class name
+                String delegateClass = "tech.kayys.wayang.yaffffm.ShmYaffTransportProvider";
+                Class.forName(delegateClass);
+                best = new ReflectionWayangYaffTransportProvider(delegateClass);
+            } catch (Throwable ignored) {
+                // ignore if external adapter not present
+            }
+        }
+        this.discoveredYaffTransport = best;
     }
 
     @Override
@@ -197,6 +233,74 @@ public final class LocalWayangGollekSdk implements WayangGollekSdk {
     @Override
     public WorkspaceSnapshot inspectWorkspace(WorkspaceInspectionRequest request) {
         return workspaceInspector.inspect(request);
+    }
+
+    @Override
+    public synchronized void setPreferredProvider(String providerId) {
+        this.preferredProvider = providerId == null ? null : providerId.trim();
+    }
+
+    @Override
+    public synchronized java.util.Optional<String> getPreferredProvider() {
+        return java.util.Optional.ofNullable(preferredProvider);
+    }
+
+    @Override
+    public List<String> listAvailableProviders() {
+        return providerCapabilityRegistry.providerIds();
+    }
+
+    @Override
+    public synchronized void loadProviderJar(String jarPath) {
+        if (jarPath == null || jarPath.isBlank()) {
+            throw new IllegalArgumentException("jarPath is required");
+        }
+        java.io.File jarFile = new java.io.File(jarPath);
+        if (!jarFile.exists() || !jarFile.isFile()) {
+            throw new IllegalArgumentException("Provider JAR not found: " + jarPath);
+        }
+        String moduleId = jarFile.getName().replaceAll("\\.jar$", "");
+        java.util.List<String> providerClasses = new java.util.ArrayList<>();
+        try (java.util.jar.JarFile jf = new java.util.jar.JarFile(jarFile)) {
+            java.util.Enumeration<java.util.jar.JarEntry> en = jf.entries();
+            while (en.hasMoreElements()) {
+                java.util.jar.JarEntry entry = en.nextElement();
+                String name = entry.getName();
+                if (name.startsWith("tech/kayys/gollek/provider/") && name.endsWith("Provider.class")) {
+                    String className = name.replace('/', '.').replaceAll("\\.class$", "");
+                    providerClasses.add(className);
+                }
+            }
+        } catch (java.io.IOException e) {
+            throw new RuntimeException("Failed to inspect provider JAR: " + jarPath, e);
+        }
+
+        String providerId;
+        if (!providerClasses.isEmpty()) {
+            String cls = providerClasses.get(0);
+            String simple = cls.substring(cls.lastIndexOf('.') + 1);
+            providerId = simple.replaceAll("Provider$", "").toLowerCase(java.util.Locale.ROOT);
+        } else {
+            providerId = moduleId.toLowerCase(java.util.Locale.ROOT);
+        }
+
+        String capabilityId = providerId + ".inference";
+        WayangProviderCapabilityDescriptor descriptor = new WayangProviderCapabilityDescriptor(
+                capabilityId,
+                providerId,
+                "gollek",
+                moduleId,
+                "inference",
+                "" + Character.toUpperCase(providerId.charAt(0)) + providerId.substring(1) + " Provider",
+                "Dynamically registered provider from JAR: " + jarFile.getAbsolutePath(),
+                WayangProviderCapabilityState.AVAILABLE,
+                List.of("coding-agent", "assistant-agent"),
+                List.of(),
+                List.of("gollek", "provider", "inference"),
+                java.util.Map.of("jar", jarFile.getAbsolutePath())
+        );
+
+        providerCapabilityRegistry.register(descriptor);
     }
 
     @Override

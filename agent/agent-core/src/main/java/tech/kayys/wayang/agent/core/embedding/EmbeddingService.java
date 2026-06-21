@@ -7,7 +7,7 @@ import org.jboss.logging.Logger;
 
 import tech.kayys.gollek.spi.embedding.EmbeddingRequest;
 import tech.kayys.gollek.spi.embedding.EmbeddingResponse;
-import tech.kayys.gollek.spi.inference.InferenceEngine;
+import tech.kayys.gollek.sdk.core.GollekSdk;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,7 +46,7 @@ public class EmbeddingService {
     private static final Logger LOG = Logger.getLogger(EmbeddingService.class);
     private static final int CACHE_MAX = 1000;
 
-    @Inject InferenceEngine inferenceEngine;
+    @Inject GollekSdk gollekSdk;
 
     /** Simple LRU cache: text → float[]. */
     @SuppressWarnings("serial")
@@ -83,7 +83,13 @@ public class EmbeddingService {
                 .input(text)
                 .build();
 
-        return inferenceEngine.executeEmbedding(effectiveModel, req)
+        return Uni.createFrom().item(() -> {
+            try {
+                return gollekSdk.createEmbedding(req);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        })
                 .map(resp -> {
                     if (resp.embeddings() == null || resp.embeddings().isEmpty()) {
                         LOG.warnf("EmbeddingService: got empty embeddings for model=%s", effectiveModel);
@@ -145,7 +151,13 @@ public class EmbeddingService {
                 .inputs(textsToEmbed)
                 .build();
 
-        return inferenceEngine.executeEmbedding(effectiveModel, req)
+        return Uni.createFrom().item(() -> {
+            try {
+                return gollekSdk.createEmbedding(req);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        })
                 .map(resp -> {
                     List<float[]> vecs = resp.embeddings() != null ? resp.embeddings() : List.of();
                     for (int j = 0; j < toEmbed.size(); j++) {

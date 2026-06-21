@@ -103,6 +103,9 @@ wayang run wait <run-id> --timeout-seconds 30 --json
 wayang run cancel <run-id> --reason "user stop" --json
 wayang --run-store .wayang/runs.properties run list --state completed --json
 wayang --run-store .wayang/runs.properties run forget <run-id> --json
+wayang code
+wayang code --once "inspect this code"
+wayang code --workspace . --harness
 wayang commands
 wayang commands --surface assistant-agent --json
 wayang commands --index --json
@@ -115,6 +118,31 @@ wayang tui
 `wayang-gollek` remains a compatibility alias for the command name and Maven
 artifact/module names remain stable while the product-facing platform name is
 shortened to Wayang.
+
+---
+
+Wayang CLI - project & session commands
+
+New commands added:
+
+- wayang project add [<id>] --dir <directory>
+- wayang project remove <id>
+- wayang project rename <id> --name <new-name>
+- wayang project export <id> --file <path>
+- wayang project import --file <path>
+- wayang project switch <id>
+
+- wayang code --project <project-id>
+  - Slash commands inside REPL:
+    - /projects - list available projects
+    - /project <id> - switch current project
+    - /sessions - list sessions for current project
+    - /sessions resume <id> - resume a session
+    - /sessions delete <id> - delete a stored session transcript
+
+Sessions are stored under ~/.wayang/sessions/{project}/session-<id>.json
+Current project pointer stored at ~/.wayang/current_project.txt
+
 
 Global SDK options are accepted before the subcommand:
 
@@ -131,6 +159,13 @@ remote provider, or use the packaged `wayang-gollek-cli-remote` distribution.
 `tui` uses TamboUI for the terminal dashboard. The command/service boundary is
 Wayang-owned so TamboUI can evolve as an adapter instead of becoming the core
 platform contract.
+
+`code` starts a Gemini CLI / Claude Code style coding-agent session on top of
+Gollek inference. Each session receives a Wayang-owned system prompt with the
+current workspace, profile, memory mode, harness mode, and coding-agent
+operating rules. The prompt keeps the CLI focused on repository inspection,
+small changes, SDK/API separation of concern, verification, and honest handling
+of missing context.
 
 `workbench` renders the same SDK-owned model without opening a terminal UI.
 That model is the stable seam for future Claude Code/Gemini CLI style products,

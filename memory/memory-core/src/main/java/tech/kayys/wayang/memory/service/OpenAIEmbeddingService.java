@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * - gamelan.embedding.openai.cache-enabled: Enable embedding cache (default: true)
  */
 @ApplicationScoped
+@io.quarkus.arc.DefaultBean
 public class OpenAIEmbeddingService implements EmbeddingService {
 
     private static final Logger LOG = LoggerFactory.getLogger(OpenAIEmbeddingService.class);

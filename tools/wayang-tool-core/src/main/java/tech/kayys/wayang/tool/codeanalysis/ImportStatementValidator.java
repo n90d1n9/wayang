@@ -1,0 +1,359 @@
+/*
+ * Wayang Code Analysis - Import Statement Validator
+ * Copyright (c) 2026 Kayys.tech
+ * SPDX-License-Identifier: Apache-2.0
+ */
+package tech.kayys.wayang.tool.codeanalysis;
+
+import java.io.IOException;
+import java.nio.file.*;
+import java.util.*;
+import java.util.regex.*;
+import java.util.stream.*;
+
+/**
+ * Validates Java import statements against the actual codebase structure.
+ * Detects broken imports where the imported class doesn't exist in the specified package.
+ * 
+ * <p>This validator helps catch issues like:
+ * <ul>
+ *   <li>Typos in import statements</li>
+ *   <li>Imports from wrong packages (e.g., tech.kayys.aljabr when should be tech.kayys.gollek)</li>
+ *   <li>Imports of non-existent classes</li>
+ *   <li>Case sensitivity issues in package/class names</li>
+ * </ul>
+ */
+public class ImportStatementValidator {
+
+    private static final Pattern IMPORT_PATTERN = 
+        Pattern.compile("(?m)^import\\s+((?:[a-zA-Z_][a-zA-Z0-9_]*\\.)+[a-zA-Z_][a-zA-Z0-9_]*)\\s*;");
+    
+    private static final Pattern PACKAGE_PATTERN = 
+        Pattern.compile("(?m)^package\\s+((?:[a-zA-Z_][a-zA-Z0-9_]*\\.)+[a-zA-Z_][a-zA-Z0-9_]*)\\s*;");
+
+    private final Path codebaseRoot;
+    private final Map<String, Set<String>> packageToClassesCache = new HashMap<>();
+    private final Map<String, String> classToPackageCache = new HashMap<>();
+
+    public ImportStatementValidator(Path codebaseRoot) {
+        this.codebaseRoot = Objects.requireNonNull(codebaseRoot, "codebaseRoot cannot be null");
+    }
+
+    /**
+     * Validates all Java files in the codebase for import statement issues.
+     * 
+     * @return List of validation issues found
+     */
+    public List<ImportValidationIssue> validateCodebase() {
+        List<ImportValidationIssue> issues = new ArrayList<>();
+        
+        try {
+            // First, build the index of all available classes
+            buildClassIndex();
+            
+            // Then validate all Java files
+            try (Stream<Path> paths = Files.walk(codebaseRoot)) {
+                issues.addAll(paths
+                    .filter(p -> p.toString().endsWith(".java"))
+                    .flatMap(this::validateFile)
+                    .collect(Collectors.toList()));
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to validate codebase", e);
+        }
+        
+        return issues;
+    }
+
+    /**
+     * Validates a single Java file for import statement issues.
+     * 
+     * @param filePath Path to the Java file
+     * @return Stream of validation issues found in the file
+     */
+    public Stream<ImportValidationIssue> validateFile(Path filePath) {
+        ensureClassIndexBuilt();
+        try {
+            String content = Files.readString(filePath);
+            return validateContent(filePath, content).stream();
+        } catch (IOException e) {
+            return Stream.of(new ImportValidationIssue(
+                filePath.toString(),
+                "Error reading file: " + e.getMessage(),
+                ImportValidationIssue.Severity.ERROR
+            ));
+        }
+    }
+
+    /**
+     * Validates Java content for import statement issues.
+     * 
+     * @param filePath Path to the file (for error reporting)
+     * @param content The Java source content
+     * @return List of validation issues
+     */
+    public List<ImportValidationIssue> validateContent(Path filePath, String content) {
+        List<ImportValidationIssue> issues = new ArrayList<>();
+        String filePathStr = filePath.toString();
+        
+        // Ensure the class index is built
+        ensureClassIndexBuilt();
+        
+        // Extract package declaration
+        String currentPackage = extractPackage(content);
+        
+        // Extract all imports
+        List<String> imports = extractImports(content);
+        
+        // Check each import
+        for (String importStmt : imports) {
+            ImportValidationIssue issue = validateImport(filePathStr, importStmt, currentPackage);
+            if (issue != null) {
+                issues.add(issue);
+            }
+        }
+        
+        return issues;
+    }
+
+    /**
+     * Validates a single import statement.
+     * 
+     * @param filePath The file containing the import
+     * @param importStmt The import statement to validate
+     * @param currentPackage The package of the file containing the import
+     * @return Validation issue if the import is invalid, null otherwise
+     */
+    public ImportValidationIssue validateImport(String filePath, String importStmt, String currentPackage) {
+        // Clean up the import statement
+        String cleanImport = importStmt.trim();
+        if (cleanImport.endsWith(";")) {
+            cleanImport = cleanImport.substring(0, cleanImport.length() - 1);
+        }
+        String importPath = cleanImport.substring("import ".length()).trim();
+        
+        // Skip static imports for now (they have different validation logic)
+        if (importPath.contains(".*")) {
+            return null; // Wildcard imports - can't easily validate
+        }
+        
+        // Check if it's a static import
+        if (importPath.startsWith("static ")) {
+            return null; // Skip static imports for now
+        }
+        
+        // Extract the full class name
+        String fullClassName = importPath;
+        
+        // Check if class exists in our index
+        String actualPackage = classToPackageCache.get(fullClassName);
+        if (actualPackage == null) {
+            // Class doesn't exist - check if it might be in a similar package
+            String suggestedFix = findSimilarPackage(fullClassName);
+            
+            return new ImportValidationIssue(
+                filePath,
+                String.format("Imported class '%s' not found. %s", 
+                    fullClassName, 
+                    suggestedFix != null ? "Did you mean: import " + suggestedFix + ";?" : ""),
+                ImportValidationIssue.Severity.ERROR
+            );
+        }
+        
+        // If the import path doesn't match the actual package, it might be wrong
+        // But this is only an issue if the import uses a different package prefix
+        String importPackage = extractPackageFromFullClassName(fullClassName);
+        if (!importPackage.equals(actualPackage)) {
+            return new ImportValidationIssue(
+                filePath,
+                String.format("Class '%s' is imported from wrong package. Expected: %s, Found in: %s",
+                    fullClassName, importPackage, actualPackage),
+                ImportValidationIssue.Severity.WARNING
+            );
+        }
+        
+        return null;
+    }
+
+    /**
+     * Ensures the class index is built (lazy initialization).
+     */
+    private void ensureClassIndexBuilt() {
+        if (classToPackageCache.isEmpty()) {
+            try {
+                buildClassIndex();
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to build class index", e);
+            }
+        }
+    }
+
+    /**
+     * Builds an index of all classes in the codebase.
+     */
+    private void buildClassIndex() throws IOException {
+        packageToClassesCache.clear();
+        classToPackageCache.clear();
+        
+        try (Stream<Path> paths = Files.walk(codebaseRoot)) {
+            paths
+                .filter(p -> p.toString().endsWith(".java"))
+                .forEach(this::indexJavaFile);
+        }
+    }
+
+    /**
+     * Indexes a single Java file, extracting its package and class names.
+     */
+    private void indexJavaFile(Path filePath) {
+        try {
+            String content = Files.readString(filePath);
+            String packageName = extractPackage(content);
+            if (packageName == null) {
+                return; // No package declaration
+            }
+            
+            // Extract all class names from the file
+            List<String> classNames = extractClassNames(content);
+            
+            // Index by package
+            packageToClassesCache
+                .computeIfAbsent(packageName, k -> new HashSet<>())
+                .addAll(classNames);
+            
+            // Index by full class name
+            for (String className : classNames) {
+                String fullClassName = packageName + "." + className;
+                classToPackageCache.put(fullClassName, packageName);
+            }
+        } catch (IOException e) {
+            // Ignore files we can't read
+        }
+    }
+
+    /**
+     * Extracts the package declaration from Java content.
+     */
+    String extractPackage(String content) {
+        Matcher matcher = PACKAGE_PATTERN.matcher(content);
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+        return null;
+    }
+
+    /**
+     * Extracts all top-level class names from Java content.
+     */
+    List<String> extractClassNames(String content) {
+        List<String> classNames = new ArrayList<>();
+        
+        // Simple pattern for class declarations (won't catch nested classes perfectly)
+        Pattern classPattern = Pattern.compile(
+            "(?:class|interface|enum|@interface|record)\\s+([A-Z][a-zA-Z0-9_]*)"
+        );
+        
+        Matcher matcher = classPattern.matcher(content);
+        while (matcher.find()) {
+            classNames.add(matcher.group(1));
+        }
+        
+        return classNames;
+    }
+
+    /**
+     * Extracts all import statements from Java content.
+     */
+    List<String> extractImports(String content) {
+        List<String> imports = new ArrayList<>();
+        Matcher matcher = IMPORT_PATTERN.matcher(content);
+        while (matcher.find()) {
+            imports.add(matcher.group(0));
+        }
+        return imports;
+    }
+
+    /**
+     * Extracts the package part from a full class name.
+     */
+    private String extractPackageFromFullClassName(String fullClassName) {
+        int lastDot = fullClassName.lastIndexOf('.');
+        if (lastDot > 0) {
+            return fullClassName.substring(0, lastDot);
+        }
+        return "";
+    }
+
+    /**
+     * Attempts to find a similar package for a class that wasn't found.
+     * This helps suggest fixes for common migration issues.
+     */
+    private String findSimilarPackage(String fullClassName) {
+        int lastDot = fullClassName.lastIndexOf('.');
+        if (lastDot <= 0) {
+            return null;
+        }
+        
+        String className = fullClassName.substring(lastDot + 1);
+        String wrongPackage = fullClassName.substring(0, lastDot);
+        
+        // Check if the class exists in any other package
+        for (Map.Entry<String, Set<String>> entry : packageToClassesCache.entrySet()) {
+            if (entry.getValue().contains(className)) {
+                return entry.getKey() + "." + className;
+            }
+        }
+        
+        // Check for common package prefix replacements
+        // e.g., tech.kayys.aljabr -> tech.kayys.gollek
+        String[] commonReplacements = {
+            "tech.kayys.aljabr", "tech.kayys.gollek",
+            "tech.kayys.gollek", "tech.kayys.aljabr"
+        };
+        
+        for (String prefix : commonReplacements) {
+            if (wrongPackage.startsWith(prefix)) {
+                String replacement = wrongPackage.replace(prefix, 
+                    prefix.equals("tech.kayys.aljabr") ? "tech.kayys.gollek" : "tech.kayys.aljabr");
+                String candidate = replacement + "." + className;
+                if (classToPackageCache.containsKey(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+        
+        return null;
+    }
+
+    /**
+     * Validates imports in a specific directory.
+     * 
+     * @param directory The directory to validate
+     * @return List of validation issues
+     */
+    public List<ImportValidationIssue> validateDirectory(Path directory) {
+        ensureClassIndexBuilt();
+        List<ImportValidationIssue> issues = new ArrayList<>();
+        
+        try {
+            try (Stream<Path> paths = Files.walk(directory)) {
+                issues.addAll(paths
+                    .filter(p -> p.toString().endsWith(".java"))
+                    .flatMap(this::validateFile)
+                    .collect(Collectors.toList()));
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to validate directory: " + directory, e);
+        }
+        
+        return issues;
+    }
+
+    /**
+     * Clears the internal cache. Call this if the codebase has changed.
+     */
+    public void clearCache() {
+        packageToClassesCache.clear();
+        classToPackageCache.clear();
+    }
+}

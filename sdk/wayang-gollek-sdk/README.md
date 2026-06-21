@@ -22,7 +22,11 @@ schemas, and dependencies. Use it as the source of truth for future package
 refactors and for API/CLI wrappers that need to explain which part of the SDK a
 model belongs to. SDK wrappers can access the same map through
 `WayangClient.platform().sdkBoundaries()`, `sdkBoundary("<id>")`,
-`sdkBoundaryCatalogJson()`, and `sdkBoundaryJson("<id>")`.
+`sdkBoundaryCatalogJson()`, and `sdkBoundaryJson("<id>")`. Use
+`WayangClient.platform().sdkBoundaryCatalogValidation()` or
+`sdkBoundaryCatalogValidationJson()` as the SDK-owned health check before
+package moves, generated API docs, or wrapper-specific command surfaces depend
+on the boundary map.
 
 ## Entry Points
 

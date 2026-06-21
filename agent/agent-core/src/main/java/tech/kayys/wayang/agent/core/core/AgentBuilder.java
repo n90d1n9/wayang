@@ -1,6 +1,7 @@
 package tech.kayys.wayang.agent.core.core;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 import tech.kayys.wayang.agent.spi.*;
@@ -55,7 +56,17 @@ public class AgentBuilder {
     private static final Logger LOG = Logger.getLogger(AgentBuilder.class);
 
     @Inject
-    Map<String, AgentOrchestrator> orchestrators;
+    Instance<AgentOrchestrator> orchestratorInstance;
+
+    private Map<String, AgentOrchestrator> orchestrators;
+
+    @jakarta.annotation.PostConstruct
+    void init() {
+        orchestrators = new HashMap<>();
+        for (AgentOrchestrator orchestrator : orchestratorInstance) {
+            orchestrators.put(orchestrator.strategyId(), orchestrator);
+        }
+    }
 
     @Inject
     SkillRegistry skillRegistry;

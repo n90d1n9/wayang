@@ -1,0 +1,157 @@
+/*
+ * Wayang Code Analysis - Import Statement Validator Tests
+ * Copyright (c) 2026 Kayys.tech
+ * SPDX-License-Identifier: Apache-2.0
+ */
+package tech.kayys.wayang.tool.codeanalysis;
+
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class ImportStatementValidatorTest {
+
+    @TempDir
+    Path tempDir;
+
+    private ImportStatementValidator validator;
+
+    @BeforeEach
+    void setUp() {
+        validator = new ImportStatementValidator(tempDir);
+    }
+
+    @AfterEach
+    void tearDown() {
+        validator.clearCache();
+    }
+
+    @Test
+    void testExtractPackage() {
+        String content = "package com.example.test;\n\npublic class Test {}";
+        String pkg = validator.extractPackage(content);
+        assertEquals("com.example.test", pkg, "Package should be extracted correctly");
+    }
+
+    @Test
+    void testExtractPackage_NoPackage() {
+        String content = "public class Test {}";
+        String pkg = validator.extractPackage(content);
+        assertNull(pkg, "Should return null when no package declaration");
+    }
+
+    @Test
+    void testExtractImports() {
+        String content = "package test;\n\nimport java.util.List;\nimport java.util.Map;\npublic class Test {}";
+        List<String> imports = validator.extractImports(content);
+        assertEquals(2, imports.size(), "Should extract all imports");
+        assertTrue(imports.get(0).contains("java.util.List"));
+        assertTrue(imports.get(1).contains("java.util.Map"));
+    }
+
+    @Test
+    void testExtractClassNames() {
+        String content = "package test;\npublic class TestClass {}\ninterface TestInterface {}\nenum TestEnum {A, B}\n";
+        List<String> classNames = validator.extractClassNames(content);
+        assertEquals(3, classNames.size());
+        assertTrue(classNames.contains("TestClass"));
+        assertTrue(classNames.contains("TestInterface"));
+        assertTrue(classNames.contains("TestEnum"));
+    }
+
+    @Test
+    void testValidateCorrectImport() throws IOException {
+        Path pkgDir = tempDir.resolve("com/example");
+        pkgDir.toFile().mkdirs();
+        Path testFile = pkgDir.resolve("TestClass.java");
+        Files.writeString(testFile, "package com.example;\npublic class TestClass {}");
+
+        List<ImportValidationIssue> issues = validator.validateContent(
+            Path.of("/test/Test.java"),
+            "package test;\nimport com.example.TestClass;\npublic class Test {}"
+        );
+        assertTrue(issues.isEmpty(), "No issues should be found for correct import");
+    }
+
+    @Test
+    void testValidateMissingImport() throws IOException {
+        List<ImportValidationIssue> issues = validator.validateContent(
+            Path.of("/test/Test.java"),
+            "package test;\nimport com.nonexistent.TestClass;\npublic class Test {}"
+        );
+        assertFalse(issues.isEmpty(), "Should find issue for missing import");
+        assertEquals(1, issues.size());
+        assertEquals(ImportValidationIssue.Severity.ERROR, issues.get(0).getSeverity());
+        assertTrue(issues.get(0).getMessage().contains("com.nonexistent.TestClass"));
+    }
+
+    @Test
+    void testValidateAljabrToGollekMigration() throws IOException {
+        Path pkgDir = tempDir.resolve("tech/kayys/gollek/tokenizer/spi");
+        pkgDir.toFile().mkdirs();
+        Path tokenizerFile = pkgDir.resolve("Tokenizer.java");
+        Files.writeString(tokenizerFile, 
+            "package tech.kayys.gollek.tokenizer.spi;\npublic interface Tokenizer {}");
+
+        List<ImportValidationIssue> issues = validator.validateContent(
+            Path.of("/test/Test.java"),
+            "package test;\nimport tech.kayys.aljabr.tokenizer.spi.Tokenizer;\npublic class Test {}"
+        );
+        assertFalse(issues.isEmpty(), "Should detect aljabr import when class is in gollek");
+        assertTrue(issues.get(0).getSuggestedFix() != null &&
+                   issues.get(0).getSuggestedFix().contains("tech.kayys.gollek.tokenizer.spi.Tokenizer"),
+                   "Should suggest gollek import for aljabr import");
+    }
+
+    @Test
+    void testValidateStaticImport() throws IOException {
+        Path pkgDir = tempDir.resolve("com/example");
+        pkgDir.toFile().mkdirs();
+        Path testFile = pkgDir.resolve("TestClass.java");
+        Files.writeString(testFile, "package com.example;\npublic class TestClass {public static final int X = 1;}");
+
+        List<ImportValidationIssue> issues = validator.validateContent(
+            Path.of("/test/Test.java"),
+            "package test;\nimport static com.example.TestClass.X;\npublic class Test {}"
+        );
+        assertTrue(issues.isEmpty(), "Static imports should be skipped");
+    }
+
+    @Test
+    void testValidateWildcardImport() throws IOException {
+        Path pkgDir = tempDir.resolve("com/example");
+        pkgDir.toFile().mkdirs();
+        Files.writeString(pkgDir.resolve("Class1.java"), "package com.example;\npublic class Class1 {}");
+        Files.writeString(pkgDir.resolve("Class2.java"), "package com.example;\npublic class Class2 {}");
+
+        List<ImportValidationIssue> issues = validator.validateContent(
+            Path.of("/test/Test.java"),
+            "package test;\nimport com.example.*;\npublic class Test {}"
+        );
+        assertTrue(issues.isEmpty(), "Wildcard imports should be skipped");
+    }
+
+    @Test
+    void testClearCache() throws IOException {
+        Path pkgDir = tempDir.resolve("com/test");
+        pkgDir.toFile().mkdirs();
+        Files.writeString(pkgDir.resolve("Test.java"), "package com.test;\npublic class Test {}");
+
+        validator.validateContent(Path.of("/test/T.java"), "package t;\nimport com.test.Test;\npublic class T {}");
+        validator.clearCache();
+
+        List<ImportValidationIssue> issues = validator.validateContent(
+            Path.of("/test/T2.java"), 
+            "package t;\nimport com.test.Test;\npublic class T2 {}"
+        );
+        assertTrue(issues.isEmpty(), "Should work after cache clear");
+    }
+}

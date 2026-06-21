@@ -63,6 +63,9 @@ public class GollekInferenceService {
     tech.kayys.wayang.agent.spi.memory.AgentMemoryManager memoryService;
 
     @Inject
+    jakarta.enterprise.inject.Instance<tech.kayys.wayang.memory.spi.DirectAgentContext> directAgentContexts;
+
+    @Inject
     tech.kayys.wayang.agent.core.tools.ToolRegistry toolRegistry;
 
     // ==================== Synchronous Inference ====================
@@ -575,6 +578,23 @@ public class GollekInferenceService {
 
         if (tools != null && !tools.isEmpty()) {
             builder.tools(tools);
+        }
+
+        if (Boolean.TRUE.equals(request.getUseMemory()) && request.getAgentId() != null 
+                && directAgentContexts != null && directAgentContexts.isResolvable()) {
+            try {
+                // Fetch native memory segment zero-copy
+                java.lang.foreign.MemorySegment nativeContext = directAgentContexts.get()
+                        .getNativeContext(request.getAgentId(), java.lang.foreign.Arena.global())
+                        .await().indefinitely()
+                        .orElse(null);
+                if (nativeContext != null) {
+                    builder.nativeContextSegment(nativeContext);
+                    log.debug("Injected zero-copy native memory segment for agent {}", request.getAgentId());
+                }
+            } catch (Exception e) {
+                log.warn("Failed to retrieve native memory context for agent {}: {}", request.getAgentId(), e.getMessage());
+            }
         }
 
         String preferredProvider = resolvePreferredProvider(request);

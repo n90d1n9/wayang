@@ -2,6 +2,7 @@ package tech.kayys.wayang.agent.core.integration;
 
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,7 +64,14 @@ public class ToolEnabledAgentExecutor {
     AgentToolService toolService;
 
     @Inject
-    AgentOrchestrator agentOrchestrator;
+    Instance<AgentOrchestrator> agentOrchestrators;
+
+    private AgentOrchestrator getReactOrchestrator() {
+        return agentOrchestrators.stream()
+            .filter(o -> "react".equals(o.strategyId()))
+            .findFirst()
+            .orElseGet(() -> agentOrchestrators.iterator().next());
+    }
 
     /**
      * Execute task with tool support
@@ -115,7 +123,7 @@ public class ToolEnabledAgentExecutor {
                                     .build());
                 })
                 // Step 5: Execute agent
-                .flatMap(agentOrchestrator::execute)
+                .flatMap(request -> getReactOrchestrator().execute(request))
                 // Step 6: Process tool calls if present
                 .flatMap(response -> procesToolCalls(agentId, response))
                 // Step 7: Store execution in memory

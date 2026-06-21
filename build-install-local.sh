@@ -84,7 +84,7 @@ cat > "$WRAPPER_PATH" <<'EOS'
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
 JAR_PATH="${SCRIPT_DIR}/../share/wayang-gollek-cli.jar"
 
-exec java -jar "$JAR_PATH" "$@"
+exec java --add-modules jdk.incubator.vector -jar "$JAR_PATH" "$@"
 EOS
 
 chmod +x "$WRAPPER_PATH"

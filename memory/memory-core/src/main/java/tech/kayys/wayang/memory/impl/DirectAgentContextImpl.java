@@ -1,0 +1,59 @@
+package tech.kayys.wayang.memory.impl;
+
+import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
+import jakarta.enterprise.context.ApplicationScoped;
+import tech.kayys.aljabr.core.memory.MemoryStoreConfig;
+import tech.kayys.aljabr.core.memory.MemoryStoreFactory;
+import tech.kayys.aljabr.core.memory.UnifiedMemoryStore;
+import tech.kayys.wayang.memory.spi.DirectAgentContext;
+
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.util.Optional;
+
+@ApplicationScoped
+public class DirectAgentContextImpl implements DirectAgentContext {
+
+    private final UnifiedMemoryStore memoryStore;
+
+    public DirectAgentContextImpl() {
+        // In a real application, MemoryStoreConfig would be injected via Eclipse MicroProfile Config
+        // Choose DB path from system property or default
+        String dbPath = System.getProperty("wayang.aljabr.dbpath", "./data/aljabr");
+        this.memoryStore = MemoryStoreFactory.openRocksDb(dbPath);
+    }
+
+    @Override
+    public Uni<Optional<MemorySegment>> getNativeContext(String agentId, Arena arena) {
+        return Uni.createFrom().item(() -> {
+            byte[] key = ("context:" + agentId).getBytes();
+            // pass expectedSize=0 when unknown
+            return memoryStore.getZeroCopy(key, 0L, arena);
+        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+    }
+
+    @Override
+    public Uni<Void> appendToContext(String agentId, String newInteraction) {
+        return Uni.createFrom().<Void>item(() -> {
+            byte[] key = ("context:" + agentId).getBytes();
+            try (Arena tempArena = Arena.ofConfined()) {
+                // For simplicity avoid reading existing zero-copy segment; append semantics can be added later.
+                byte[] updateBytes = newInteraction.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                MemorySegment newSegment = tempArena.allocate(updateBytes.length);
+                MemorySegment.copy(updateBytes, 0, newSegment, java.lang.foreign.ValueLayout.JAVA_BYTE, 0, updateBytes.length);
+                memoryStore.put(key, newSegment);
+            }
+            return null;
+        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+    }
+
+    @Override
+    public Uni<Void> replaceContext(String agentId, MemorySegment contextSegment) {
+        return Uni.createFrom().<Void>item(() -> {
+            byte[] key = ("context:" + agentId).getBytes();
+            memoryStore.put(key, contextSegment);
+            return null;
+        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+    }
+}

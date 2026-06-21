@@ -60,7 +60,11 @@
     </dependencies>
 
     <modules>
+        <module>wayang-error-spi</module>
+        <module>wayang-plugin-spi</module>
+        <module>wayang-plugin-registry</module>
         <module>agent</module>
+        <module>wayang-agent-engine</module>
         <module>graph</module>
         <module>guardrails</module>
         <module>hitl</module>
@@ -80,6 +84,9 @@
         <module>sdk/wayang-gollek-sdk-remote</module>
         <module>cli/wayang-gollek-cli</module>
         <module>cli/wayang-gollek-cli-remote</module>
+        <module>wayang-tui</module>
+        <module>tools/wayang-tools</module>
+        <module>api</module>
     </modules>
 
     <profiles>
@@ -88,6 +95,15 @@
             <modules>
                 <module>a2ui</module>
             </modules>
+        </profile>
+        <!-- CI-friendly profile: disables Quarkus DevServices which require Docker or configured datasources.
+             Use with: mvn -Pci ...  -->
+        <profile>
+            <id>ci</id>
+            <properties>
+                <quarkus.datasource.devservices.enabled>false</quarkus.datasource.devservices.enabled>
+                <!-- Some modules may still require explicit DB config; this profile is intended for packaging without starting devservices. -->
+            </properties>
         </profile>
     </profiles>
 

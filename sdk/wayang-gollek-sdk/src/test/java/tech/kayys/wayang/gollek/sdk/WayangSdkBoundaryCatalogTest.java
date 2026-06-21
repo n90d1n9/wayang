@@ -55,6 +55,16 @@ class WayangSdkBoundaryCatalogTest {
     }
 
     @Test
+    void resolvesClassOwnershipByMostSpecificPrefix() {
+        assertThat(WayangSdkBoundaryCatalog.boundaryForClassName("WayangPlatformStatus"))
+                .hasValueSatisfying(boundary -> assertThat(boundary.id()).isEqualTo("platform"));
+        assertThat(WayangSdkBoundaryCatalog.boundaryForClassName("WayangPlatformContract"))
+                .hasValueSatisfying(boundary -> assertThat(boundary.id()).isEqualTo("contract"));
+        assertThat(WayangSdkBoundaryCatalog.boundaryForClassName("WayangReadinessContract"))
+                .hasValueSatisfying(boundary -> assertThat(boundary.id()).isEqualTo("contract"));
+    }
+
+    @Test
     void resolvesContractSchemaOwnership() {
         assertThat(WayangSdkBoundaryCatalog.boundaryForContractSchema(AgentRunLifecycleContract.SCHEMA))
                 .hasValueSatisfying(boundary -> assertThat(boundary.id()).isEqualTo("run"));
@@ -96,5 +106,98 @@ class WayangSdkBoundaryCatalogTest {
         assertThat(boundary.dependsOn()).containsExactly("core");
         assertThatThrownBy(() -> boundary.classPrefixes().add("Other"))
                 .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void validatesDefaultBoundaryCatalog() {
+        WayangSdkBoundaryCatalogValidationReport report = WayangSdkBoundaryCatalog.validateDefault();
+
+        assertThat(report.valid()).isTrue();
+        assertThat(report.issueCount()).isZero();
+        assertThat(report.totalBoundaries()).isEqualTo(9);
+        assertThat(report.boundaryIds()).contains("core", "run", "remote");
+        assertThat(report.intendedPackages()).contains("tech.kayys.wayang.gollek.sdk.contract");
+        assertThat(report.classPrefixes()).contains("WayangPlatformContract", "Remote");
+        assertThat(report.contractSchemas()).contains(WayangWorkbenchContract.SCHEMA);
+    }
+
+    @Test
+    void reportsBoundaryCatalogDrift() {
+        WayangSdkBoundary core = boundary(
+                "core",
+                "Core",
+                ".core",
+                List.of("Core"),
+                List.of(),
+                List.of());
+        WayangSdkBoundary duplicateCore = boundary(
+                "core",
+                "Duplicate Core",
+                ".core",
+                List.of("DuplicateCore"),
+                List.of(),
+                List.of());
+        WayangSdkBoundary app = new WayangSdkBoundary(
+                "app",
+                "App",
+                "example.app",
+                "Out-of-root app boundary.",
+                List.of("Shared"),
+                List.of(),
+                List.of("missing", "app"));
+        WayangSdkBoundary other = boundary(
+                "other",
+                "Other",
+                ".core",
+                List.of("Shared"),
+                List.of(),
+                List.of());
+        WayangSdkBoundary cycleA = boundary(
+                "cycle-a",
+                "Cycle A",
+                ".cyclea",
+                List.of("CycleA"),
+                List.of(),
+                List.of("cycle-b"));
+        WayangSdkBoundary cycleB = boundary(
+                "cycle-b",
+                "Cycle B",
+                ".cycleb",
+                List.of("CycleB"),
+                List.of(),
+                List.of("cycle-a"));
+
+        WayangSdkBoundaryCatalogValidationReport report = WayangSdkBoundaryCatalog.validate(
+                List.of(core, duplicateCore, app, other, cycleA, cycleB));
+
+        assertThat(report.valid()).isFalse();
+        assertThat(report.totalBoundaries()).isEqualTo(6);
+        assertThat(report.issues())
+                .extracting(WayangSdkBoundaryCatalogValidationIssue::kind)
+                .contains(
+                        "duplicate-boundary-id",
+                        "duplicate-intended-package",
+                        "invalid-intended-package",
+                        "unknown-dependency",
+                        "self-dependency",
+                        "duplicate-class-prefix",
+                        "dependency-cycle");
+    }
+
+    private static WayangSdkBoundary boundary(
+            String id,
+            String name,
+            String packageSuffix,
+            List<String> classPrefixes,
+            List<String> contractSchemas,
+            List<String> dependsOn) {
+        return new WayangSdkBoundary(
+                id,
+                name,
+                WayangSdkBoundaryCatalog.SDK_ROOT_PACKAGE + packageSuffix,
+                name + " test boundary.",
+                classPrefixes,
+                contractSchemas,
+                dependsOn);
     }
 }

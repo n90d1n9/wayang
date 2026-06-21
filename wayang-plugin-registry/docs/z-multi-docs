@@ -1,0 +1,660 @@
+# Multi-Node Plugin System - Complete Guide
+
+## 📦 Three Approaches to Handle Multiple Nodes in One JAR
+
+### **Approach 1: YAML/JSON Manifest** (Recommended for complex plugins)
+### **Approach 2: Annotation-Based** (Best for Java-first development)
+### **Approach 3: Hybrid** (Combine both)
+
+---
+
+## 1️⃣ Approach 1: YAML Manifest (Recommended)
+
+### **plugin-manifest.yaml**
+
+```yaml
+# ============================================================================
+# AI NLP PLUGIN - 4 NODES IN ONE JAR
+# ============================================================================
+
+pluginId: com.acme.ai.nlp
+name: AI NLP Plugin
+version: 1.0.0
+family: AI
+author: ACME Corp
+description: Complete NLP toolkit with 4 analysis nodes
+
+# ============================================================================
+# SHARED RESOURCES (reused across nodes)
+# ============================================================================
+shared:
+  # Shared JSON schemas
+  schemas:
+    text-input: /schemas/text-input.json
+    nlp-config: /schemas/nlp-config.json
+  
+  # Shared widgets
+  widgets:
+    ai-node: /widgets/AINode.js
+  
+  # Shared constants
+  constants:
+    maxTextLength: 10000
+    defaultModel: "default"
+
+# ============================================================================
+# NODE DEFINITIONS (4 nodes)
+# ============================================================================
+nodes:
+  # Node 1: Sentiment Analysis
+  - type: ai.sentiment
+    label: Sentiment Analysis
+    category: AI
+    subCategory: NLP
+    description: Analyze text sentiment and emotions
+    icon: smile
+    color: "#10B981"
+    
+    # Schemas (can reference shared or be inline)
+    configSchema:
+      type: file
+      content: /schemas/sentiment-config.json
+    
+    inputSchema:
+      type: file
+      content: /schemas/text-input.json  # Shared schema
+    
+    outputSchema:
+      type: inline
+      content: |
+        {
+          "type": "object",
+          "properties": {
+            "sentiment": {
+              "type": "string",
+              "enum": ["POSITIVE", "NEGATIVE", "NEUTRAL"]
+            },
+            "score": {
+              "type": "number",
+              "minimum": -1.0,
+              "maximum": 1.0
+            },
+            "confidence": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.0
+            },
+            "emotions": {
+              "type": "object"
+            }
+          }
+        }
+    
+    # Executor binding (shared executor)
+    executorId: ai.nlp.executor
+    
+    # Widget binding
+    widgetId: widget.ai.sentiment
+    
+    # Node-specific config
+    config:
+      defaultThreshold: 0.5
+      supportedModels:
+        - default
+        - advanced
+        - fast
+
+  # Node 2: Text Classification
+  - type: ai.classification
+    label: Text Classification
+    category: AI
+    subCategory: NLP
+    description: Classify text into predefined categories
+    icon: tag
+    color: "#3B82F6"
+    
+    configSchema:
+      type: file
+      content: /schemas/classification-config.json
+    
+    inputSchema:
+      type: file
+      content: /schemas/text-input.json  # Reuse shared schema
+    
+    outputSchema:
+      type: file
+      content: /schemas/classification-output.json
+    
+    executorId: ai.nlp.executor  # Same executor
+    widgetId: widget.ai.classification
+    
+    config:
+      maxCategories: 10
+      minConfidence: 0.6
+
+  # Node 3: Named Entity Recognition
+  - type: ai.ner
+    label: Named Entity Recognition
+    category: AI
+    subCategory: NLP
+    description: Extract named entities (people, places, organizations)
+    icon: user-check
+    color: "#8B5CF6"
+    
+    configSchema:
+      type: file
+      content: /schemas/ner-config.json
+    
+    inputSchema:
+      type: file
+      content: /schemas/text-input.json  # Reuse shared schema
+    
+    outputSchema:
+      type: file
+      content: /schemas/ner-output.json
+    
+    executorId: ai.nlp.executor  # Same executor
+    widgetId: widget.ai.ner
+    
+    config:
+      defaultEntityTypes:
+        - PERSON
+        - LOCATION
+        - ORGANIZATION
+        - DATE
+
+  # Node 4: Text Summarization
+  - type: ai.summarization
+    label: Text Summarization
+    category: AI
+    subCategory: NLP
+    description: Generate concise summaries of long text
+    icon: file-text
+    color: "#F59E0B"
+    
+    configSchema:
+      type: file
+      content: /schemas/summarization-config.json
+    
+    inputSchema:
+      type: file
+      content: /schemas/text-input.json  # Reuse shared schema
+    
+    outputSchema:
+      type: file
+      content: /schemas/summarization-output.json
+    
+    executorId: ai.nlp.executor  # Same executor
+    widgetId: widget.ai.summarization
+    
+    config:
+      defaultMaxLength: 200
+      defaultFormat: "paragraph"
+
+# ============================================================================
+# EXECUTORS (Single executor handles all 4 nodes)
+# ============================================================================
+executors:
+  - executorId: ai.nlp.executor
+    className: com.acme.ai.nlp.AINLPExecutor
+    inProcess: true
+    nodeTypes:
+      - ai.sentiment
+      - ai.classification
+      - ai.ner
+      - ai.summarization
+    mode: SYNC
+    protocols:
+      - REST
+      - GRPC
+    config:
+      maxConcurrency: 50
+      timeoutMs: 30000
+
+# ============================================================================
+# PLUGIN CONFIGURATION
+# ============================================================================
+config:
+  enableCache: true
+  cacheTTL: 300
+  logLevel: INFO
+```
+
+### **Project Structure**
+
+```
+ai-nlp-plugin/
+├── pom.xml
+├── src/
+│   ├── main/
+│   │   ├── java/
+│   │   │   └── com/acme/ai/nlp/
+│   │   │       ├── AINLPPlugin.java
+│   │   │       ├── AINLPExecutor.java          # Single executor
+│   │   │       ├── SentimentAnalyzer.java
+│   │   │       ├── TextClassifier.java
+│   │   │       ├── NamedEntityRecognizer.java
+│   │   │       └── TextSummarizer.java
+│   │   └── resources/
+│   │       ├── plugin-manifest.yaml            # Main manifest
+│   │       ├── schemas/                        # Shared schemas
+│   │       │   ├── text-input.json
+│   │       │   ├── sentiment-config.json
+│   │       │   ├── sentiment-output.json
+│   │       │   ├── classification-config.json
+│   │       │   ├── classification-output.json
+│   │       │   ├── ner-config.json
+│   │       │   ├── ner-output.json
+│   │       │   ├── summarization-config.json
+│   │       │   └── summarization-output.json
+│   │       └── widgets/                        # Shared widgets
+│   │           ├── AINode.js
+│   │           └── AINode.css
+│   └── test/
+└── README.md
+```
+
+---
+
+## 2️⃣ Approach 2: Annotation-Based (Java First)
+
+### **AINLPPlugin.java**
+
+```java
+@MultiNodePlugin(
+    id = "com.acme.ai.nlp",
+    name = "AI NLP Plugin",
+    version = "1.0.0",
+    family = "AI",
+    author = "ACME Corp"
+)
+@NodeDefinitions({
+    @NodeDefinition(
+        type = "ai.sentiment",
+        label = "Sentiment Analysis",
+        configSchema = "/schemas/sentiment-config.json",
+        inputSchema = "/schemas/text-input.json",
+        outputSchema = "/schemas/sentiment-output.json",
+        executorId = "ai.nlp.executor"
+    ),
+    @NodeDefinition(
+        type = "ai.classification",
+        label = "Text Classification",
+        configSchema = "/schemas/classification-config.json",
+        inputSchema = "/schemas/text-input.json",
+        outputSchema = "/schemas/classification-output.json",
+        executorId = "ai.nlp.executor"
+    ),
+    @NodeDefinition(
+        type = "ai.ner",
+        label = "Named Entity Recognition",
+        configSchema = "/schemas/ner-config.json",
+        inputSchema = "/schemas/text-input.json",
+        outputSchema = "/schemas/ner-output.json",
+        executorId = "ai.nlp.executor"
+    ),
+    @NodeDefinition(
+        type = "ai.summarization",
+        label = "Text Summarization",
+        configSchema = "/schemas/summarization-config.json",
+        inputSchema = "/schemas/text-input.json",
+        outputSchema = "/schemas/summarization-output.json",
+        executorId = "ai.nlp.executor"
+    )
+})
+@ApplicationScoped
+public class AINLPPlugin {
+    // Plugin initialization code
+}
+```
+
+---
+
+## 3️⃣ Multiple Executors in One Plugin
+
+### **When to Use Multiple Executors**
+
+- **Different performance requirements** (CPU-bound vs I/O-bound)
+- **Different languages** (Java executor + Python executor)
+- **Different protocols** (GRPC for some, REST for others)
+- **Resource isolation** (memory-intensive operations)
+
+### **Example: Database Plugin with Multiple Executors**
+
+```yaml
+pluginId: com.acme.database
+name: Database Plugin
+version: 1.0.0
+
+nodes:
+  # Fast read operations
+  - type: database.select
+    label: SELECT Query
+    executorId: database.read.executor  # Fast executor
+    
+  - type: database.count
+    label: COUNT Query
+    executorId: database.read.executor  # Same fast executor
+  
+  # Slow write operations
+  - type: database.insert
+    label: INSERT
+    executorId: database.write.executor  # Separate executor
+  
+  - type: database.bulk-insert
+    label: Bulk INSERT
+    executorId: database.bulk.executor  # Special bulk executor
+
+executors:
+  # Fast read-only executor
+  - executorId: database.read.executor
+    className: com.acme.database.ReadExecutor
+    nodeTypes: [database.select, database.count]
+    config:
+      maxConcurrency: 100  # High concurrency
+      timeoutMs: 5000      # Short timeout
+  
+  # Write executor
+  - executorId: database.write.executor
+    className: com.acme.database.WriteExecutor
+    nodeTypes: [database.insert, database.update, database.delete]
+    config:
+      maxConcurrency: 20   # Lower concurrency
+      timeoutMs: 30000     # Longer timeout
+  
+  # Bulk operations executor
+  - executorId: database.bulk.executor
+    className: com.acme.database.BulkExecutor
+    nodeTypes: [database.bulk-insert]
+    config:
+      maxConcurrency: 5    # Very low concurrency
+      timeoutMs: 300000    # Very long timeout (5 min)
+```
+
+---
+
+## 4️⃣ Node Families (Related Nodes)
+
+### **HTTP Plugin Example**
+
+```yaml
+pluginId: com.acme.http
+name: HTTP Plugin
+version: 1.0.0
+family: Integration
+
+nodes:
+  # All HTTP methods as separate nodes
+  - type: http.get
+    label: HTTP GET
+    icon: download
+    color: "#10B981"
+    executorId: http.executor
+    
+  - type: http.post
+    label: HTTP POST
+    icon: upload
+    color: "#3B82F6"
+    executorId: http.executor
+    
+  - type: http.put
+    label: HTTP PUT
+    icon: edit
+    color: "#F59E0B"
+    executorId: http.executor
+    
+  - type: http.delete
+    label: HTTP DELETE
+    icon: trash
+    color: "#EF4444"
+    executorId: http.executor
+
+executors:
+  - executorId: http.executor
+    className: com.acme.http.HTTPExecutor
+    nodeTypes: [http.get, http.post, http.put, http.delete]
+```
+
+### **Executor handles all variants**
+
+```java
+@MultiNodeExecutor(
+    executorId = "http.executor",
+    nodeTypes = {"http.get", "http.post", "http.put", "http.delete"}
+)
+public class HTTPExecutor extends AbstractExecutor {
+    
+    @Override
+    protected ExecutionResult doExecute(ExecutionRequest request) {
+        String method = request.node().type().replace("http.", "").toUpperCase();
+        
+        return switch (method) {
+            case "GET" -> executeGet(request);
+            case "POST" -> executePost(request);
+            case "PUT" -> executePut(request);
+            case "DELETE" -> executeDelete(request);
+            default -> throw new ExecutorException("Unknown method: " + method);
+        };
+    }
+}
+```
+
+---
+
+## 5️⃣ Complete Usage Example
+
+### **1. Build Plugin**
+
+```bash
+cd ai-nlp-plugin
+mvn clean package
+
+# Creates: target/ai-nlp-plugin-1.0.0.jar
+# Contains:
+#   - plugin-manifest.yaml
+#   - 4 node schemas
+#   - 1 executor class
+#   - Shared resources
+```
+
+### **2. Install Plugin**
+
+```bash
+curl -X POST http://localhost:8080/api/v1/plugins/install \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@target/ai-nlp-plugin-1.0.0.jar"
+
+# Response:
+{
+  "success": true,
+  "pluginId": "com.acme.ai.nlp",
+  "message": "Plugin installed with 4 nodes",
+  "registeredNodes": [
+    "ai.sentiment",
+    "ai.classification",
+    "ai.ner",
+    "ai.summarization"
+  ],
+  "registeredExecutors": [
+    "ai.nlp.executor"
+  ]
+}
+```
+
+### **3. Query Node Catalog**
+
+```bash
+curl http://localhost:8080/api/v1/control-plane/nodes?category=AI
+
+# Response includes all 4 nodes:
+{
+  "nodes": [
+    {
+      "type": "ai.sentiment",
+      "label": "Sentiment Analysis",
+      "configSchema": "{ ... }",
+      "executor": {
+        "executorId": "ai.nlp.executor",
+        "status": "HEALTHY"
+      }
+    },
+    {
+      "type": "ai.classification",
+      "label": "Text Classification",
+      "configSchema": "{ ... }",
+      "executor": {
+        "executorId": "ai.nlp.executor",
+        "status": "HEALTHY"
+      }
+    },
+    {
+      "type": "ai.ner",
+      "label": "Named Entity Recognition",
+      "configSchema": "{ ... }",
+      "executor": {
+        "executorId": "ai.nlp.executor",
+        "status": "HEALTHY"
+      }
+    },
+    {
+      "type": "ai.summarization",
+      "label": "Text Summarization",
+      "configSchema": "{ ... }",
+      "executor": {
+        "executorId": "ai.nlp.executor",
+        "status": "HEALTHY"
+      }
+    }
+  ]
+}
+```
+
+### **4. Use Nodes in Workflow**
+
+```java
+// Create workflow using all 4 nodes
+client.workflows()
+    .create("content-analysis-pipeline")
+    .addNode(new NodeDefinitionDto(
+        "analyze-sentiment",
+        "Analyze Sentiment",
+        "TASK",
+        "ai.sentiment",  // First node
+        Map.of("model", "advanced"),
+        List.of(),
+        transitions
+    ))
+    .addNode(new NodeDefinitionDto(
+        "classify-content",
+        "Classify Content",
+        "TASK",
+        "ai.classification",  // Second node
+        Map.of("categories", List.of("Tech", "Business")),
+        List.of("analyze-sentiment"),
+        transitions
+    ))
+    .addNode(new NodeDefinitionDto(
+        "extract-entities",
+        "Extract Entities",
+        "TASK",
+        "ai.ner",  // Third node
+        Map.of("entityTypes", List.of("PERSON", "ORG")),
+        List.of("classify-content"),
+        transitions
+    ))
+    .addNode(new NodeDefinitionDto(
+        "summarize",
+        "Summarize",
+        "TASK",
+        "ai.summarization",  // Fourth node
+        Map.of("maxLength", 150),
+        List.of("extract-entities"),
+        transitions
+    ))
+    .execute();
+```
+
+---
+
+## 6️⃣ Best Practices
+
+### ✅ **DO:**
+
+1. **Group related nodes** - Database operations, HTTP methods, AI models
+2. **Share executors when possible** - Reduces resource usage
+3. **Use shared schemas** - DRY principle for common input/output
+4. **Version together** - All nodes in family share version
+5. **Document relationships** - Explain which nodes work together
+6. **Test together** - Integration tests for node combinations
+
+### ❌ **DON'T:**
+
+1. **Mix unrelated domains** - Don't put AI and database nodes in same plugin
+2. **Over-share executors** - Different performance needs = different executors
+3. **Hardcode node lists** - Use manifest or discovery
+4. **Ignore versioning** - Individual node versions can cause confusion
+5. **Forget migration paths** - How to upgrade plugins with multiple nodes
+
+---
+
+## 7️⃣ Plugin Lifecycle
+
+```
+┌──────────────────────────────────────────────────────┐
+│ 1. Load JAR                                          │
+│    - Extract manifest                                │
+│    - Load shared resources                           │
+└────────────────┬─────────────────────────────────────┘
+                 │
+┌────────────────▼─────────────────────────────────────┐
+│ 2. Register Executors                                │
+│    - ai.nlp.executor (handles 4 nodes)              │
+└────────────────┬─────────────────────────────────────┘
+                 │
+┌────────────────▼─────────────────────────────────────┐
+│ 3. Register Nodes                                    │
+│    - ai.sentiment                                    │
+│    - ai.classification                               │
+│    - ai.ner                                          │
+│    - ai.summarization                                │
+└────────────────┬─────────────────────────────────────┘
+                 │
+┌────────────────▼─────────────────────────────────────┐
+│ 4. Validate Schemas                                  │
+│    - Check JSON Schema validity                      │
+│    - Verify executor references                      │
+└────────────────┬─────────────────────────────────────┘
+                 │
+┌────────────────▼─────────────────────────────────────┐
+│ 5. Ready for Use                                     │
+│    - All nodes available in UI catalog              │
+│    - Executor registered and healthy                 │
+└──────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🎯 Summary
+
+**Three Ways to Handle Multiple Nodes:**
+
+1. **YAML Manifest** → Best for complex plugins, non-Java languages
+2. **Annotations** → Best for Java-first, compile-time safety
+3. **Hybrid** → Best for flexibility
+
+**Key Benefits:**
+
+- ✅ **Single deployment** - One JAR for entire node family
+- ✅ **Shared resources** - Reuse schemas, widgets, logic
+- ✅ **Version consistency** - All nodes versioned together
+- ✅ **Efficient execution** - One executor handles multiple nodes
+- ✅ **Better UX** - Related nodes grouped in UI
+
+**Real-World Examples:**
+
+- **AI Plugin**: 4+ analysis types (sentiment, classification, NER, summarization)
+- **Database Plugin**: CRUD operations as separate nodes
+- **HTTP Plugin**: Different HTTP methods as nodes
+- **Vector Store Plugin**: Insert, search, delete operations
+
+This architecture scales from simple 2-node plugins to complex 20+ node suites! 🚀

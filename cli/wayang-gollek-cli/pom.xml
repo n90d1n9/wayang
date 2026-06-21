@@ -77,6 +77,18 @@
         </dependency>
 
         <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>wayang-tui</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>wayang-tools</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
             <groupId>info.picocli</groupId>
             <artifactId>picocli</artifactId>
             <version>4.7.5</version>
@@ -115,6 +127,22 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>info.picocli</groupId>
+                            <artifactId>picocli-codegen</artifactId>
+                            <version>${picocli.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                    <compilerArgs>
+                        <arg>-Aproject=${project.groupId}/${project.artifactId}</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>3.5.0</version>
                 <executions>
@@ -130,9 +158,6 @@
                                 </transformer>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>
-                            <!-- Exclude beans.xml from Quarkus/third-party JARs that have empty/incompatible ones.
-                                 Our own module JARs (gollek-*) have valid beans.xml files that survive via
-                                 Weld SE's annotation scanning and Jandex index in the shaded jar. -->
                             <filters>
                                 <filter>
                                     <artifact>io.quarkus:*</artifact>
@@ -154,4 +179,41 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <id>native</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.graalvm.buildtools</groupId>
+                        <artifactId>native-maven-plugin</artifactId>
+                        <version>0.9.28</version>
+                        <extensions>true</extensions>
+                        <executions>
+                            <execution>
+                                <id>build-native</id>
+                                <goals>
+                                    <goal>compile-no-fork</goal>
+                                </goals>
+                                <phase>package</phase>
+                            </execution>
+                        </executions>
+                        <configuration>
+                            <imageName>wayang-cli</imageName>
+                            <mainClass>tech.kayys.wayang.gollek.cli.WayangGollekCli</mainClass>
+                            <buildArgs>
+                                <buildArg>--enable-native-access=ALL-UNNAMED</buildArg>
+                                <buildArg>-H:+JNI</buildArg>
+                                <buildArg>--no-fallback</buildArg>
+                                <buildArg>-Dorg.jline.terminal.jansi=false</buildArg>
+                                <buildArg>-Dorg.jline.terminal.jna=false</buildArg>
+                                <buildArg>--initialize-at-build-time=org.jboss.logmanager,org.slf4j,io.quarkus,org.jboss.logging,io.smallrye,io.netty,io.vertx,com.fasterxml,org.hibernate</buildArg>
+                            </buildArgs>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

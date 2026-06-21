@@ -266,4 +266,19 @@ final class ContractLifecycleSdk implements WayangGollekSdk {
         values.put("surface", "assistant-agent");
         return values;
     }
+
+    @Override
+    public void setPreferredProvider(String providerId) {
+        delegate.setPreferredProvider(providerId);
+    }
+
+    @Override
+    public java.util.Optional<String> getPreferredProvider() {
+        return delegate.getPreferredProvider();
+    }
+
+    @Override
+    public List<String> listAvailableProviders() {
+        return delegate.listAvailableProviders();
+    }
 }

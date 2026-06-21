@@ -8,7 +8,7 @@
         <groupId>tech.kayys.wayang</groupId>
         <artifactId>wayang-agentic-parent</artifactId>
         <version>1.0.0-SNAPSHOT</version>
-        <relativePath>../pom.xml</relativePath>
+        <relativePath>../../pom.xml</relativePath>
     </parent>
 
     <artifactId>wayang-gollek-sdk</artifactId>
@@ -24,6 +24,23 @@
             <version>${project.version}</version>
         </dependency>
 
+        <!-- Gollek SPI for Message and related types -->
+        <dependency>
+            <groupId>tech.kayys.gollek</groupId>
+            <artifactId>gollek-spi</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+        </dependency>
+
+        <!-- Jackson for JSON persistence -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -35,4 +52,14 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.0.0-M9</version>
+            </plugin>
+        </plugins>
+    </build>
 </project>

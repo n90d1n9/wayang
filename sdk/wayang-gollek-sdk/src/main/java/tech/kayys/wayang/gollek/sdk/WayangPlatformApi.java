@@ -67,6 +67,14 @@ public final class WayangPlatformApi {
         return WayangPlatformEnvelopes.sdkBoundaryDetail(sdkBoundary(boundaryId));
     }
 
+    public WayangSdkBoundaryCatalogValidationReport sdkBoundaryCatalogValidation() {
+        return sdk.sdkBoundaryCatalogValidation();
+    }
+
+    public WayangSdkBoundaryCatalogValidationReport validateSdkBoundaries(List<WayangSdkBoundary> boundaries) {
+        return sdk.validateSdkBoundaries(boundaries);
+    }
+
     public List<WayangPlatformReadinessProfileDescriptor> readinessProfiles() {
         return sdk.platformReadinessProfiles();
     }
@@ -210,6 +218,14 @@ public final class WayangPlatformApi {
 
     public String sdkBoundaryJson(String boundaryId) {
         return wire.object(sdkBoundaryEnvelope(boundaryId));
+    }
+
+    public Map<String, Object> sdkBoundaryCatalogValidationEnvelope() {
+        return WayangPlatformEnvelopes.sdkBoundaryCatalogValidation(sdkBoundaryCatalogValidation());
+    }
+
+    public String sdkBoundaryCatalogValidationJson() {
+        return wire.object(sdkBoundaryCatalogValidationEnvelope());
     }
 
     public String readinessProfilesJson(List<WayangPlatformReadinessProfileDescriptor> profiles) {

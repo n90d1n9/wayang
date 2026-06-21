@@ -11,10 +11,18 @@ import tech.kayys.gollek.spi.inference.InferenceResponse;
 import tech.kayys.gollek.spi.provider.ProviderCapabilities;
 import tech.kayys.gollek.spi.provider.ProviderInfo;
 
+import tech.kayys.wayang.gollek.sdk.WayangYaffFrame;
+
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
+import java.nio.ByteBuffer;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 
 /**
  * Intelligent provider routing with automatic fallback between local and cloud providers.
@@ -169,6 +177,176 @@ public class ProviderAwareInference {
 
         LOG.debugf("Executing inference with provider %s (attempt %d)", providerId, attempt + 1);
 
+        // If provider looks local, try control-plane (HTTP) fast-path when configured
+        if (isLocalProvider(providerId)) {
+            String ctrl = System.getProperty("WAYANG_YAFF_CONTROL_URL");
+            if ((ctrl == null || ctrl.isBlank())) ctrl = System.getenv("WAYANG_YAFF_CONTROL_URL");
+            if (ctrl != null && !ctrl.isBlank()) {
+                try {
+                    LOG.debugf("Attempting YAFF control-plane fast-path for provider %s via %s", providerId, ctrl);
+                    // Try to marshal request into bytes (prefer YAFF adapter if present)
+                    byte[] payload = null;
+                    try {
+                        Class<?> adapterCls = Class.forName("tech.kayys.wayang.yaffffm.YaffFFMAdapter");
+                        Object adapter = adapterCls.getDeclaredConstructor().newInstance();
+                        var m = adapterCls.getMethod("marshalBytes", Object.class);
+                        Object bufObj = m.invoke(adapter, providerRequest);
+                        if (bufObj instanceof byte[]) payload = (byte[]) bufObj;
+                    } catch (ClassNotFoundException cnf) {
+                        // no adapter; fall back to prompt bytes
+                    } catch (NoSuchMethodException nsme) {
+                        // older adapter API may expose marshal(Object) -> ByteBuffer
+                        try {
+                            Class<?> adapterCls = Class.forName("tech.kayys.wayang.yaffffm.YaffFFMAdapter");
+                            Object adapter = adapterCls.getDeclaredConstructor().newInstance();
+                            var m = adapterCls.getMethod("marshal", Object.class);
+                            Object bufObj = m.invoke(adapter, providerRequest);
+                            if (bufObj instanceof ByteBuffer) {
+                                ByteBuffer bb = (ByteBuffer) bufObj;
+                                byte[] b = new byte[bb.remaining()]; bb.get(b); payload = b;
+                            }
+                        } catch (Throwable ignored) {}
+                    }
+
+                    if (payload == null) {
+                        String prompt = providerRequest.getPrompt() != null ? providerRequest.getPrompt() : "";
+                        payload = prompt.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    }
+
+                    HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
+                    HttpRequest httpReq = HttpRequest.newBuilder()
+                            .uri(URI.create(ctrl).resolve("/allocate"))
+                            .timeout(Duration.ofSeconds(10))
+                            .POST(HttpRequest.BodyPublishers.ofByteArray(payload))
+                            .build();
+                    HttpResponse<byte[]> resp = client.send(httpReq, HttpResponse.BodyHandlers.ofByteArray());
+                    if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
+                        byte[] body = resp.body();
+                        // Try to parse JSON AllocateResponse from control-plane
+                        try {
+                            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                            // Use SDK Frame helper to allocate and get structured frame metadata
+                            try {
+                            WayangYaffFrame frame = WayangYaffFrame.allocate(ctrl, body);
+                            InferenceResponse ir = InferenceResponse.builder()
+                                    .requestId(providerRequest.getRequestId())
+                                    .content("[yaff-allocated]")
+                                    .model(providerRequest.getModel())
+                                    .durationMs(System.currentTimeMillis() - startTime)
+                                    .timestamp(java.time.Instant.now())
+                                    .metadata(java.util.Map.of(
+                                            "yaff.id", frame.id(),
+                                            "yaff.path", frame.path(),
+                                            "yaff.offset", frame.offset(),
+                                            "yaff.length", frame.length()
+                                    ))
+                                    .build();
+                            recordProviderStats(providerId, true, System.currentTimeMillis() - startTime);
+                            LOG.debugf("YAFF control-plane fast-path returned for provider %s (id=%s)", providerId, frame.id());
+                            return CompletableFuture.completedFuture(ir);
+                            } catch (Throwable t) {
+                            // fall through to previous parsing fallback
+                            java.util.Map<String, Object> obj = mapper.readValue(body, java.util.Map.class);
+                            Object id = obj.get("id");
+                            Object path = obj.get("path");
+                            Object offset = obj.get("offset");
+                            Object length = obj.get("length");
+                            InferenceResponse ir = InferenceResponse.builder()
+                                    .requestId(providerRequest.getRequestId())
+                                    .content("[yaff-allocated]")
+                                    .model(providerRequest.getModel())
+                                    .durationMs(System.currentTimeMillis() - startTime)
+                                    .timestamp(java.time.Instant.now())
+                                    .metadata(java.util.Map.of(
+                                            "yaff.id", id == null ? "" : id.toString(),
+                                            "yaff.path", path == null ? "" : path.toString(),
+                                            "yaff.offset", offset == null ? 0L : ((Number) offset).longValue(),
+                                            "yaff.length", length == null ? 0L : ((Number) length).longValue()
+                                    ))
+                                    .build();
+                            recordProviderStats(providerId, true, System.currentTimeMillis() - startTime);
+                            LOG.debugf("YAFF control-plane returned non-proto for provider %s: %s", providerId, t.getMessage());
+                            return CompletableFuture.completedFuture(ir);
+                            }
+                        } catch (Throwable parseErr) {
+                            // Fallback to raw content
+                            String content = new String(body, java.nio.charset.StandardCharsets.UTF_8);
+                            InferenceResponse ir = InferenceResponse.builder()
+                                    .requestId(providerRequest.getRequestId())
+                                    .content(content == null ? "" : content)
+                                    .model(providerRequest.getModel())
+                                    .durationMs(System.currentTimeMillis() - startTime)
+                                    .timestamp(java.time.Instant.now())
+                                    .build();
+                            recordProviderStats(providerId, true, System.currentTimeMillis() - startTime);
+                            LOG.debugf("YAFF control-plane returned non-JSON for provider %s: %s", providerId, parseErr.getMessage());
+                            return CompletableFuture.completedFuture(ir);
+                        }
+                    } else {
+                        LOG.warnf("YAFF control-plane returned status %d", resp.statusCode());
+                    }
+                } catch (Throwable t) {
+                    LOG.warnf(t, "YAFF control-plane fast-path failed for provider %s: %s", providerId, t.getMessage());
+                }
+            }
+
+            // If control-plane path not used or failed, try reflection-based SHM adapter
+            try {
+                LOG.debugf("Attempting YAFF SHM fast-path for provider %s", providerId);
+                // Try to load adapter and transport classes
+                Class<?> transportCls = Class.forName("tech.kayys.wayang.yaffffm.ShmYaffTransportProvider");
+                Object transport = transportCls.getDeclaredConstructor().newInstance();
+
+                // Try to find a marshal helper (YaffFFMAdapter) to convert request -> ByteBuffer
+                ByteBuffer requestBuf = null;
+                try {
+                    Class<?> adapterCls = Class.forName("tech.kayys.wayang.yaffffm.YaffFFMAdapter");
+                    Object adapter = adapterCls.getDeclaredConstructor().newInstance();
+                    var m = adapterCls.getMethod("marshal", Object.class);
+                    Object bufObj = m.invoke(adapter, providerRequest);
+                    if (bufObj instanceof ByteBuffer) requestBuf = (ByteBuffer) bufObj;
+                } catch (ClassNotFoundException cnf) {
+                    // Adapter not present; fall back to JSON prompt bytes
+                }
+
+                if (requestBuf == null) {
+                    String prompt = providerRequest.getPrompt() != null ? providerRequest.getPrompt() : "";
+                    requestBuf = ByteBuffer.wrap(prompt.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                }
+
+                // Invoke transport.sendRequest(ByteBuffer)
+                var sendMethod = transportCls.getMethod("sendRequest", ByteBuffer.class);
+                Object respObj = sendMethod.invoke(transport, requestBuf);
+                if (respObj instanceof ByteBuffer) {
+                    ByteBuffer respBuf = (ByteBuffer) respObj;
+                    // Convert response bytes to String
+                    byte[] bytes = new byte[respBuf.remaining()];
+                    respBuf.get(bytes);
+                    String content = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+
+                    // Build a simple InferenceResponse
+                    InferenceResponse ir = InferenceResponse.builder()
+                            .requestId(providerRequest.getRequestId())
+                            .content(content == null ? "" : content)
+                            .model(providerRequest.getModel())
+                            .durationMs(System.currentTimeMillis() - startTime)
+                            .timestamp(java.time.Instant.now())
+                            .build();
+
+                    recordProviderStats(providerId, true, System.currentTimeMillis() - startTime);
+                    LOG.debugf("YAFF SHM fast-path returned for provider %s", providerId);
+                    return CompletableFuture.completedFuture(ir);
+                } else {
+                    LOG.debugf("YAFF SHM transport returned unsupported type: %s", respObj == null ? "null" : respObj.getClass());
+                }
+            } catch (ClassNotFoundException e) {
+                LOG.debugf("YAFF SHM adapter not available on classpath: %s", e.getMessage());
+            } catch (Throwable t) {
+                LOG.warnf(t, "YAFF SHM fast-path failed for provider %s: %s", providerId, t.getMessage());
+            }
+        }
+
+        // Fallback to SDK path
         return sdk.createCompletionAsync(providerRequest)
             .thenApply(response -> {
                 long duration = System.currentTimeMillis() - startTime;

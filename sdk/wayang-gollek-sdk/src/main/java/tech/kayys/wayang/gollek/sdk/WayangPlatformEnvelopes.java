@@ -107,6 +107,31 @@ public final class WayangPlatformEnvelopes {
         return SdkMaps.orderedCopy(values);
     }
 
+    public static Map<String, Object> sdkBoundaryCatalogValidation(
+            WayangSdkBoundaryCatalogValidationReport report) {
+        WayangSdkBoundaryCatalogValidationReport model = report == null
+                ? WayangSdkBoundaryCatalog.validateDefault()
+                : report;
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("product", PRODUCT);
+        values.put("valid", model.valid());
+        values.put("issueCount", model.issueCount());
+        values.put("rootPackage", WayangSdkBoundaryCatalog.SDK_ROOT_PACKAGE);
+        values.put("defaultBoundaryId", WayangSdkBoundaryCatalog.DEFAULT_BOUNDARY_ID);
+        values.put("totalBoundaries", model.totalBoundaries());
+        values.put("boundaryIds", model.boundaryIds());
+        values.put("intendedPackageCount", model.intendedPackageCount());
+        values.put("intendedPackages", model.intendedPackages());
+        values.put("classPrefixCount", model.classPrefixCount());
+        values.put("classPrefixes", model.classPrefixes());
+        values.put("contractSchemaCount", model.contractSchemaCount());
+        values.put("contractSchemas", model.contractSchemas());
+        values.put("issues", model.issues().stream()
+                .map(WayangSdkBoundaryCatalogValidationIssue::toMap)
+                .toList());
+        return SdkMaps.orderedCopy(values);
+    }
+
     public static Map<String, Object> readinessProfiles(
             List<WayangPlatformReadinessProfileDescriptor> profiles) {
         List<WayangPlatformReadinessProfileDescriptor> model = SdkLists.copy(profiles);

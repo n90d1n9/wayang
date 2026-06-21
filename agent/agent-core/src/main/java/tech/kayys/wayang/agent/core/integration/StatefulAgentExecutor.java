@@ -2,6 +2,7 @@ package tech.kayys.wayang.agent.core.integration;
 
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,7 +54,14 @@ public class StatefulAgentExecutor {
     AgentMemoryService memoryService;
 
     @Inject
-    AgentOrchestrator agentOrchestrator;
+    Instance<AgentOrchestrator> agentOrchestrators;
+
+    private AgentOrchestrator getReactOrchestrator() {
+        return agentOrchestrators.stream()
+            .filter(o -> "react".equals(o.strategyId()))
+            .findFirst()
+            .orElseGet(() -> agentOrchestrators.iterator().next());
+    }
 
     /**
      * Execute a multi-turn conversation with persistent memory
@@ -107,7 +115,7 @@ public class StatefulAgentExecutor {
                         .verbose(true)
                         .build())
                 // Step 4: Execute agent
-                .flatMap(agentOrchestrator::execute)
+                .flatMap(request -> getReactOrchestrator().execute(request))
                 // Step 5: Store interaction
                 .flatMap(response -> {
                     return memoryService.storeInteraction(

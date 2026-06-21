@@ -91,6 +91,8 @@ class WayangClientTest {
             List<ProductProfile> assistantProfiles = platform.productProfilesForSurface("assistant-agent");
             WayangPlatformReadinessProfileValidationReport validation =
                     platform.readinessProfileValidation("relaxed");
+            WayangSdkBoundaryCatalogValidationReport boundaryValidation =
+                    platform.sdkBoundaryCatalogValidation();
             WayangStandardCatalog catalog = standards.catalog();
             WayangStandardAlignmentHealthReport health =
                     standards.health(WayangStandardAlignmentPolicyConfig.none());
@@ -113,6 +115,11 @@ class WayangClientTest {
             assertThat(platform.sdkBoundaryJson("run"))
                     .contains("\"boundaryId\":\"run\"")
                     .contains("\"contractSchemas\":[\"wayang.run.planning\",\"wayang.run.lifecycle\"]");
+            assertThat(boundaryValidation.valid()).isTrue();
+            assertThat(platform.sdkBoundaryCatalogValidationJson())
+                    .contains("\"valid\":true")
+                    .contains("\"issueCount\":0")
+                    .contains("\"classPrefixes\":[");
             assertThat(platform.readinessProfileValidationJson(validation))
                     .contains("\"product\":\"Wayang\"")
                     .contains("\"validationPolicy\"");

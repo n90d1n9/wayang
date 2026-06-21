@@ -41,7 +41,8 @@ import picocli.CommandLine.Option;
         SkillCommand.class,
         ModelCommand.class,
         ConfigCommand.class,
-        ApprovalCommand.class
+        ApprovalCommand.class,
+        DiagnosticCommand.class
     }
 )
 public class GamelanApplication implements Runnable, QuarkusApplication {

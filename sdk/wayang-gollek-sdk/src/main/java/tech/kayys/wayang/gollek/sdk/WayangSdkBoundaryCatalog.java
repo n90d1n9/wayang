@@ -178,9 +178,15 @@ public final class WayangSdkBoundaryCatalog {
     }
 
     public static Optional<WayangSdkBoundary> boundaryForClassName(String simpleClassName) {
+        String normalized = SdkText.trimToEmpty(simpleClassName);
+        if (normalized.isEmpty()) {
+            return Optional.empty();
+        }
         return DEFAULT_BOUNDARIES.stream()
-                .filter(boundary -> boundary.ownsClassName(simpleClassName))
-                .findFirst();
+                .filter(boundary -> boundary.ownsClassName(normalized))
+                .max((left, right) -> Integer.compare(
+                        longestMatchingPrefix(left, normalized),
+                        longestMatchingPrefix(right, normalized)));
     }
 
     public static Optional<WayangSdkBoundary> boundaryForContractSchema(String schema) {
@@ -191,6 +197,14 @@ public final class WayangSdkBoundaryCatalog {
 
     public static String normalizeBoundaryId(String boundaryId) {
         return SdkText.trimToDefault(boundaryId, DEFAULT_BOUNDARY_ID);
+    }
+
+    public static WayangSdkBoundaryCatalogValidationReport validateDefault() {
+        return WayangSdkBoundaryCatalogValidation.validateDefault();
+    }
+
+    public static WayangSdkBoundaryCatalogValidationReport validate(List<WayangSdkBoundary> boundaries) {
+        return WayangSdkBoundaryCatalogValidation.validate(boundaries);
     }
 
     private static WayangSdkBoundary boundary(
@@ -209,5 +223,13 @@ public final class WayangSdkBoundaryCatalog {
                 classPrefixes,
                 contractSchemas,
                 dependsOn);
+    }
+
+    private static int longestMatchingPrefix(WayangSdkBoundary boundary, String simpleClassName) {
+        return boundary.classPrefixes().stream()
+                .filter(prefix -> simpleClassName.equals(prefix) || simpleClassName.startsWith(prefix))
+                .mapToInt(String::length)
+                .max()
+                .orElse(-1);
     }
 }

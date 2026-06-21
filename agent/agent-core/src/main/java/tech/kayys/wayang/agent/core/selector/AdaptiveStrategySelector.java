@@ -2,6 +2,7 @@ package tech.kayys.wayang.agent.core.selector;
 
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 import tech.kayys.wayang.agent.spi.AgentOrchestrator;
@@ -42,7 +43,7 @@ public class AdaptiveStrategySelector {
     private static final Logger LOG = Logger.getLogger(AdaptiveStrategySelector.class);
 
     @Inject
-    List<AgentOrchestrator> availableOrchestrators;
+    Instance<AgentOrchestrator> availableOrchestrators;
 
     private final Map<String, StrategyStats> strategyStats = new ConcurrentHashMap<>();
     private final Map<String, String> taskTypeCache = new ConcurrentHashMap<>();
@@ -69,7 +70,7 @@ public class AdaptiveStrategySelector {
         return findOrchestrator(strategyId)
             .orElseGet(() -> {
                 LOG.warnf("Strategy %s not found, using default", strategyId);
-                return availableOrchestrators.get(0);
+                return availableOrchestrators.iterator().next();
             });
     }
 

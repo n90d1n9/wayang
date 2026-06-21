@@ -3,6 +3,7 @@ package tech.kayys.wayang.agent.core.coordinator;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 import tech.kayys.wayang.agent.core.client.GollekAgentClient;
@@ -62,7 +63,7 @@ public class MultiAgentCoordinator {
     AgenticInferenceService inferenceService;
 
     @Inject
-    List<AgentOrchestrator> availableOrchestrators;
+    Instance<AgentOrchestrator> availableOrchestrators;
 
     // Registered agents with their roles and capabilities
     private final Map<String, AgentInstance> registeredAgents = new ConcurrentHashMap<>();
@@ -430,12 +431,12 @@ public class MultiAgentCoordinator {
             case ROLE_PLANNER -> availableOrchestrators.stream()
                 .filter(o -> "plan-and-execute".equals(o.strategyId()))
                 .findFirst()
-                .orElse(availableOrchestrators.get(0));
+                .orElse(availableOrchestrators.iterator().next());
             case ROLE_REVIEWER -> availableOrchestrators.stream()
                 .filter(o -> "reflexion".equals(o.strategyId()))
                 .findFirst()
-                .orElse(availableOrchestrators.get(0));
-            default -> availableOrchestrators.get(0);
+                .orElse(availableOrchestrators.iterator().next());
+            default -> availableOrchestrators.iterator().next();
         };
     }
 
