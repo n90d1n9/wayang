@@ -3,7 +3,6 @@ package tech.kayys.wayang.gollek.sdk.session;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import tech.kayys.gollek.spi.Message;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -117,12 +116,12 @@ public final class WayangSessionStore {
         if (Files.exists(metaFile)) {
             bundle.put("meta", MAPPER.readValue(metaFile.toFile(), Map.class));
         }
-        Map<String, List<Message>> sessions = new HashMap<>();
+        Map<String, List<Object>> sessions = new HashMap<>();
         Files.list(dir)
                 .filter(p -> p.getFileName().toString().startsWith("session-") && p.getFileName().toString().endsWith(".json"))
                 .forEach(p -> {
                     try {
-                        Message[] arr = MAPPER.readValue(p.toFile(), Message[].class);
+                        Object[] arr = MAPPER.readValue(p.toFile(), Object[].class);
                         sessions.put(p.getFileName().toString(), Arrays.asList(arr));
                     } catch (IOException ignored) {}
                 });
@@ -155,7 +154,7 @@ public final class WayangSessionStore {
     }
 
     // --- Sessions ---
-    public void saveTranscript(String projectKey, String sessionId, List<Message> messages) throws IOException {
+    public void saveTranscript(String projectKey, String sessionId, List<?> messages) throws IOException {
         if (projectKey == null || sessionId == null) return;
         // Prefer writing into migrated projects/<project>/sessions folder
         Path migrated = null;
@@ -166,13 +165,13 @@ public final class WayangSessionStore {
         MAPPER.writeValue(file.toFile(), messages != null ? messages : List.of());
     }
 
-    public List<Message> loadTranscript(String projectKey, String sessionId) throws IOException {
+    public List<Object> loadTranscript(String projectKey, String sessionId) throws IOException {
         if (projectKey == null || sessionId == null) return List.of();
         Path migrated = null;
         try { migrated = baseDir.getParent().resolve("projects").resolve(projectKey).resolve("sessions"); } catch (Exception ignored) {}
         Path file = (migrated != null ? migrated : projectDir(projectKey)).resolve("session-" + sessionId + ".json");
         if (!Files.exists(file)) return List.of();
-        Message[] arr = MAPPER.readValue(file.toFile(), Message[].class);
+        Object[] arr = MAPPER.readValue(file.toFile(), Object[].class);
         return arr != null ? Arrays.asList(arr) : List.of();
     }
 

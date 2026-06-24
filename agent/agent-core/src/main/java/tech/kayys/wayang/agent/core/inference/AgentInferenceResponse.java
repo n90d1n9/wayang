@@ -1,6 +1,6 @@
 package tech.kayys.wayang.agent.core.inference;
 
-import tech.kayys.gollek.spi.inference.InferenceResponse.ToolCall;
+import tech.kayys.wayang.agent.spi.InferenceTypes.ToolCall;
 
 import java.time.Duration;
 import java.util.List;

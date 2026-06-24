@@ -19,6 +19,7 @@ public interface WorkflowBackend {
     Uni<WorkflowTypes.RunResponse> signalRun(WorkflowTypes.WorkflowRunId runId, WorkflowTypes.Signal signal);
     Uni<WorkflowTypes.RunHistory> getRunHistory(WorkflowTypes.WorkflowRunId runId);
     Uni<WorkflowTypes.RunStatus> getRunStatus(WorkflowTypes.WorkflowRunId runId);
+    Uni<java.util.List<WorkflowTypes.WorkflowRun>> listRuns(String tenantId, int limit);
 
     boolean isHealthy();
     WorkflowTypes.WorkflowCapabilities capabilities();

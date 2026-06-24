@@ -1,0 +1,194 @@
+syntax = "proto3";
+
+package tech.kayys.wayang.api.grpc;
+
+option java_multiple_files = true;
+option java_package = "tech.kayys.wayang.api.grpc";
+option java_outer_classname = "WayangProto";
+
+service WayangService {
+    rpc GetStatus (StatusRequest) returns (StatusReply) {}
+    rpc GetReadiness (ReadinessRequest) returns (ReadinessReply) {}
+    rpc GetReadinessProfile (ReadinessProfileRequest) returns (ReadinessReply) {}
+
+    // Platform APIs
+    rpc GetProductCatalog (CatalogRequest) returns (CatalogReply) {}
+    rpc GetProfilesForSurface (SurfaceProfilesRequest) returns (ProfilesReply) {}
+    rpc GetProfileDetail (ProfileDetailRequest) returns (ProfileDetailReply) {}
+    rpc GetSdkBoundaryCatalog (BoundaryCatalogRequest) returns (BoundaryCatalogReply) {}
+    rpc GetSdkBoundaryDetail (BoundaryDetailRequest) returns (BoundaryDetailReply) {}
+
+    // Command APIs
+    rpc DiscoverCommands (CommandQueryRequest) returns (CommandDiscoveryReply) {}
+    rpc IndexCommands (CommandQueryRequest) returns (CommandIndexReply) {}
+    rpc WorkbenchCommands (CommandQueryRequest) returns (WorkbenchReply) {}
+}
+
+// Request / Reply definitions
+message StatusRequest {}
+message StatusReply {
+    string status_json = 1;
+}
+
+message ReadinessRequest {}
+message ReadinessProfileRequest {
+    string profile_id = 1;
+}
+message ReadinessReply {
+    string readiness_json = 1;
+}
+
+message CatalogRequest {}
+message CatalogReply {
+    string catalog_json = 1;
+}
+
+message SurfaceProfilesRequest {
+    string surface_id = 1;
+}
+message ProfilesReply {
+    string profiles_json = 1;
+}
+
+message ProfileDetailRequest {
+    string profile_id = 1;
+}
+message ProfileDetailReply {
+    string profile_json = 1;
+}
+
+message BoundaryCatalogRequest {}
+message BoundaryCatalogReply {
+    string catalog_json = 1;
+}
+
+message BoundaryDetailRequest {
+    string boundary_id = 1;
+}
+message BoundaryDetailReply {
+    string boundary_json = 1;
+}
+
+message CommandQueryRequest {
+    string surface_id = 1;
+    string category = 2;
+    string command_id = 3;
+}
+
+message CommandDiscoveryReply {
+    string discovery_json = 1;
+}
+
+message CommandIndexReply {
+    string index_json = 1;
+}
+
+message WorkbenchReply {
+    string workbench_json = 1;
+}
+
+// --- Wayang agent API additions (projects, sessions, code streaming, SDK introspection) ---
+
+message WayangEmpty {}
+
+message WayangStatus {
+  bool ok = 1;
+  string message = 2;
+}
+
+message WayangProject {
+  string id = 1;
+  string name = 2;
+  string directory = 3;
+  repeated string session_ids = 4;
+  int64 created_at = 5;
+}
+message WayangSession {
+  string id = 1;
+  string project_id = 2;
+  string name = 3;
+  string description = 4;
+  int64 created_at = 5;
+  int64 updated_at = 6;
+}
+
+message WayangProjectList { repeated WayangProject projects = 1; }
+message WayangSessionList { repeated WayangSession sessions = 1; }
+
+message CreateProjectRequest { string name = 1; string directory = 2; }
+message RenameProjectRequest { string project_id = 1; string new_name = 2; }
+message RemoveProjectRequest { string project_id = 1; bool delete_dir = 2; }
+message ExportProjectRequest { string project_id = 1; }
+message ImportProjectRequest { string bundle_base64 = 1; }
+message SwitchProjectRequest { string project_id = 1; }
+
+message CreateSessionRequest { string project_id = 1; string name = 2; string description = 3; }
+message RemoveSessionRequest { string project_id = 1; string session_id = 2; }
+message RenameSessionRequest { string project_id = 1; string session_id = 2; string new_name = 3; }
+message SwitchSessionRequest { string project_id = 1; string session_id = 2; }
+message ExportSessionRequest { string project_id = 1; string session_id = 2; }
+message ImportSessionRequest { string project_id = 1; string bundle_base64 = 2; }
+
+message TranscriptEntry {
+  string id = 1;
+  string session_id = 2;
+  string author = 3;
+  string content = 4;
+  int64 timestamp = 5;
+}
+message AppendTranscriptRequest { string project_id = 1; string session_id = 2; TranscriptEntry entry = 3; }
+message AppendTranscriptResponse { WayangStatus status = 1; TranscriptEntry saved = 2; }
+
+message CodeRequest { string project_id = 1; string session_id = 2; string user_prompt = 3; bool resume = 4; }
+message CodeChunk { string delta = 1; bool final_chunk = 2; int32 index = 3; }
+
+message ProviderInfo { string id = 1; string name = 2; string description = 3; repeated string capabilities = 4; }
+message ProviderList { repeated ProviderInfo providers = 1; }
+
+message CreateSdkRequest { string provider_id = 1; map<string,string> config = 2; }
+message CreateSdkResponse { WayangStatus status = 1; string sdk_id = 2; }
+message DestroySdkRequest { string sdk_id = 1; }
+
+message ListModelsRequest { string sdk_id = 1; }
+message ModelInfo { string id = 1; string name = 2; string description = 3; }
+message ModelList { repeated ModelInfo models = 1; }
+
+message CreateSdkSessionRequest { string sdk_id = 1; string model_id = 2; string session_name = 3; }
+message CreateSdkSessionResponse { WayangStatus status = 1; string session_id = 2; }
+message SdkStreamRequest { string sdk_session_id = 1; string prompt = 2; }
+
+service WayangProjectService {
+  rpc ListProjects(WayangEmpty) returns (WayangProjectList);
+  rpc CreateProject(CreateProjectRequest) returns (WayangProject);
+  rpc RenameProject(RenameProjectRequest) returns (WayangStatus);
+  rpc RemoveProject(RemoveProjectRequest) returns (WayangStatus);
+  rpc ExportProject(ExportProjectRequest) returns (stream CodeChunk);
+  rpc ImportProject(ImportProjectRequest) returns (WayangStatus);
+  rpc SwitchProject(SwitchProjectRequest) returns (WayangStatus);
+
+  rpc ListSessions(SwitchProjectRequest) returns (WayangSessionList);
+  rpc CreateSession(CreateSessionRequest) returns (WayangSession);
+  rpc RenameSession(RenameSessionRequest) returns (WayangStatus);
+  rpc RemoveSession(RemoveSessionRequest) returns (WayangStatus);
+  rpc ExportSession(ExportSessionRequest) returns (stream CodeChunk);
+  rpc ImportSession(ImportSessionRequest) returns (WayangStatus);
+  rpc SwitchSession(SwitchSessionRequest) returns (WayangStatus);
+}
+
+service WayangSessionService {
+  rpc AppendTranscript(AppendTranscriptRequest) returns (AppendTranscriptResponse);
+  rpc GetTranscript(SwitchSessionRequest) returns (stream TranscriptEntry);
+}
+
+service WayangCodeService {
+  rpc StreamCode(CodeRequest) returns (stream CodeChunk);
+}
+
+service WayangSdkService {
+  rpc ListProviders(WayangEmpty) returns (ProviderList);
+  rpc CreateSdk(CreateSdkRequest) returns (CreateSdkResponse);
+  rpc DestroySdk(DestroySdkRequest) returns (WayangStatus);
+  rpc ListModels(ListModelsRequest) returns (ModelList);
+  rpc CreateSdkSession(CreateSdkSessionRequest) returns (CreateSdkSessionResponse);
+  rpc SdkStream(SdkStreamRequest) returns (stream CodeChunk);
+}

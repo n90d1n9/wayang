@@ -31,6 +31,7 @@ import java.lang.reflect.Method;
         mixinStandardHelpOptions = true,
         subcommands = {
                 WayangCodeCommand.class,
+                WayangGollekProxyCommand.class,
                 WayangPlatformCommands.StatusCommand.class,
                 WayangPlatformCommands.ProductsCommand.class,
                 WayangPlatformCommands.SdkBoundariesCommand.class,
@@ -105,6 +106,8 @@ public final class WayangGollekCli implements Runnable {
         CommandLine.usage(this, out);
     }
 
+    public boolean isIgnoreConfig() { return sdkOptions != null && Boolean.TRUE.equals(sdkOptions.ignoreConfig); }
+
     public WayangGollekSdk sdk() {
         if (injectedSdk != null) {
             return injectedSdk;
@@ -115,7 +118,8 @@ public final class WayangGollekCli implements Runnable {
             // Apply preferred provider from ~/.wayang/config.json if present
             try {
                 Path cfg = Paths.get(System.getProperty("user.home"), ".wayang", "config.json");
-                if (Files.exists(cfg)) {
+                if (Files.exists(cfg) && !Boolean.TRUE.equals(sdkOptions.ignoreConfig)) {
+                        boolean debug = Boolean.getBoolean("wayang.cli.debug");
                     String content = Files.readString(cfg);
                     Pattern p = Pattern.compile("\"provider\"\s*:\s*\"([^\"]+)\"");
                     Matcher m = p.matcher(content);
@@ -165,12 +169,12 @@ public final class WayangGollekCli implements Runnable {
                                     if (o instanceof String s) return s;
                                     try { Method idM = o.getClass().getMethod("id"); Object v = idM.invoke(o); return v == null ? "<unknown>" : String.valueOf(v); } catch (Exception ex) { return "<unknown>"; }
                                 }).toList().toString();
-                                out.println("  Preferred provider '" + provider + "' from ~/.wayang/config.json is not available. Known providers: " + known);
+                                logToFile("Preferred provider '" + provider + "' from ~/.wayang/config.json is not available. Known providers: " + known);
 
                                 // Attempt to auto-load provider JAR from local Maven repository if present
                                 try {
-                                    Method loadMethod = null; out.println("  Debug: probing sdk for dynamic loadProviderJar support...");
-                                    try { loadMethod = resolvedSdk.getClass().getMethod("loadProviderJar", String.class); out.println("  Debug: sdk exposes loadProviderJar"); } catch (NoSuchMethodException nsme) { out.println("  Debug: sdk does NOT expose loadProviderJar"); }
+                                    Method loadMethod = null; logToFile("DEBUG: probing sdk for dynamic loadProviderJar support...");
+                                    try { loadMethod = resolvedSdk.getClass().getMethod("loadProviderJar", String.class); logToFile("DEBUG: sdk exposes loadProviderJar"); } catch (NoSuchMethodException nsme) { logToFile("DEBUG: sdk does NOT expose loadProviderJar"); }
                                     try {
                                         loadMethod = resolvedSdk.getClass().getMethod("loadProviderJar", String.class);
                                     } catch (NoSuchMethodException nsme) {
@@ -183,17 +187,16 @@ public final class WayangGollekCli implements Runnable {
                                                 .findFirst();
                                         if (jarOpt.isPresent()) {
                                             Path jarPath = jarOpt.get();
-                                            out.println("  Found provider JAR candidate: " + jarPath);
+                                            logToFile("DEBUG: Found provider JAR candidate: " + jarPath);
                                             // If SDK exposes loadProviderJar, use it; else try to register capability via provider registry reflectively
                                             if (loadMethod != null) {
                                                 try {
                                                     loadMethod.invoke(resolvedSdk, jarPath.toString());
-                                                    out.println("  Loaded provider JAR via SDK: " + jarPath);
+                                                    if (debug) logToFile("DEBUG: Loaded provider JAR via SDK: " + jarPath);
                                                 } catch (Throwable t) {
-                                                    out.println("  Warning: failed to invoke SDK.loadProviderJar: " + t.getMessage());
+                                                    logToFile("Warning: failed to invoke SDK.loadProviderJar: " + t.getMessage());
                                                 }
-                                            } else {
-                                                try {
+                                            } else {                                                try {
                                                     // reflectively register a capability descriptor into providerCapabilityRegistry
                                                     Method regMethod = resolvedSdk.getClass().getMethod("providerCapabilityRegistry");
                                                     Object registry = regMethod.invoke(resolvedSdk);
@@ -224,15 +227,15 @@ public final class WayangGollekCli implements Runnable {
                                                         );
                                                         Method registerMethod = registry.getClass().getMethod("register", descClass);
                                                         registerMethod.invoke(registry, descriptor);
-                                                        out.println("  Registered provider capability for: " + providerIdGuess);
+                                                        if (debug) logToFile("DEBUG: Registered provider capability for: " + providerIdGuess);
                                                         found = true;
                                                         if (setMethod != null) {
                                                             setMethod.invoke(resolvedSdk, providerIdGuess);
-                                                            out.println("  Applied preferred provider from ~/.wayang/config.json after registration: " + providerIdGuess);
+                                                            logToFile("Applied preferred provider from ~/.wayang/config.json after registration: " + providerIdGuess);
                                                         }
                                                     }
                                                 } catch (Throwable t) {
-                                                    out.println("  Warning: failed to register provider capability reflectively: " + t.getMessage());
+                                                    logToFile("Warning: failed to register provider capability reflectively: " + t.getMessage());
                                                 }
                                             }
                                             // requery availability
@@ -250,16 +253,16 @@ public final class WayangGollekCli implements Runnable {
                                         }
                                     }
                                 } catch (Throwable t) {
-                                    out.println("  Warning: provider auto-load attempt failed: " + t.getMessage());
+                                    logToFile("Warning: provider auto-load attempt failed: " + t.getMessage());
                                 }
                             } else if (setMethod != null) {
                                 setMethod.invoke(resolvedSdk, provider);
-                                out.println("  Applied preferred provider from ~/.wayang/config.json: " + provider);
+                                logToFile("Applied preferred provider from ~/.wayang/config.json: " + provider);
                             } else {
-                                out.println("  Note: preferred provider '" + provider + "' is available, but SDK does not expose setPreferredProvider API yet.");
+                                logToFile("Note: preferred provider '" + provider + "' is available, but SDK does not expose setPreferredProvider API yet.");
                             }
                         } catch (Throwable t) {
-                            out.println("  Warning: failed to apply preferred provider '" + provider + "': " + t.getMessage());
+                            logToFile("Warning: failed to apply preferred provider '" + provider + "': " + t.getMessage());
                         }
                     }
                 }
@@ -267,6 +270,20 @@ public final class WayangGollekCli implements Runnable {
             }
         }
         return resolvedSdk;
+    }
+
+    private void logToFile(String msg) {
+        try {
+            java.nio.file.Path dir = java.nio.file.Paths.get(System.getProperty("user.home"), ".wayang", "logs");
+            java.nio.file.Files.createDirectories(dir);
+            java.nio.file.Path file = dir.resolve("wayang-cli.log");
+            String line = java.time.Instant.now().toString() + " " + msg + System.lineSeparator();
+            java.nio.file.Files.writeString(file, line, java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+        } catch (Exception e) {
+            if (Boolean.getBoolean("wayang.cli.debug")) {
+                err.println("  Logging failed: " + e.getMessage());
+            }
+        }
     }
 
     private WayangClient client() {

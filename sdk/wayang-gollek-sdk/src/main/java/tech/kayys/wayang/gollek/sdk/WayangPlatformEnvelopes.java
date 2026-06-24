@@ -132,6 +132,18 @@ public final class WayangPlatformEnvelopes {
         return SdkMaps.orderedCopy(values);
     }
 
+    public static Map<String, Object> codeAgentExtensions(
+            WayangCodeAgentExtensionDiscovery discovery) {
+        WayangCodeAgentExtensionDiscovery model = discovery == null
+                ? WayangCodeAgentExtensionDiscovery.empty()
+                : discovery;
+        Map<String, Object> values = new LinkedHashMap<>();
+        values.put("product", PRODUCT);
+        values.put("surfaceId", "coding-agent");
+        values.putAll(model.toMap());
+        return SdkMaps.orderedCopy(values);
+    }
+
     public static Map<String, Object> readinessProfiles(
             List<WayangPlatformReadinessProfileDescriptor> profiles) {
         List<WayangPlatformReadinessProfileDescriptor> model = SdkLists.copy(profiles);

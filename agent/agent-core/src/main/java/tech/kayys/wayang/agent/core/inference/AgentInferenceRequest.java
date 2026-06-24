@@ -5,8 +5,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import tech.kayys.gollek.spi.Message;
-import tech.kayys.gollek.spi.tool.ToolDefinition;
+import tech.kayys.wayang.agent.spi.InferenceTypes.ChatMessage;
+import tech.kayys.wayang.agent.spi.InferenceTypes.ToolDefinition;
 
 /**
  * Agent-specific inference request wrapper.
@@ -39,7 +39,7 @@ public class AgentInferenceRequest {
      * If provided, these messages are inserted between the system prompt
      * and the current user prompt.
      */
-    private List<Message> conversationHistory = new ArrayList<>();
+    private List<ChatMessage> conversationHistory = new ArrayList<>();
 
     /**
      * Maximum number of tool-call iterations in a ReAct loop.
@@ -138,11 +138,11 @@ public class AgentInferenceRequest {
         this.tools = tools;
     }
 
-    public List<Message> getConversationHistory() {
+    public List<ChatMessage> getConversationHistory() {
         return conversationHistory;
     }
 
-    public void setConversationHistory(List<Message> conversationHistory) {
+    public void setConversationHistory(List<ChatMessage> conversationHistory) {
         this.conversationHistory = conversationHistory;
     }
 
@@ -216,7 +216,7 @@ public class AgentInferenceRequest {
             return this;
         }
 
-        public Builder conversationHistory(List<Message> conversationHistory) {
+        public Builder conversationHistory(List<ChatMessage> conversationHistory) {
             request.setConversationHistory(conversationHistory);
             return this;
         }

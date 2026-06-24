@@ -17,7 +17,6 @@ import java.util.regex.Pattern;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import tech.kayys.gollek.spi.Message;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 public class ProjectStore {
@@ -76,14 +75,28 @@ public class ProjectStore {
                     Files.createDirectories(targetProjectSessions);
                     Files.list(pd).filter(pf -> pf.getFileName().toString().startsWith("session-") && pf.getFileName().toString().endsWith(".json")).forEach(sf -> {
                         try {
-                            // copy transcript
+                            // read legacy transcript as generic objects and normalize messages
+                            Object[] arr = mapper.readValue(sf.toFile(), Object[].class);
+                            Object[] norm = java.util.Arrays.stream(arr == null ? new Object[0] : arr)
+                                    .map(ProjectStore::normalizeMessage)
+                                    .toArray();
                             Path dest = targetProjectSessions.resolve(sf.getFileName().toString());
-                            Files.copy(sf, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                            mapper.writeValue(dest.toFile(), norm);
+
                             // add session metadata
                             String fname = sf.getFileName().toString();
                             String sid = fname.replaceFirst("^session-", "").replaceFirst("\\.json$", "");
                             p.addSession(new Session(sid, sid));
-                        } catch (Exception ignored2) {}
+                        } catch (Exception ignored2) {
+                            try {
+                                // fallback to plain copy if parsing/normalization fails
+                                Path dest = targetProjectSessions.resolve(sf.getFileName().toString());
+                                Files.copy(sf, dest, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                                String fname = sf.getFileName().toString();
+                                String sid = fname.replaceFirst("^session-", "").replaceFirst("\\.json$", "");
+                                p.addSession(new Session(sid, sid));
+                            } catch (Exception ignored3) {}
+                        }
                     });
                     // save project metadata
                     persistence.saveProject(p);
@@ -125,18 +138,18 @@ public class ProjectStore {
     }
 
     // Session storage helpers (use migrated projects/<id>/sessions where available)
-    public void saveTranscript(String projectId, String sessionId, java.util.List<Message> messages) throws Exception {
+    public void saveTranscript(String projectId, String sessionId, java.util.List<?> messages) throws Exception {
         Path sessionsDir = getSessionsDir(projectId);
         Files.createDirectories(sessionsDir);
         Path file = sessionsDir.resolve("session-" + sessionId + ".json");
         mapper.writeValue(file.toFile(), messages != null ? messages : List.of());
     }
 
-    public java.util.List<Message> loadTranscript(String projectId, String sessionId) throws Exception {
+    public java.util.List<Object> loadTranscript(String projectId, String sessionId) throws Exception {
         Path sessionsDir = getSessionsDir(projectId);
         Path file = sessionsDir.resolve("session-" + sessionId + ".json");
         if (!Files.exists(file)) return List.of();
-        Message[] arr = mapper.readValue(file.toFile(), Message[].class);
+        Object[] arr = mapper.readValue(file.toFile(), Object[].class);
         return arr != null ? Arrays.asList(arr) : List.of();
     }
 
@@ -159,14 +172,29 @@ public class ProjectStore {
      * Clone (fork) an existing session transcript into a new session under the same project.
      * Returns the newly created Session metadata.
      */
-    public Session cloneSession(String projectId, String sessionId, String newName) throws Exception {
+    /**
+     * Clone (fork) an existing session transcript into a new session under the same project.
+     * If checkpointIndex is provided, only messages up to that index (inclusive) are copied.
+     * Returns the newly created Session metadata with parent lineage preserved.
+     */
+    public Session cloneSession(String projectId, String sessionId, String newName, Integer checkpointIndex) throws Exception {
         // Load existing transcript (empty list if missing)
-        java.util.List<Message> transcript = loadTranscript(projectId, sessionId);
+        java.util.List<Object> transcript = loadTranscript(projectId, sessionId);
         if (transcript == null) transcript = List.of();
-        // Create new session metadata
-        Session s = createSession(projectId, newName == null ? sessionId : newName);
+        // Determine sublist to persist based on checkpointIndex
+        java.util.List<Object> toPersist;
+        if (checkpointIndex != null && checkpointIndex >= 0 && checkpointIndex < transcript.size()) {
+            toPersist = transcript.subList(0, Math.min(transcript.size(), checkpointIndex + 1));
+        } else {
+            toPersist = transcript;
+        }
+        // Create new session metadata and set lineage
+        Session s = new Session(UUID.randomUUID().toString(), newName == null ? sessionId : newName, sessionId, checkpointIndex);
+        // Add to project metadata
+        List<Project> list = persistence.listProjects();
+        for (Project p : list) if (p.id().equals(projectId)) { p.addSession(s); persistence.saveProject(p); break; }
         // Persist transcript for new session id
-        saveTranscript(projectId, s.id(), transcript);
+        saveTranscript(projectId, s.id(), toPersist);
         return s;
     }
 
@@ -186,4 +214,43 @@ public class ProjectStore {
         if (m.find()) return m.group(1);
         return null;
     }
+
+    /**
+     * Normalize legacy gollek.spi.Message-like objects into a generic Map shape:
+     * { "role": "user|assistant|system", "text": "...", "meta": { ...original... } }
+     * If the incoming object is a primitive or already a simple Map with 'role'/'text', return as-is.
+     */
+    private static Object normalizeMessage(Object m) {
+        try {
+            if (m == null) return null;
+            if (m instanceof java.util.Map) {
+                java.util.Map<?,?> mp = (java.util.Map<?,?>) m;
+                // If already appears normalized, return as-is
+                if (mp.containsKey("role") && (mp.containsKey("text") || mp.containsKey("content") || mp.containsKey("message"))) {
+                    return m;
+                }
+                // Try common legacy keys
+                Object role = null;
+                if (mp.containsKey("role")) role = mp.get("role");
+                if (role == null && mp.containsKey("type")) role = mp.get("type");
+                Object text = null;
+                if (mp.containsKey("text")) text = mp.get("text");
+                if (text == null && mp.containsKey("content")) text = mp.get("content");
+                if (text == null && mp.containsKey("payload")) text = mp.get("payload");
+                if (text == null && mp.containsKey("message")) text = mp.get("message");
+
+                java.util.Map<String,Object> out = new java.util.LinkedHashMap<>();
+                out.put("role", role == null ? "assistant" : String.valueOf(role));
+                out.put("text", text == null ? mp.toString() : String.valueOf(text));
+                out.put("meta", mp);
+                return out;
+            }
+            // primitives / strings: wrap as assistant/user? keep as text
+            if (m instanceof String) return java.util.Map.of("role","assistant","text",m);
+            return m;
+        } catch (Throwable t) {
+            return m;
+        }
+    }
 }
+

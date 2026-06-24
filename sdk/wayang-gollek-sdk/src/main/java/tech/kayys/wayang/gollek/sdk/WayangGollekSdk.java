@@ -109,6 +109,15 @@ public interface WayangGollekSdk extends AutoCloseable {
         return WayangSdkBoundaryCatalog.validate(boundaries);
     }
 
+    default WayangCodeAgentExtensionDiscovery codeAgentExtensions(
+            WayangCodeAgentContext context) {
+        return WayangCodeAgentExtensions.discover(context);
+    }
+
+    default WayangCodeAgentExtensionDiscovery codeAgentExtensions() {
+        return codeAgentExtensions(WayangCodeAgentContext.builder().build());
+    }
+
     default SurfacePolicyAssessment assessRunPolicy(AgentRunRequest request) {
         return SurfacePolicyPreflight.assess(request);
     }

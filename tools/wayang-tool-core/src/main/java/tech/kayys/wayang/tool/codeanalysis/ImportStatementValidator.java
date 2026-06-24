@@ -150,13 +150,14 @@ public class ImportStatementValidator {
         if (actualPackage == null) {
             // Class doesn't exist - check if it might be in a similar package
             String suggestedFix = findSimilarPackage(fullClassName);
-            
+            String message = String.format("Imported class '%s' not found. %s", 
+                    fullClassName, 
+                    suggestedFix != null ? "Did you mean: import " + suggestedFix + ";?" : "");
             return new ImportValidationIssue(
                 filePath,
-                String.format("Imported class '%s' not found. %s", 
-                    fullClassName, 
-                    suggestedFix != null ? "Did you mean: import " + suggestedFix + ";?" : ""),
-                ImportValidationIssue.Severity.ERROR
+                message,
+                ImportValidationIssue.Severity.ERROR,
+                suggestedFix != null ? ("import " + suggestedFix + ";") : null
             );
         }
         
@@ -303,7 +304,7 @@ public class ImportStatementValidator {
                 return entry.getKey() + "." + className;
             }
         }
-        
+
         // Check for common package prefix replacements
         // e.g., tech.kayys.aljabr -> tech.kayys.gollek
         String[] commonReplacements = {
@@ -316,12 +317,30 @@ public class ImportStatementValidator {
                 String replacement = wrongPackage.replace(prefix, 
                     prefix.equals("tech.kayys.aljabr") ? "tech.kayys.gollek" : "tech.kayys.aljabr");
                 String candidate = replacement + "." + className;
-                if (classToPackageCache.containsKey(candidate)) {
+                if (classToPackageCache.containsKey(candidate) || packageToClassesCache.getOrDefault(replacement, Collections.emptySet()).contains(className)) {
                     return candidate;
                 }
             }
         }
-        
+
+        // Fallback: search filesystem for files matching the class name and extract package
+        try {
+            try (Stream<Path> paths = Files.walk(codebaseRoot)) {
+                Optional<Path> found = paths
+                        .filter(p -> p.getFileName().toString().equals(className + ".java"))
+                        .findFirst();
+                if (found.isPresent()) {
+                    String content = Files.readString(found.get());
+                    String pkg = extractPackage(content);
+                    if (pkg != null) {
+                        return pkg + "." + className;
+                    }
+                }
+            }
+        } catch (IOException ignored) {
+            // ignore
+        }
+
         return null;
     }
 

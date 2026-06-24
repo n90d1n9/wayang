@@ -87,6 +87,8 @@
         <module>wayang-tui</module>
         <module>tools/wayang-tools</module>
         <module>api</module>
+        <!-- Quarkus extension for Gollek integration (runtime + deployment) -->
+        <module>extensions/gollek-quarkus-extension</module>
     </modules>
 
     <profiles>

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -54,5 +55,25 @@ class WayangCodePromptComposerTest {
                 .contains("memory: disabled")
                 .contains("harness checks: disabled")
                 .contains("max agent steps: 1");
+    }
+
+    @Test
+    void appendsCodingAgentExtensionGuidance() {
+        String prompt = WayangCodePromptComposer.systemPrompt(
+                new WayangCodePromptContext(
+                        "coding-agent",
+                        workspace,
+                        "gemma",
+                        true,
+                        false,
+                        12),
+                List.of(
+                        "Record an audit event for every completed run.",
+                        "Apply tenant quota before high-cost tools."));
+
+        assertThat(prompt)
+                .contains("Coding-agent extension guidance:")
+                .contains("- Record an audit event for every completed run.")
+                .contains("- Apply tenant quota before high-cost tools.");
     }
 }

@@ -1,11 +1,11 @@
 package tech.kayys.wayang.gollek.sdk.session;
 
 import org.junit.jupiter.api.Test;
-import tech.kayys.gollek.spi.Message;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -19,8 +19,8 @@ public class WayangSessionStoreTest {
         assertNotNull(meta);
         assertTrue(store.listProjects().contains(meta.id()));
 
-        // Save a simple transcript
-        Message[] msgs = new Message[] { Message.system("sys"), Message.user("hello"), Message.assistant("world") };
+        // Save a simple transcript (generic objects)
+        Object[] msgs = new Object[] { Map.of("role","system","text","sys"), Map.of("role","user","text","hello"), Map.of("role","assistant","text","world") };
         store.saveTranscript(meta.id(), "s1", List.of(msgs));
         var sessions = store.listSessions(meta.id());
         assertTrue(sessions.contains("s1"));

@@ -2,7 +2,6 @@ package tech.kayys.wayang.gollek.cli;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import tech.kayys.gollek.spi.Message;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -46,23 +45,23 @@ final class WayangSessionManager {
         Files.createDirectories(projectDir);
     }
 
-    void saveTranscript(String projectKey, String sessionId, List<Message> messages) throws IOException {
+    void saveTranscript(String projectKey, String sessionId, List<?> messages) throws IOException {
         if (projectKey == null || sessionId == null) return;
         Path projectDir = baseDir.resolve(projectKey);
         Files.createDirectories(projectDir);
         Path file = projectDir.resolve("session-" + sessionId + ".json");
-        // Write a JSON array of Message objects
+        // Write a JSON array of messages (generic objects)
         MAPPER.writeValue(file.toFile(), messages != null ? messages : new ArrayList<>());
     }
 
-    List<Message> loadTranscript(String projectKey, String sessionId) throws IOException {
+    List<Object> loadTranscript(String projectKey, String sessionId) throws IOException {
         if (projectKey == null || sessionId == null) return List.of();
         Path file = baseDir.resolve(projectKey).resolve("session-" + sessionId + ".json");
         if (!Files.exists(file)) return List.of();
-        Message[] arr = MAPPER.readValue(file.toFile(), Message[].class);
-        List<Message> list = new ArrayList<>();
+        Object[] arr = MAPPER.readValue(file.toFile(), Object[].class);
+        List<Object> list = new ArrayList<>();
         if (arr != null) {
-            for (Message m : arr) list.add(m);
+            for (Object m : arr) list.add(m);
         }
         return list;
     }

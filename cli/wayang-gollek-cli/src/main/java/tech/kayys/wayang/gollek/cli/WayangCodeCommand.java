@@ -5,19 +5,19 @@ import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 import picocli.CommandLine.ParentCommand;
 
-import tech.kayys.gollek.factory.GollekSdkFactory;
-import tech.kayys.gollek.sdk.core.GollekSdk;
-import tech.kayys.gollek.sdk.session.ChatSession;
-import tech.kayys.gollek.sdk.session.ChatSessionImpl;
-import tech.kayys.gollek.spi.model.ModelInfo;
-import tech.kayys.gollek.sdk.model.ModelResolution;
+import tech.kayys.wayang.gollek.cli.GollekSdkAdapter;
+import tech.kayys.wayang.gollek.cli.ShellChatSession;
+import tech.kayys.wayang.gollek.sdk.WayangCodeAgentContext;
+import tech.kayys.wayang.gollek.sdk.WayangCodeAgentExtensionDiscovery;
+import tech.kayys.wayang.gollek.sdk.WayangCodeAgentExtensions;
 import tech.kayys.wayang.gollek.sdk.WayangGollekSdk;
 import tech.kayys.wayang.sdk.gollek.ProjectStore;
 import tech.kayys.wayang.sdk.gollek.model.Project;
-import tech.kayys.wayang.sdk.gollek.tools.CodeScanner;
-import tech.kayys.wayang.sdk.gollek.tools.CodeGrep;
-import tech.kayys.wayang.sdk.gollek.tools.Planner;
-import tech.kayys.wayang.sdk.gollek.tools.TaskStore;
+import tech.kayys.wayang.sdk.gollek.tools.Scanner;
+import tech.kayys.wayang.sdk.gollek.tools.Grep;
+import tech.kayys.wayang.sdk.gollek.tools.PlannerIface;
+import tech.kayys.wayang.sdk.gollek.tools.TaskStoreIface;
+import tech.kayys.wayang.sdk.gollek.tools.ToolsFactory;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 
@@ -129,8 +130,8 @@ final class WayangCodeCommand implements Callable<Integer> {
             description = "Disable ANSI colours.")
     boolean noColor;
 
-    private GollekSdk sdk;
-    private ChatSession chatSession;
+    private GollekSdkAdapter sdkAdapter;
+    private Object chatSession;
 
     // Project/session persistence manager (SDK ProjectStore)
     private tech.kayys.wayang.sdk.gollek.ProjectStore projectStore;
@@ -138,67 +139,108 @@ final class WayangCodeCommand implements Callable<Integer> {
     // Current active session id (resolved/auto-generated)
     private String currentSessionId;
 
+    // ToolsFactory loaded via ServiceLoader for pluggable tool implementations
+    private ToolsFactory toolsFactory;
+    private WayangCodeAgentContext codeAgentContext;
+    private WayangCodeAgentExtensionDiscovery codeExtensionDiscovery =
+            WayangCodeAgentExtensionDiscovery.empty();
+
     @Override
     public Integer call() {
         WayangCliContext ctx = parent.context();
         PrintStream out = ctx.out();
 
-        // Debug: show parsed options at entry
-        try { System.err.println("[DEBUG] WayangCodeCommand.call() prompt='" + prompt + "' model='" + modelId + "' provider='" + providerId + "' once='" + once + "'"); } catch (Throwable ignore) {}
-        try { if (parent != null && parent.context() != null) parent.context().out().println("  Debug: WayangCodeCommand.call() prompt='" + prompt + "' model='" + modelId + "' provider='" + providerId + "' once='" + once + "'"); } catch (Throwable ignore) {}
+        // Debug: show parsed options at entry (only when wayang.cli.debug=true)
+        if (Boolean.getBoolean("wayang.cli.debug")) {
+            try { System.err.println("[DEBUG] WayangCodeCommand.call() prompt='" + prompt + "' model='" + modelId + "' provider='" + providerId + "' once='" + once + "'"); } catch (Throwable ignore) {}
+            try { if (parent != null && parent.context() != null) parent.context().out().println("  Debug: WayangCodeCommand.call() prompt='" + prompt + "' model='" + modelId + "' provider='" + providerId + "' once='" + once + "'"); } catch (Throwable ignore) {}
+        }
 
         boolean color = !noColor && isColorSupported();
 
-        // Initialize GollekSdk locally — prefer CLI flag, then Wayang preferred provider, then default
+        // Initialize GollekSdk locally — with config.json authoritative unless --ignore-config
         try {
             String effectiveProvider = providerId;
             try {
                 WayangGollekSdk wayangSdk = parent.sdk();
-                if (effectiveProvider == null || effectiveProvider.isBlank()) {
+                if (!parent.isIgnoreConfig()) {
                     try {
                         java.util.Optional<String> p = wayangSdk.getPreferredProvider();
                         if (p.isPresent()) {
+                            // config.json preferred provider overrides CLI flag
                             effectiveProvider = p.get();
                         }
                     } catch (Throwable ignore) {
                         // ignore if parent SDK doesn't expose preferred provider
+                    }
+                } else {
+                    // ignore-config: only use parent provider if CLI flag absent
+                    if (effectiveProvider == null || effectiveProvider.isBlank()) {
+                        try {
+                            java.util.Optional<String> p = wayangSdk.getPreferredProvider();
+                            if (p.isPresent()) {
+                                effectiveProvider = p.get();
+                            }
+                        } catch (Throwable ignore) {}
                     }
                 }
             } catch (Throwable ignore) {
                 // parent.sdk() may not be accessible; fall back to CLI flag only
             }
 
-            if (effectiveProvider != null && "gguf".equalsIgnoreCase(effectiveProvider)) {
-                // Create GGUF-optimized local SDK
-                this.sdk = GollekSdkFactory.createForGguf();
-            } else if (effectiveProvider != null && !effectiveProvider.isBlank()) {
-                // Create local sdk with preferred provider
-                try {
-                    tech.kayys.gollek.sdk.config.SdkConfig cfg = tech.kayys.gollek.sdk.config.SdkConfig.builder()
-                            .preferredProvider(effectiveProvider)
-                            .build();
-                    this.sdk = GollekSdkFactory.createLocalSdk(cfg);
-                } catch (Throwable t) {
-                    // fallback
-                    this.sdk = GollekSdkFactory.createLocalSdk();
-                }
-            } else {
-                this.sdk = GollekSdkFactory.createLocalSdk();
-            }
+            // Use lightweight adapter that does not require full Gollek SDK at runtime.
+            this.sdkAdapter = GollekSdkAdapter.create(effectiveProvider);
+            this.providerId = effectiveProvider;
         } catch (Exception e) {
             out.println((color ? RED : "") + "Error: Failed to initialize local Gollek SDK: " + e.getMessage() + (color ? RESET : ""));
             return 1;
         }
 
-        // Resolve model
+        // Resolve model (config.json authoritative unless --ignore-config)
         String resolvedModel = modelId;
-        if (resolvedModel == null || resolvedModel.isBlank()) {
-            try {
-                resolvedModel = sdk.resolveDefaultModel()
-                        .orElse("gemma-4-E2B-it");
-            } catch (Exception e) {
-                resolvedModel = "gemma-4-E2B-it";
+        try {
+            if (!parent.isIgnoreConfig()) {
+                // config (via adapter) overrides CLI flag
+                java.util.Optional<String> cfg = sdkAdapter.resolveDefaultModel();
+                if (cfg.isPresent()) {
+                    resolvedModel = cfg.get();
+                } else if (resolvedModel == null || resolvedModel.isBlank()) {
+                    // fallback to env if adapter didn't find config
+                    String env = System.getenv("WAYANG_MODEL");
+                    if (env != null && !env.isBlank()) resolvedModel = env.trim();
+                }
+            } else {
+                // ignore config: prefer CLI flag, then env
+                if (resolvedModel == null || resolvedModel.isBlank()) {
+                    String env = System.getenv("WAYANG_MODEL");
+                    if (env != null && !env.isBlank()) resolvedModel = env.trim();
+                }
             }
+        } catch (Exception e) {
+            // continue to fallback below
+        }
+        if (resolvedModel == null || resolvedModel.isBlank()) resolvedModel = "gemma-4-E2B-it";
+
+        // Ensure model is available locally; if missing prompt to download via gollek pull
+        try {
+            if (!modelExists(resolvedModel)) {
+                out.println((color ? YELLOW : "") + "Default model '" + resolvedModel + "' is not available locally." + (color ? RESET : ""));
+                out.print("Download now? [Y/n]: ");
+                out.flush();
+                BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
+                String ans = reader.readLine();
+                if (ans == null || ans.trim().isEmpty() || ans.trim().toLowerCase().startsWith("y")) {
+                    int rc = tech.kayys.wayang.gollek.sdk.WayangGollekFacade.pullModel(out, resolvedModel);
+                    if (rc != 0) {
+                        out.println((color ? RED : "") + "Failed to download model (exit " + rc + ")." + (color ? RESET : ""));
+                        return 1;
+                    }
+                } else {
+                    out.println("Continuing without downloading model.");
+                }
+            }
+        } catch (Exception e) {
+            out.println((color ? YELLOW : "") + "Warning: failed to verify model availability: " + e.getMessage() + (color ? RESET : ""));
         }
 
         // Resolve session
@@ -214,6 +256,7 @@ final class WayangCodeCommand implements Callable<Integer> {
         Path workspaceDir = resolveWorkspacePath(resolvedWorkspace);
 
         // Initialize project/session manager for grouping
+        this.toolsFactory = null;
         try {
             this.resolvedProjectKey = tech.kayys.wayang.gollek.sdk.session.WayangSessionStore.computeProjectKey(projectId, workspaceDir);
             this.projectStore = new tech.kayys.wayang.sdk.gollek.ProjectStore(null);
@@ -228,179 +271,26 @@ final class WayangCodeCommand implements Callable<Integer> {
             this.resolvedProjectKey = null;
         }
 
-        // Initialize ChatSession with the durable Wayang coding-agent system prompt.
-        if (providerId != null && !providerId.isBlank()) {
-            try {
-                // Best-effort: set preferred provider directly on the Gollek SDK first.
-                try {
-                    this.sdk.setPreferredProvider(providerId);
-                } catch (Throwable ignore) {
-                    // fall through to probing / auto-load if direct set failed
-                }
+        refreshCodeAgentExtensions(workspaceDir, resolvedModel, resolvedSession, providerId);
 
-                List<tech.kayys.gollek.spi.provider.ProviderInfo> available = this.sdk.listAvailableProviders();
-                boolean found = false;
-                if (available != null) {
-                    for (tech.kayys.gollek.spi.provider.ProviderInfo p : available) {
-                        if (p.id().equals(providerId)) { found = true; break; }
-                    }
-                }
-                if (!found) {
-                    String known = "<unknown>";
-                    if (available != null) {
-                        known = available.stream().map(tech.kayys.gollek.spi.provider.ProviderInfo::id).toList().toString();
-                    }
-                    printInfo(out, color, "Preferred provider '" + providerId + "' is not available. Known providers: " + known);
-
-                    // Attempt to auto-load provider JAR from local Maven repository (same fallback as root CLI)
-                    try {
-                        java.lang.reflect.Method loadMethod = null;
-                        try { loadMethod = this.sdk.getClass().getMethod("loadProviderJar", String.class); } catch (NoSuchMethodException ignore) {}
-
-                        java.nio.file.Path candidateDir = java.nio.file.Paths.get(System.getProperty("user.home"), ".m2", "repository", "tech", "kayys", "gollek", "gollek-plugin-" + providerId);
-                        if (java.nio.file.Files.exists(candidateDir)) {
-                            java.util.Optional<java.nio.file.Path> jarOpt = java.nio.file.Files.walk(candidateDir)
-                                    .filter(x -> x.getFileName().toString().endsWith(".jar"))
-                                    .findFirst();
-                            if (jarOpt.isPresent()) {
-                                java.nio.file.Path jarPath = jarOpt.get();
-                                printInfo(out, color, "Found provider JAR candidate: " + jarPath.toString());
-                                if (loadMethod != null) {
-                                    try {
-                                        loadMethod.invoke(this.sdk, jarPath.toString());
-                                        printInfo(out, color, "Loaded provider JAR via SDK: " + jarPath.toString());
-                                        // re-check availability
-                                        available = this.sdk.listAvailableProviders();
-                                        if (available != null) {
-                                            for (tech.kayys.gollek.spi.provider.ProviderInfo p : available) {
-                                                if (p.id().equals(providerId)) { found = true; break; }
-                                            }
-                                            if (found) this.sdk.setPreferredProvider(providerId);
-                                        }
-                                    } catch (Throwable t) {
-                                        printInfo(out, color, "Warning: failed to invoke SDK.loadProviderJar: " + t.getMessage());
-                                    }
-                                } else {
-                                    // Reflectively register minimal capability descriptor into provider registry
-                                    try {
-                                        java.lang.reflect.Method regMethod = null;
-                                        try { regMethod = this.sdk.getClass().getMethod("providerCapabilityRegistry"); } catch (NoSuchMethodException ignore) {}
-                                        if (regMethod != null) {
-                                            Object registry = regMethod.invoke(this.sdk);
-                                            if (registry != null) {
-                                                Class<?> descClass = Class.forName("tech.kayys.wayang.gollek.sdk.WayangProviderCapabilityDescriptor");
-                                                Class<?> stateClass = Class.forName("tech.kayys.wayang.gollek.sdk.WayangProviderCapabilityState");
-                                                java.lang.reflect.Constructor<?> ctor = descClass.getConstructor(
-                                                        String.class, String.class, String.class, String.class,
-                                                        String.class, String.class, String.class, stateClass,
-                                                        java.util.List.class, java.util.List.class, java.util.List.class, java.util.Map.class);
-                                                String moduleId = jarPath.getFileName().toString().replaceAll("\\.jar$", "");
-                                                String providerIdGuess = providerId;
-                                                String capabilityId = providerIdGuess + ".inference";
-                                                Object stateVal = java.lang.Enum.valueOf((Class<Enum>) stateClass, "AVAILABLE");
-                                                Object descriptor = ctor.newInstance(
-                                                        capabilityId,
-                                                        providerIdGuess,
-                                                        "gollek",
-                                                        moduleId,
-                                                        "inference",
-                                                        Character.toUpperCase(providerIdGuess.charAt(0)) + providerIdGuess.substring(1) + " Provider",
-                                                        "Dynamically registered provider from JAR: " + jarPath.toString(),
-                                                        stateVal,
-                                                        java.util.List.of("coding-agent", "assistant-agent"),
-                                                        java.util.List.of(),
-                                                        java.util.List.of("gollek", "provider", "inference"),
-                                                        java.util.Map.of("jar", jarPath.toString())
-                                                );
-                                                java.lang.reflect.Method registerMethod = registry.getClass().getMethod("register", descClass);
-                                                registerMethod.invoke(registry, descriptor);
-                                                printInfo(out, color, "Registered provider capability for: " + providerIdGuess);
-                                                // attempt to set preferred provider
-                                                try {
-                                                    java.lang.reflect.Method setMethod = this.sdk.getClass().getMethod("setPreferredProvider", String.class);
-                                                    setMethod.invoke(this.sdk, providerIdGuess);
-                                                    found = true;
-                                                } catch (NoSuchMethodException ignore) {}
-                                            }
-                                        }
-                                    } catch (Throwable t) {
-                                        printInfo(out, color, "Warning: failed to register provider capability reflectively on local SDK: " + t.getMessage());
-                                        // Fallback: try to register on parent CLI's resolved SDK (which may have provider registry exposed)
-                                        try {
-                                            java.lang.reflect.Method parentSdkMethod = parent.getClass().getDeclaredMethod("sdk");
-                                            parentSdkMethod.setAccessible(true);
-                                            Object parentResolvedSdk = parentSdkMethod.invoke(parent);
-                                            if (parentResolvedSdk != null) {
-                                                try {
-                                                    java.lang.reflect.Method regMethod2 = parentResolvedSdk.getClass().getMethod("providerCapabilityRegistry");
-                                                    Object registry2 = regMethod2.invoke(parentResolvedSdk);
-                                                    if (registry2 != null) {
-                                                        Class<?> descClass2 = Class.forName("tech.kayys.wayang.gollek.sdk.WayangProviderCapabilityDescriptor");
-                                                        Class<?> stateClass2 = Class.forName("tech.kayys.wayang.gollek.sdk.WayangProviderCapabilityState");
-                                                        java.lang.reflect.Constructor<?> ctor2 = descClass2.getConstructor(
-                                                                String.class, String.class, String.class, String.class,
-                                                                String.class, String.class, String.class, stateClass2,
-                                                                java.util.List.class, java.util.List.class, java.util.List.class, java.util.Map.class);
-                                                        String moduleId2 = jarPath.getFileName().toString().replaceAll("\\.jar$", "");
-                                                        String providerIdGuess2 = providerId;
-                                                        String capabilityId2 = providerIdGuess2 + ".inference";
-                                                        Object stateVal2 = java.lang.Enum.valueOf((Class<Enum>) stateClass2, "AVAILABLE");
-                                                        Object descriptor2 = ctor2.newInstance(
-                                                                capabilityId2,
-                                                                providerIdGuess2,
-                                                                "gollek",
-                                                                moduleId2,
-                                                                "inference",
-                                                                Character.toUpperCase(providerIdGuess2.charAt(0)) + providerIdGuess2.substring(1) + " Provider",
-                                                                "Dynamically registered provider from JAR: " + jarPath.toString(),
-                                                                stateVal2,
-                                                                java.util.List.of("coding-agent", "assistant-agent"),
-                                                                java.util.List.of(),
-                                                                java.util.List.of("gollek", "provider", "inference"),
-                                                                java.util.Map.of("jar", jarPath.toString())
-                                                        );
-                                                        java.lang.reflect.Method registerMethod2 = registry2.getClass().getMethod("register", descClass2);
-                                                        registerMethod2.invoke(registry2, descriptor2);
-                                                        printInfo(out, color, "Registered provider capability for: " + providerIdGuess2 + " (via parent SDK)");
-                                                        try {
-                                                            java.lang.reflect.Method setMethod2 = parentResolvedSdk.getClass().getMethod("setPreferredProvider", String.class);
-                                                            setMethod2.invoke(parentResolvedSdk, providerIdGuess2);
-                                                            found = true;
-                                                        } catch (NoSuchMethodException ignore) {}
-                                                    }
-                                                } catch (Throwable t2) {
-                                                    printInfo(out, color, "Warning: failed to register provider capability via parent SDK: " + t2.getMessage());
-                                                }
-                                            }
-                                        } catch (Throwable ignore) {
-                                            // ignore
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } catch (Throwable t) {
-                        printInfo(out, color, "Warning: provider auto-load attempt failed: " + t.getMessage());
-                    }
-
-                    if (!found) {
-                        providerId = null;
-                    }
-                }
-            } catch (Exception e) {
-                printInfo(out, color, "Warning: failed to apply preferred provider: " + e.getMessage());
-                providerId = null;
-            }
+        this.toolsFactory = WayangCodeToolFactories.discover().orElseGet(WayangCodeToolFactories::fallback);
+        if (this.toolsFactory instanceof WayangCodeFallbackToolsFactory) {
+            printInfo(out, color, "Using fallback ToolsFactory (no implementations found via ServiceLoader).");
         }
-        this.chatSession = createChatSession(resolvedModel, providerId, workspaceDir);
 
+        // Initialize ChatSession with the durable Wayang coding-agent system prompt.
+        try {
+            // Best-effort: apply preferred provider into lightweight adapter
+            try { sdkAdapter.setPreferredProvider(providerId); } catch (Throwable ignore) {}
+        } catch (Throwable ignored) {}
+        this.chatSession = createChatSession(resolvedModel, providerId, workspaceDir);
         // If a session id was provided and persistence is available, attempt to resume
         if (projectStore != null && sessionId != null && !sessionId.isBlank()) {
             try {
-                java.util.List<tech.kayys.gollek.spi.Message> transcript = projectStore.loadTranscript(resolvedProjectKey, resolvedSession);
+                java.util.List<?> transcript = projectStore.loadTranscript(resolvedProjectKey, resolvedSession);
                 if (transcript != null && !transcript.isEmpty()) {
-                    for (tech.kayys.gollek.spi.Message m : transcript) {
-                        chatSession.addMessage(m);
+                    for (Object m : transcript) {
+                        chatSessionAddMessage(chatSession, m);
                     }
                     printInfo(out, color, "Resumed session " + resolvedSession + " (" + transcript.size() + " messages)");
                 }
@@ -453,6 +343,10 @@ final class WayangCodeCommand implements Callable<Integer> {
         out.println(d + "  workspace : " + workspace + r);
         out.println(d + "  session   : " + session.substring(0, Math.min(8, session.length())) + "…" + r);
         out.println(d + "  model     : " + resolvedModel + r);
+        if (codeExtensionDiscovery != null && codeExtensionDiscovery.discoveredCount() > 0) {
+            out.println(d + "  extensions: " + codeExtensionDiscovery.activeCount()
+                    + "/" + codeExtensionDiscovery.discoveredCount() + " active" + r);
+        }
         out.println();
         out.println(y + "  Type your task or question. Use /help for commands, Ctrl-C or /exit to quit." + r);
         out.println();
@@ -513,8 +407,8 @@ final class WayangCodeCommand implements Callable<Integer> {
 
         if (cmd.equals("/reset")) {
             if (chatSession != null) {
-                chatSession.reset();
-                applyCodingAgentPrompt(chatSession, chatSession.getModelId(), workspace);
+                chatSessionReset(chatSession);
+                applyCodingAgentPrompt(chatSession, chatSessionGetModelId(chatSession), workspace);
             }
             printInfo(out, color, "Session reset.");
             return false;
@@ -522,44 +416,18 @@ final class WayangCodeCommand implements Callable<Integer> {
 
         if (cmd.equals("/models") || cmd.equals("/list")) {
             try {
-                List<ModelInfo> models = sdk.listModels();
-                if (models.isEmpty()) {
+                List<String> models = sdkAdapter.listModelsStrings();
+                if (models == null || models.isEmpty()) {
                     out.println((color ? YELLOW : "") + "  No models found." + (color ? RESET : ""));
                 } else {
                     out.println();
-                    out.printf(color ? BOLD + "  %-7s %-14s %-26s %-12s %-10s %-12s %-10s" + RESET + "%n"
-                                    : "  %-7s %-14s %-26s %-12s %-10s %-12s %-10s%n",
-                            "ID", "GROUP", "NAME", "ARCH", "FORMAT", "SIZE", "MODIFIED");
-                    out.println(color ? DIM + "  " + "─".repeat(97) + RESET : "  " + "─".repeat(97));
-                    for (ModelInfo model : models) {
-                        String id = model.getShortId();
-                        if (id == null || id.isBlank() || id.equalsIgnoreCase("n/a")) {
-                            id = tech.kayys.gollek.spi.model.ModelUtils.generateShortId(model.getModelId());
-                        }
-                        String group = "";
-                        String displayName = model.getName() != null ? model.getName() : model.getModelId();
-                        String modelIdStr = model.getModelId();
-                        if (modelIdStr != null && modelIdStr.contains("/")) {
-                            int slash = modelIdStr.indexOf('/');
-                            group = modelIdStr.substring(0, slash);
-                        }
-                        String arch = model.getArchitecture() != null ? model.getArchitecture() : "unknown";
-                        String modified = model.getUpdatedAt() != null ? model.getUpdatedAt().toString().substring(0, 10) : "N/A";
-                        String format = model.getFormat() != null ? model.getFormat() : "N/A";
-                        
-                        out.printf("  %-7s %-14s %-26s %-12s %-10s %-12s %-10s%n",
-                                color ? YELLOW + id + RESET : id,
-                                truncate(group, 14),
-                                truncate(displayName, 26),
-                                truncate(arch, 12),
-                                truncate(format, 10),
-                                model.getSizeFormatted(),
-                                modified);
+                    for (String mi : models) {
+                        out.println("  " + mi);
                     }
-                    out.printf(color ? BOLD + "%n  %d model(s) found" + RESET + "%n" : "%n  %d model(s) found%n", models.size());
+                    out.println();
+                    out.println("  " + models.size() + " model(s) found");
                 }
             } catch (Exception e) {
-                e.printStackTrace();
                 printError(out, color, "Failed to list models: " + e.getMessage());
             }
             return false;
@@ -571,7 +439,8 @@ final class WayangCodeCommand implements Callable<Integer> {
                 out.println((color ? YELLOW : "") + "  Usage: /model <model-id>" + (color ? RESET : ""));
             } else {
                 try {
-                    String provider = chatSession == null ? null : chatSession.getProviderId();
+                    String provider = chatSession == null ? null : chatSessionGetProviderId(chatSession);
+                    refreshCodeAgentExtensions(resolveWorkspacePath(workspace), newModelId, currentSessionId, provider);
                     this.chatSession = createChatSession(newModelId, provider, resolveWorkspacePath(workspace));
                     out.println(color ? GREEN + "  Switched to model: " + RESET + CYAN + newModelId + RESET
                                       : "  Switched to model: " + newModelId);
@@ -584,15 +453,15 @@ final class WayangCodeCommand implements Callable<Integer> {
 
         if (cmd.equals("/providers")) {
             try {
-                List<tech.kayys.gollek.spi.provider.ProviderInfo> providers = sdk.listAvailableProviders();
+                java.util.List<String> providers = sdkAdapter.listAvailableProviders();
                 if (providers.isEmpty()) {
                     out.println("  No providers found.");
                 } else {
                     out.println();
                     out.printf("  %-15s %-15s %-30s%n", "ID", "NAME", "DESCRIPTION");
                     out.println("  " + "─".repeat(60));
-                    for (tech.kayys.gollek.spi.provider.ProviderInfo p : providers) {
-                        out.printf("  %-15s %-15s %-30s%n", p.id(), p.name(), p.description());
+                    for (String pid : providers) {
+                        out.printf("  %-15s %-15s %-30s%n", pid, "-", "");
                     }
                 }
             } catch (Exception e) {
@@ -608,17 +477,18 @@ final class WayangCodeCommand implements Callable<Integer> {
             } else {
                 try {
                     // Validate provider exists via Gollek SDK
-                    List<tech.kayys.gollek.spi.provider.ProviderInfo> available = sdk.listAvailableProviders();
+                    java.util.List<String> available = sdkAdapter.listAvailableProviders();
                     boolean found = false;
                     if (available != null) {
-                        for (var p : available) { if (p.id().equals(newProviderId)) { found = true; break; } }
+                        for (var p : available) { if (p.equals(newProviderId)) { found = true; break; } }
                     }
                     if (!found) {
-                        String known = available == null ? "<unknown>" : available.stream().map(tech.kayys.gollek.spi.provider.ProviderInfo::id).toList().toString();
+                        String known = available == null ? "<unknown>" : available.toString();
                         printError(out, color, "Provider '" + newProviderId + "' not found. Known providers: " + known);
                     } else {
-                        sdk.setPreferredProvider(newProviderId);
-                        String currentModel = chatSession == null ? modelId : chatSession.getModelId();
+                        sdkAdapter.setPreferredProvider(newProviderId);
+                        String currentModel = chatSession == null ? modelId : chatSessionGetModelId(chatSession);
+                        refreshCodeAgentExtensions(resolveWorkspacePath(workspace), currentModel, currentSessionId, newProviderId);
                         this.chatSession = createChatSession(currentModel, newProviderId, resolveWorkspacePath(workspace));
                         out.println(color ? GREEN + "  Switched to provider: " + RESET + CYAN + newProviderId + RESET
                                           : "  Switched to provider: " + newProviderId);
@@ -632,12 +502,26 @@ final class WayangCodeCommand implements Callable<Integer> {
 
         if (cmd.equals("/info")) {
             try {
-                tech.kayys.gollek.sdk.model.SystemInfo info = sdk.getSystemInfo();
+                Object info = sdkAdapter.getSystemInfo();
                 out.println();
                 out.println(color ? BOLD + "  System Info:" + RESET : "  System Info:");
-                out.println("    OS:      " + info.getOsName() + " (" + info.getOsArch() + ")");
-                out.println("    Java:    " + info.getJavaVersion());
-                out.println("    Memory:  " + (info.getTotalMemory() / (1024 * 1024)) + " MB / " + (info.getMaxMemory() / (1024 * 1024)) + " MB");
+                try {
+                    if (info instanceof java.util.Map) {
+                        java.util.Map<?,?> m = (java.util.Map<?,?>) info;
+                        Object osv = m.get("os");
+                        Object javav = m.get("java");
+                        Object totalMem = m.get("totalMemory");
+                        Object maxMem = m.get("maxMemory");
+                        out.println("    OS:      " + (osv == null ? "<unknown>" : String.valueOf(osv)));
+                        out.println("    Java:    " + (javav == null ? "<unknown>" : String.valueOf(javav)));
+                        long tMB = (totalMem instanceof Number) ? ((Number) totalMem).longValue() / (1024 * 1024) : -1L;
+                        long mMB = (maxMem instanceof Number) ? ((Number) maxMem).longValue() / (1024 * 1024) : -1L;
+                        out.println("    Memory:  " + (tMB >= 0 ? tMB + " MB" : "?") + " / " + (mMB >= 0 ? mMB + " MB" : "?"));
+                    } else {
+                        out.println("    Info: " + String.valueOf(info));
+                    }
+                } catch (Throwable ignored) {}
+
             } catch (Exception e) {
                 printError(out, color, "Failed to get system info: " + e.getMessage());
             }
@@ -672,6 +556,11 @@ final class WayangCodeCommand implements Callable<Integer> {
                 sub.maxChecks = 8;
                 sub.call();
             });
+            return false;
+        }
+
+        if (cmd.equals("/extensions") || cmd.equals("/ext")) {
+            WayangCodeExtensionTextFormat.render(out, color, codeExtensionDiscovery);
             return false;
         }
 
@@ -725,7 +614,7 @@ final class WayangCodeCommand implements Callable<Integer> {
         }
 
         if (cmd.equals("/sessions") || cmd.equals("/sessions list") ) {
-            if (projectStore == null) {
+            if (projectStore == null || !isGollekSpiAvailable()) {
                 printInfo(out, color, "Session persistence unavailable.");
                 return false;
             }
@@ -750,7 +639,7 @@ final class WayangCodeCommand implements Callable<Integer> {
             try {
                 var transcript = projectStore.loadTranscript(resolvedProjectKey, sid);
                 if (transcript == null || transcript.isEmpty()) { printInfo(out, color, "No transcript found for " + sid); return false; }
-                for (var m : transcript) chatSession.addMessage(m);
+                for (var m : transcript) chatSessionAddMessage(chatSession, m);
                 this.currentSessionId = sid;
                 printInfo(out, color, "Resumed session " + sid + " (" + transcript.size() + " messages)");
             } catch (Exception e) {
@@ -766,12 +655,29 @@ final class WayangCodeCommand implements Callable<Integer> {
             if (payload.isEmpty()) { printInfo(out, color, "Usage: /sessions fork <session-id> [new-name]"); return false; }
             if (projectStore == null) { printInfo(out, color, "Session persistence unavailable."); return false; }
             try {
-                String[] parts = payload.split("\\s+", 2);
-                String sid = parts[0];
-                String newName = parts.length > 1 ? parts[1] : null;
-                var newSession = projectStore.cloneSession(resolvedProjectKey, sid, newName);
+                // Tokenize payload to support optional --checkpoint flag after session-id and new name
+                String[] tokens = payload.split("\\s+");
+                if (tokens.length == 0) { printInfo(out, color, "Usage: /sessions fork <session-id> [new-name] [--checkpoint <index>]"); return false; }
+                String sid = tokens[0];
+                String newName = null;
+                Integer checkpointIndex = null;
+                // Reconstruct remaining args and parse options
+                for (int i = 1; i < tokens.length; i++) {
+                    String t = tokens[i];
+                    if (t.startsWith("--checkpoint=")) {
+                        try { checkpointIndex = Integer.parseInt(t.substring("--checkpoint=".length())); } catch (NumberFormatException ignored) {}
+                    } else if (t.equals("--checkpoint") && i + 1 < tokens.length) {
+                        try { checkpointIndex = Integer.parseInt(tokens[++i]); } catch (NumberFormatException ignored) {}
+                    } else {
+                        // treat as part of newName (allow multi-word name)
+                        if (newName == null) newName = t;
+                        else newName = newName + " " + t;
+                    }
+                }
+                var newSession = projectStore.cloneSession(resolvedProjectKey, sid, newName, checkpointIndex);
                 if (newSession != null) {
-                    printInfo(out, color, "Forked session " + sid + " -> " + newSession.id() + " (name='" + newSession.name() + "')");
+                    String ck = checkpointIndex == null ? "full" : ("checkpoint=" + checkpointIndex);
+                    printInfo(out, color, "Forked session " + sid + " -> " + newSession.id() + " (name='" + newSession.name() + "', branch=" + ck + ")");
                 } else {
                     printInfo(out, color, "Failed to fork session " + sid);
                 }
@@ -800,7 +706,7 @@ final class WayangCodeCommand implements Callable<Integer> {
             if (pattern.isEmpty()) { printInfo(out, color, "Usage: /find <glob> (e.g. '**/*.java')"); return false; }
             try {
                 Path ws = resolveWorkspacePath(workspacePath);
-                CodeScanner scanner = new CodeScanner(ws);
+                Scanner scanner = toolsFactory.createScanner(ws);
                 var files = scanner.findFiles(pattern);
                 out.println();
                 out.println(color ? BOLD + "  Files:" + RESET : "  Files:");
@@ -817,9 +723,9 @@ final class WayangCodeCommand implements Callable<Integer> {
             if (regex.isEmpty()) { printInfo(out, color, "Usage: /grep <regex>"); return false; }
             try {
                 Path ws = resolveWorkspacePath(workspacePath);
-                CodeScanner scanner = new CodeScanner(ws);
+                Scanner scanner = toolsFactory.createScanner(ws);
                 var files = scanner.findFiles("**/*");
-                CodeGrep greper = new CodeGrep(ws);
+                Grep greper = toolsFactory.createGrep(ws);
                 var matches = greper.grep(regex, files);
                 out.println();
                 out.println(color ? BOLD + "  Matches:" + RESET : "  Matches:");
@@ -839,7 +745,7 @@ final class WayangCodeCommand implements Callable<Integer> {
             String goal = command.substring("/plan ".length()).trim();
             if (goal.isEmpty()) { printInfo(out, color, "Usage: /plan <goal-description>"); return false; }
             try {
-                Planner p = new Planner();
+                PlannerIface p = toolsFactory.createPlanner();
                 var steps = p.makePlan(goal);
                 out.println();
                 out.println(color ? BOLD + "  Plan:" + RESET : "  Plan:");
@@ -850,7 +756,7 @@ final class WayangCodeCommand implements Callable<Integer> {
                 // persist as tasks under project if available
                 try {
                     Path projectDir = Paths.get(System.getProperty("user.home"), ".wayang", "projects", resolvedProjectKey == null ? "default" : resolvedProjectKey);
-                    TaskStore ts = new TaskStore(projectDir);
+                    TaskStoreIface ts = toolsFactory.createTaskStore(projectDir);
                     for (var s : steps) ts.addTask(s.index + ". " + s.text);
                     printInfo(out, color, "Plan saved as tasks under project: " + (resolvedProjectKey == null ? "default" : resolvedProjectKey));
                 } catch (Throwable ignored) {}
@@ -865,7 +771,7 @@ final class WayangCodeCommand implements Callable<Integer> {
             if (rest.equals("list")) {
                 try {
                     Path projectDir = Paths.get(System.getProperty("user.home"), ".wayang", "projects", resolvedProjectKey == null ? "default" : resolvedProjectKey);
-                    TaskStore ts = new TaskStore(projectDir);
+                    TaskStoreIface ts = toolsFactory.createTaskStore(projectDir);
                     var tasks = ts.listTasks();
                     out.println();
                     out.println(color ? BOLD + "  Tasks:" + RESET : "  Tasks:");
@@ -877,7 +783,7 @@ final class WayangCodeCommand implements Callable<Integer> {
                 String desc = rest.substring("add ".length()).trim();
                 try {
                     Path projectDir = Paths.get(System.getProperty("user.home"), ".wayang", "projects", resolvedProjectKey == null ? "default" : resolvedProjectKey);
-                    TaskStore ts = new TaskStore(projectDir);
+                    TaskStoreIface ts = toolsFactory.createTaskStore(projectDir);
                     var t = ts.addTask(desc);
                     printInfo(out, color, "Added task: " + t.id());
                 } catch (Exception e) { printError(out, color, "Add task failed: " + e.getMessage()); }
@@ -886,7 +792,7 @@ final class WayangCodeCommand implements Callable<Integer> {
                 String id = rest.substring("done ".length()).trim();
                 try {
                     Path projectDir = Paths.get(System.getProperty("user.home"), ".wayang", "projects", resolvedProjectKey == null ? "default" : resolvedProjectKey);
-                    TaskStore ts = new TaskStore(projectDir);
+                    TaskStoreIface ts = toolsFactory.createTaskStore(projectDir);
                     var tasks = ts.listTasks();
                     for (var t : tasks) if (t.id().equals(id)) { t.setStatus("done"); ts.updateTask(t); printInfo(out, color, "Marked done: " + id); return false; }
                     printInfo(out, color, "Task not found: " + id);
@@ -918,15 +824,15 @@ final class WayangCodeCommand implements Callable<Integer> {
             try {
                 String activeProvider = null;
                 try {
-                    activeProvider = chatSession == null ? null : chatSession.getProviderId();
+                    activeProvider = chatSession == null ? null : chatSessionGetProviderId(chatSession);
                 } catch (Throwable ignored) {}
                 if (activeProvider != null && activeProvider.equalsIgnoreCase("safetensor")) {
                     try {
-                        sdk.setPreferredProvider("gguf");
+                        try { sdkAdapter.setPreferredProvider("gguf"); } catch (Throwable ignored) {}
                     } catch (Throwable ignored) {}
                     // Recreate chat session with gguf preference
                     try {
-                        String currentModel = chatSession == null ? modelId : chatSession.getModelId();
+                        String currentModel = chatSession == null ? modelId : chatSessionGetModelId(chatSession);
                         this.chatSession = createChatSession(currentModel, "gguf", resolveWorkspacePath(workspacePath));
                     } catch (Throwable ignored) {}
                 }
@@ -936,39 +842,38 @@ final class WayangCodeCommand implements Callable<Integer> {
             // which adds the user message to the list before the request is built.
             // Building a raw InferenceRequest with .prompt() leaves messages empty,
             // causing "At least one message is required" from downstream providers.
-            chatSession.stream(userPrompt)
-                    .subscribe().with(
-                            chunk -> {
-                                String delta = chunk.getDelta();
-                                if (delta != null && !delta.isEmpty()) {
-                                    if (!assistantPrefixPrinted[0]) {
-                                        out.println();
-                                        out.print(color ? GREEN + BOLD + "Assistant: " + RESET : "Assistant: ");
-                                        assistantPrefixPrinted[0] = true;
-                                    }
-                                    out.print(delta);
-                                    out.flush();
-                                }
-                            },
-                            error -> {
+            chatSessionStream(chatSession, userPrompt,
+                    chunk -> {
+                        String delta = chunk.getDelta();
+                        if (delta != null && !delta.isEmpty()) {
+                            if (!assistantPrefixPrinted[0]) {
                                 out.println();
-                                printError(out, color, "Inference error: " + error.getMessage());
-                                exitCode[0] = 1;
-                                latch.countDown();
-                            },
-                            () -> {
-                                out.println();
-                                latch.countDown();
+                                out.print(color ? GREEN + BOLD + "Assistant: " + RESET : "Assistant: ");
+                                assistantPrefixPrinted[0] = true;
                             }
-                    );
+                            out.print(delta);
+                            out.flush();
+                        }
+                    },
+                    error -> {
+                        out.println();
+                        printError(out, color, "Inference error: " + error.getMessage());
+                        exitCode[0] = 1;
+                        latch.countDown();
+                    },
+                    () -> {
+                        out.println();
+                        latch.countDown();
+                    }
+            );
 
             latch.await();
 
             // Persist transcript for session resume if session manager is available
             try {
                 if (projectStore != null && currentSessionId != null) {
-                    java.util.List<tech.kayys.gollek.spi.Message> history = chatSession.getHistory();
-                    projectStore.saveTranscript(resolvedProjectKey, currentSessionId, history);
+                    java.util.List<?> history = chatSessionGetHistory(chatSession);
+                    projectStore.saveTranscript(resolvedProjectKey, currentSessionId, (java.util.List) history);
                 }
             } catch (Exception e) {
                 printWarn(out, color, "Warning: failed to persist session transcript: " + e.getMessage());
@@ -1041,6 +946,7 @@ final class WayangCodeCommand implements Callable<Integer> {
         out.println(d + "    /status              Show platform boundary and adapter status" + r);
         out.println(d + "    /workspace  /ws      Show workspace snapshot for the current path" + r);
         out.println(d + "    /harness  /checks    Show planned verification checks" + r);
+        out.println(d + "    /extensions  /ext    Show coding-agent extension diagnostics" + r);
         out.println(d + "    /projects            List known projects (shows current project with '(current)')");
         out.println(d + "    /project <id>        Switch current project (stores pointer in ~/.wayang/current_project.txt)");
         out.println(d + "    /sessions            List sessions for current project (use with /project to scope)");
@@ -1087,78 +993,256 @@ final class WayangCodeCommand implements Callable<Integer> {
         out.println();
     }
 
-    private ChatSession createChatSession(String resolvedModel, String providerId, Path workspaceDir) {
-        // If caller didn't request a provider, prefer local gguf when available.
-        if (providerId == null || providerId.isBlank()) {
+    private Object createChatSession(String resolvedModel, String providerId, Path workspaceDir) {
+        // Prefer SDK-backed ChatSession when Gollek SDK is available on the classpath.
+        try {
             try {
-                var providers = sdk.listAvailableProviders();
-                boolean hasGguf = providers.stream().anyMatch(p -> "gguf".equalsIgnoreCase(p.id()));
-                if (hasGguf) {
+                Class<?> factory = Class.forName("tech.kayys.gollek.factory.GollekSdkFactory");
+                java.lang.reflect.Method create = factory.getMethod("createLocalSdk");
+                Object sdk = create.invoke(null);
+                if (sdk != null) {
                     try {
-                        sdk.setPreferredProvider("gguf");
-                        providerId = "gguf";
-                    } catch (Throwable ignored) {
-                        // ignore if unavailable
-                        providerId = "gguf"; // still prefer when possible
+                        Class<?> impl = Class.forName("tech.kayys.gollek.sdk.session.ChatSessionImpl");
+                        java.lang.reflect.Constructor<?> ctor = null;
+                        for (java.lang.reflect.Constructor<?> c : impl.getConstructors()) {
+                            Class<?>[] pts = c.getParameterTypes();
+                            if (pts.length >= 3 && pts[1] == String.class) {
+                                ctor = c; break;
+                            }
+                        }
+                        if (ctor != null) {
+                            Object chat = ctor.newInstance(sdk, resolvedModel, providerId, !noMemory);
+                            applyCodingAgentPrompt(chat, resolvedModel, workspaceDir);
+                            return chat;
+                        }
+                    } catch (Throwable t) {
+                        // fall through to other session types
                     }
                 }
-            } catch (Throwable ignored) {
-                // ignore provider listing errors
+            } catch (ClassNotFoundException cnf) {
+                // SDK factory not present
             }
-        }
+        } catch (Throwable ignored) {}
 
-        // Ensure model is prepared and a provider is selected before creating the session
+        // Prefer local gguf via adapter if caller didn't request a provider (best-effort)
         try {
-            // Debug: show the resolvedModel/provider before asking SDK to prepare
-            try { System.err.println("[DEBUG] createChatSession() called with model='" + resolvedModel + "' provider='" + providerId + "'"); } catch (Throwable ignore) {}
-            try { if (parent != null && parent.context() != null) parent.context().out().println("  Debug: createChatSession() model='" + resolvedModel + "' provider='" + providerId + "'"); } catch (Throwable ignore) {}
-            ModelResolution resolution = sdk.prepareModel(resolvedModel, false, (progress) -> {
-                // no-op progress callback for CLI
-            });
-            if (resolution != null) {
-                if (resolution.getModelId() != null && !resolution.getModelId().isBlank()) {
-                    resolvedModel = resolution.getModelId();
-                }
-                if (resolution.getProviderId() != null && !resolution.getProviderId().isBlank()) {
-                    // prefer resolution provider unless caller forced one
-                    providerId = providerId != null && !providerId.isBlank() ? providerId : resolution.getProviderId();
+            if ((providerId == null || providerId.isBlank()) && sdkAdapter != null) {
+                try {
+                    boolean hasGguf = sdkAdapter.listModelsStrings().stream().anyMatch(m -> m.toLowerCase().contains("gguf"));
+                    if (hasGguf) providerId = "gguf";
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable ignored) {}
+
+        // Prefer a shell-backed session delegating to the local `gollek` CLI when possible.
+        try {
+            boolean gollekCli = isGollekCliAvailable();
+            boolean localModel = modelExists(resolvedModel);
+            if (gollekCli && localModel) {
+                try {
+                    ShellChatSession shell = new ShellChatSession(resolvedModel, providerId, !noMemory);
+                    applyCodingAgentPrompt(shell, resolvedModel, workspaceDir);
+                    return shell;
+                } catch (Throwable t) {
+                    // fall through to Noop
                 }
             }
-        } catch (Exception e) {
-            // Best-effort: log and continue with the requested model/provider
-            try {
-                // Print to parent context if available
-                if (parent != null && parent.context() != null) {
-                    parent.context().out().println("  Warning: failed to prepare model: " + e.getMessage());
-                }
-            } catch (Exception ignored) {}
-        }
+        } catch (Throwable ignored) {}
 
-        ChatSession session = new ChatSessionImpl(sdk, resolvedModel, providerId, !noMemory);
+        // Fallback: NoopChatSession so CLI runs without Gollek on classpath or without gollek CLI.
+        Object session = new NoopChatSession(resolvedModel, providerId, !noMemory);
         applyCodingAgentPrompt(session, resolvedModel, workspaceDir);
         return session;
     }
 
-    private void applyCodingAgentPrompt(ChatSession session, String resolvedModel, String workspace) {
+    private void applyCodingAgentPrompt(Object session, String resolvedModel, String workspace) {
         applyCodingAgentPrompt(session, resolvedModel, resolveWorkspacePath(workspace));
     }
 
-    private void applyCodingAgentPrompt(ChatSession session, String resolvedModel, Path workspaceDir) {
-        if (session == null) {
-            return;
-        }
-        session.setSystemPrompt(WayangCodePromptComposer.systemPrompt(new WayangCodePromptContext(
+    private void applyCodingAgentPrompt(Object session, String resolvedModel, Path workspaceDir) {
+        if (session == null) return;
+        Object promptObj = WayangCodePromptComposer.systemPrompt(new WayangCodePromptContext(
                 profileId,
                 workspaceDir,
                 resolvedModel,
                 !noMemory,
                 harness,
-                maxSteps)));
+                maxSteps),
+                codeExtensionDiscovery == null ? List.of() : codeExtensionDiscovery.promptAdditions());
+        String promptStr = promptObj == null ? null : promptObj.toString();
+        // Try typed setters for known session implementations
+        try {
+            if (session instanceof NoopChatSession) {
+                ((NoopChatSession) session).setSystemPrompt(promptObj);
+                return;
+            }
+            if (session instanceof ShellChatSession) {
+                ((ShellChatSession) session).setSystemPrompt(promptObj);
+                return;
+            }
+            // Try ChatSessionImpl's setSystemPrompt(String)
+            try {
+                session.getClass().getMethod("setSystemPrompt", String.class).invoke(session, promptStr);
+                return;
+            } catch (NoSuchMethodException ns) {
+                // Try Object-typed setter
+                try {
+                    session.getClass().getMethod("setSystemPrompt", Object.class).invoke(session, promptObj);
+                    return;
+                } catch (NoSuchMethodException ns2) {
+                    // ignore
+                }
+            }
+        } catch (Throwable ignored) {}
     }
 
     private Path resolveWorkspacePath(String workspace) {
         String resolved = (workspace == null || workspace.isBlank()) ? "." : workspace;
         return Paths.get(resolved).toAbsolutePath().normalize();
+    }
+
+    private void refreshCodeAgentExtensions(
+            Path workspaceDir,
+            String resolvedModel,
+            String resolvedSession,
+            String resolvedProvider) {
+        this.codeAgentContext = WayangCodeAgentContext.builder()
+                .surfaceId(CODING_SURFACE)
+                .profileId(profileId)
+                .workspacePath(workspaceDir)
+                .projectId(resolvedProjectKey)
+                .sessionId(resolvedSession)
+                .modelId(resolvedModel)
+                .providerId(resolvedProvider)
+                .memoryEnabled(!noMemory)
+                .harnessEnabled(harness)
+                .maxSteps(maxSteps)
+                .metadata("ui", "cli")
+                .metadata("command", "wayang code")
+                .build();
+        this.codeExtensionDiscovery = WayangCodeAgentExtensions.discover(codeAgentContext);
+    }
+
+    private static boolean modelExists(String modelId) throws Exception {
+        return tech.kayys.wayang.gollek.sdk.WayangGollekFacade.modelExists(modelId);
+    }
+
+    private static int runProcessAndPipe(PrintStream out, String... cmd) throws IOException, InterruptedException {
+        // Preserve backward-compatible behaviour for arbitrary commands by shelling out.
+        ProcessBuilder pb = new ProcessBuilder(cmd);
+        pb.redirectErrorStream(true);
+        Process p = pb.start();
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                out.println(line);
+            }
+        }
+        return p.waitFor();
+    }
+
+    // Utility shim layer to isolate direct gollek SPI usage so CLI can run without Gollek on classpath.
+    private static boolean isGollekSpiAvailable() {
+        try {
+            Class.forName("tech.kayys.gollek.spi.Message");
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static boolean isGollekCliAvailable() {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("gollek", "--version");
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            boolean finished = p.waitFor(3, java.util.concurrent.TimeUnit.SECONDS);
+            if (!finished) {
+                p.destroyForcibly();
+                return false;
+            }
+            int rc = p.exitValue();
+            return rc == 0;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private static String chatSessionGetProviderId(Object session) {
+        if (session == null) return null;
+        try {
+            if (session instanceof NoopChatSession) return ((NoopChatSession) session).getProviderId();
+            return (String) session.getClass().getMethod("getProviderId").invoke(session);
+        } catch (Throwable t) { return null; }
+    }
+
+    private static String chatSessionGetModelId(Object session) {
+        if (session == null) return null;
+        try {
+            if (session instanceof NoopChatSession) return ((NoopChatSession) session).getModelId();
+            return (String) session.getClass().getMethod("getModelId").invoke(session);
+        } catch (Throwable t) { return null; }
+    }
+
+    private static void chatSessionReset(Object session) {
+        if (session == null) return;
+        try {
+            if (session instanceof NoopChatSession) { ((NoopChatSession) session).reset(); return; }
+            session.getClass().getMethod("reset").invoke(session);
+        } catch (Throwable ignored) {}
+    }
+
+    private static void chatSessionAddMessage(Object session, Object msg) {
+        if (session == null) return;
+        try {
+            if (session instanceof NoopChatSession) { ((NoopChatSession) session).addMessage(msg); return; }
+            session.getClass().getMethod("addMessage", Object.class).invoke(session, msg);
+        } catch (Throwable ignored) {}
+    }
+
+    private static java.util.List<?> chatSessionGetHistory(Object session) {
+        if (session == null) return List.of();
+        try {
+            if (session instanceof NoopChatSession) return ((NoopChatSession) session).getHistory();
+            return (java.util.List<?>) session.getClass().getMethod("getHistory").invoke(session);
+        } catch (Throwable t) { return List.of(); }
+    }
+
+    private static void chatSessionStream(Object session, String prompt, Consumer<NoopChatSession.Chunk> onItem, Consumer<Throwable> onFailure, Runnable onComplete) {
+        if (session == null) return;
+        try {
+            if (session instanceof NoopChatSession) {
+                ((NoopChatSession) session).stream(prompt).subscribe().with(onItem, onFailure, onComplete);
+                return;
+            }
+            if (session instanceof ShellChatSession) {
+                // ShellChatSession produces its own Chunk type; adapt to NoopChatSession.Chunk for callers.
+                ShellChatSession sh = (ShellChatSession) session;
+                sh.stream(prompt).subscribe().with(chunk -> {
+                    if (onItem != null) onItem.accept(new NoopChatSession.Chunk(chunk.getDelta()));
+                }, onFailure, onComplete);
+                return;
+            }
+            // Attempt reflective invocation compatible with Gollek ChatSession.stream(String).subscribe().with(...)
+            Object stream = session.getClass().getMethod("stream", String.class).invoke(session, prompt);
+            if (stream == null) return;
+            Object subscriber = stream.getClass().getMethod("subscribe").invoke(stream);
+            if (subscriber == null) return;
+            // Try to call 'with' with three java.util.function types
+            try {
+                subscriber.getClass().getMethod("with", java.util.function.Consumer.class, java.util.function.Consumer.class, Runnable.class)
+                        .invoke(subscriber, onItem, onFailure, onComplete);
+                return;
+            } catch (NoSuchMethodException nsme) {
+                // Fallback: try versions that accept different arg types used by some reactive libs
+                try {
+                    subscriber.getClass().getMethod("with", java.util.function.Consumer.class, java.util.function.Consumer.class, java.lang.Runnable.class)
+                            .invoke(subscriber, onItem, onFailure, onComplete);
+                } catch (Throwable ignored) {}
+            }
+        } catch (Throwable t) {
+            if (onFailure != null) onFailure.accept(t);
+        }
     }
 
     private static boolean isColorSupported() {

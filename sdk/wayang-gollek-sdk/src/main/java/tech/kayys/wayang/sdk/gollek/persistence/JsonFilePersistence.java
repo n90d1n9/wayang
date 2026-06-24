@@ -65,6 +65,8 @@ public class JsonFilePersistence implements PersistenceStrategy {
             sn.put("name", s.name());
             sn.put("createdAt", s.createdAt().toString());
             sn.put("lastAccess", s.lastAccess().toString());
+            if (s.parentSessionId() != null) sn.put("parentSessionId", s.parentSessionId());
+            if (s.parentCheckpointIndex() != null) sn.put("parentCheckpointIndex", s.parentCheckpointIndex());
             arr.add(sn);
         });
         root.set("sessions", arr);
@@ -141,7 +143,9 @@ public class JsonFilePersistence implements PersistenceStrategy {
                 for (JsonNode s : n.get("sessions")) {
                     String sid = s.hasNonNull("id") ? s.get("id").asText() : null;
                     String sname = s.hasNonNull("name") ? s.get("name").asText() : sid;
-                    if (sid != null) p.addSession(new Session(sid, sname));
+                    String parentId = s.hasNonNull("parentSessionId") ? s.get("parentSessionId").asText() : null;
+                    Integer parentCheckpoint = s.hasNonNull("parentCheckpointIndex") ? s.get("parentCheckpointIndex").asInt() : null;
+                    if (sid != null) p.addSession(new Session(sid, sname, parentId, parentCheckpoint));
                 }
             }
             return p;

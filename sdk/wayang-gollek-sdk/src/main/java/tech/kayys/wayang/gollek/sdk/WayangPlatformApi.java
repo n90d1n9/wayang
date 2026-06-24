@@ -75,6 +75,18 @@ public final class WayangPlatformApi {
         return sdk.validateSdkBoundaries(boundaries);
     }
 
+    public WayangCodeAgentExtensionDiscovery codeAgentExtensions(WayangCodeAgentContext context) {
+        return sdk.codeAgentExtensions(context);
+    }
+
+    public Map<String, Object> codeAgentExtensionsEnvelope(WayangCodeAgentContext context) {
+        return WayangPlatformEnvelopes.codeAgentExtensions(codeAgentExtensions(context));
+    }
+
+    public String codeAgentExtensionsJson(WayangCodeAgentContext context) {
+        return wire.object(codeAgentExtensionsEnvelope(context));
+    }
+
     public List<WayangPlatformReadinessProfileDescriptor> readinessProfiles() {
         return sdk.platformReadinessProfiles();
     }

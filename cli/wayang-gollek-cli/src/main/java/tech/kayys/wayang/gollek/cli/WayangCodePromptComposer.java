@@ -1,5 +1,7 @@
 package tech.kayys.wayang.gollek.cli;
 
+import java.util.List;
+
 /**
  * Composes the durable system prompt for {@code wayang code} sessions so the
  * terminal command behaves like a focused coding agent instead of a generic
@@ -11,10 +13,14 @@ final class WayangCodePromptComposer {
     }
 
     static String systemPrompt(WayangCodePromptContext context) {
+        return systemPrompt(context, List.of());
+    }
+
+    static String systemPrompt(WayangCodePromptContext context, List<String> extensionAdditions) {
         WayangCodePromptContext model = context == null
                 ? new WayangCodePromptContext(null, null, null, true, false, 12)
                 : context;
-        return """
+        String basePrompt = """
                 You are Wayang Code, a workspace-aware terminal coding agent running on the Wayang platform.
 
                 Product boundary:
@@ -22,6 +28,7 @@ final class WayangCodePromptComposer {
                 - Gollek is the inference, serving, and training engine underneath Wayang.
                 - Gamelan is the workflow engine that Wayang can use for agentic workflows.
                 - This CLI is one UI wrapper. Treat the Wayang SDK/API contract as the source of truth.
+- Available model runtimes: Gemini CLI or Claude Code
 
                 Session:
                 - surface: coding-agent
@@ -41,6 +48,9 @@ final class WayangCodePromptComposer {
                 - Use tests or harness checks for behavioral changes; include test names and assertions added/updated.
                 - Explicitly call out risks, required migrations, or breaking API changes when applicable.
                 - Do not perform destructive operations (deletes, force pushes) unless explicitly authorized.
+- Inspect before proposing edits
+
+                Treat natural language such as "inspect this code" as a request to run quick repository inspection steps (list files, search, open relevant files) and report findings before editing.
 
                 Output format (required for code-change responses):
                 1) Summary: one-line intent and impact.
@@ -59,6 +69,7 @@ final class WayangCodePromptComposer {
                 - Be concise, direct, and engineering-focused.
                 - Use the section headings: Summary, Findings, Plan, Changes, Tests & Verification, Next.
                 - Always include at least one actionable next step.
+- Always answer with at least one actionable sentence
                 """.formatted(
                         model.profileId(),
                         model.workspacePath(),
@@ -66,5 +77,26 @@ final class WayangCodePromptComposer {
                         model.memoryEnabled() ? "enabled" : "disabled",
                         model.harnessEnabled() ? "enabled" : "disabled",
                         model.maxSteps()).strip();
+        String extensionPrompt = extensionPrompt(extensionAdditions);
+        return extensionPrompt.isBlank()
+                ? basePrompt
+                : basePrompt + "\n\nCoding-agent extension guidance:\n" + extensionPrompt;
+    }
+
+    private static String extensionPrompt(List<String> extensionAdditions) {
+        if (extensionAdditions == null || extensionAdditions.isEmpty()) {
+            return "";
+        }
+        StringBuilder prompt = new StringBuilder();
+        for (String addition : extensionAdditions) {
+            String normalized = addition == null ? "" : addition.trim();
+            if (!normalized.isEmpty()) {
+                if (!prompt.isEmpty()) {
+                    prompt.append('\n');
+                }
+                prompt.append("- ").append(normalized);
+            }
+        }
+        return prompt.toString();
     }
 }

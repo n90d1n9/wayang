@@ -38,6 +38,9 @@ final class WayangCliSdkOptions {
     @Option(names = "--default-model", description = "Default Gollek model for SDK requests. Env: WAYANG_MODEL.")
     String defaultModelId;
 
+    @Option(names = "--ignore-config", description = "Ignore ~/.wayang/config.json and prefer CLI flags/env. Env: WAYANG_IGNORE_CONFIG.")
+    Boolean ignoreConfig;
+
     @Option(names = "--run-store", description = "Local run status store file. Env: WAYANG_RUN_STORE.")
     String runStorePath;
 
@@ -264,18 +267,22 @@ final class WayangCliSdkOptions {
      * Resolve default model id from CLI flag, env, or ~/.wayang/config.json
      */
     private String resolveDefaultModel() {
-        // 1) explicit flag
+        // Precedence: explicit CLI flag > environment > config.json.
+        // Root SDK options must remain deterministic for CLI/API tests and
+        // automation, while config.json supplies only a default.
         String direct = CliText.trimToEmpty(defaultModelId);
-        if (!direct.isEmpty()) return direct;
-        // 2) environment
+        if (!direct.isEmpty()) {
+            return direct;
+        }
         String env = CliText.trimToEmpty(System.getenv("WAYANG_MODEL"));
-        if (!env.isEmpty()) return env;
-        // 3) ~/.wayang/config.json
+        if (!env.isEmpty()) {
+            return env;
+        }
         try {
             Path cfg = Paths.get(System.getProperty("user.home"), ".wayang", "config.json");
-            if (Files.exists(cfg)) {
+            if (Files.exists(cfg) && !Boolean.TRUE.equals(ignoreConfig)) {
                 String content = Files.readString(cfg);
-                Pattern p = Pattern.compile("\"model\"\s*:\s*\"([^\"]+)\"");
+                Pattern p = Pattern.compile("\"(?:model|defaultModel|default_model)\"\\s*:\\s*\"([^\"]+)\"");
                 Matcher m = p.matcher(content);
                 if (m.find()) {
                     return m.group(1).trim();

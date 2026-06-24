@@ -1,0 +1,172 @@
+syntax = "proto3";
+
+package wayang.api;
+
+option java_multiple_files = true;
+option java_package = "tech.kayys.wayang.api.grpc";
+option java_outer_classname = "WayangApiProto";
+
+// Project & Session management
+service ProjectService {
+  rpc AddProject(AddProjectRequest) returns (ProjectResponse);
+  rpc RemoveProject(RemoveProjectRequest) returns (OperationResponse);
+  rpc RenameProject(RenameProjectRequest) returns (ProjectResponse);
+  rpc ListProjects(Empty) returns (ProjectListResponse);
+  rpc SwitchProject(SwitchProjectRequest) returns (ProjectResponse);
+  rpc ExportProject(ExportProjectRequest) returns (ExportProjectResponse);
+  rpc ImportProject(ImportProjectRequest) returns (ProjectResponse);
+  // Session-level operations scoped under current project
+  rpc ListSessions(ListSessionsRequest) returns (SessionListResponse);
+  rpc CreateSession(CreateSessionRequest) returns (SessionResponse);
+  rpc RemoveSession(RemoveSessionRequest) returns (OperationResponse);
+  rpc RenameSession(RenameSessionRequest) returns (SessionResponse);
+}
+
+// Code streaming / agent interface
+service CodeService {
+  // Server-side streaming: stream assistant chunks as they are produced
+  rpc StreamCode(CodeRequest) returns (stream CodeChunk);
+  // One-shot: final response
+  rpc Generate(CodeRequest) returns (CodeChunk);
+}
+
+message Empty {}
+
+// Platform-level status/readiness/catalog messages (from previous WayangProto)
+message StatusRequest {}
+message StatusReply { string status_json = 1; }
+message ReadinessRequest {}
+message ReadinessProfileRequest { string profile_id = 1; }
+message ReadinessReply { string readiness_json = 1; }
+message CatalogRequest {}
+message CatalogReply { string catalog_json = 1; }
+message SurfaceProfilesRequest { string surface_id = 1; }
+message ProfilesReply { string profiles_json = 1; }
+message ProfileDetailRequest { string profile_id = 1; }
+message ProfileDetailReply { string profile_json = 1; }
+message BoundaryCatalogRequest {}
+message BoundaryCatalogReply { string catalog_json = 1; }
+message BoundaryDetailRequest { string boundary_id = 1; }
+message BoundaryDetailReply { string boundary_json = 1; }
+
+message OperationResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message Project {
+  string id = 1; // unique id (default: dir name)
+  string name = 2;
+  string directory = 3;
+  int64 created_at = 4; // epoch millis
+}
+
+message Session {
+  string id = 1;
+  string name = 2;
+  string project_id = 3;
+  int64 created_at = 4;
+}
+
+message AddProjectRequest {
+  string name = 1;
+  string directory = 2; // optional; if empty use server cwd
+}
+message RemoveProjectRequest { string id = 1; }
+message RenameProjectRequest { string id = 1; string new_name = 2; }
+message ProjectResponse { Project project = 1; }
+message ProjectListResponse { repeated Project projects = 1; }
+message SwitchProjectRequest { string id = 1; }
+
+message ExportProjectRequest { string id = 1; }
+message ExportProjectResponse { bytes archive = 1; }
+message ImportProjectRequest { bytes archive = 1; string name = 2; }
+
+message ListSessionsRequest { string project_id = 1; }
+message SessionListResponse { repeated Session sessions = 1; }
+message CreateSessionRequest { string project_id = 1; string name = 2; }
+message SessionResponse { Session session = 1; }
+message RemoveSessionRequest { string project_id = 1; string session_id = 2; }
+message RenameSessionRequest { string project_id = 1; string session_id = 2; string new_name = 3; }
+
+// Code request and streaming chunk
+message CodeRequest {
+  string project_id = 1;
+  string session_id = 2; // optional: resume
+  string prompt = 3;
+  string model = 4; // optional
+  string provider = 5; // optional
+  bool once = 6; // if true, single-shot generation
+}
+
+message CodeChunk {
+  string session_id = 1;
+  string role = 2; // assistant/user/system
+  string text = 3; // delta or full message depending on streaming
+  int32 seq = 4; // sequence number
+  bool done = 5; // final chunk
+  map<string,string> meta = 6; // optional metadata
+}
+
+// Transcript entries and session-level append/get
+message TranscriptEntry {
+  string id = 1;
+  string session_id = 2;
+  string author = 3; // user/assistant/system
+  string content = 4;
+  int64 timestamp = 5;
+}
+message AppendTranscriptRequest { string project_id = 1; string session_id = 2; TranscriptEntry entry = 3; }
+message AppendTranscriptResponse { OperationResponse status = 1; TranscriptEntry saved = 2; }
+
+// SDK / provider introspection
+message ProviderInfo { string id = 1; string name = 2; string description = 3; repeated string capabilities = 4; }
+message ProviderList { repeated ProviderInfo providers = 1; }
+message CreateSdkRequest { string provider_id = 1; map<string,string> config = 2; }
+message CreateSdkResponse { OperationResponse status = 1; string sdk_id = 2; }
+message DestroySdkRequest { string sdk_id = 1; }
+message ListModelsRequest { string sdk_id = 1; }
+message ModelInfo { string id = 1; string name = 2; string description = 3; }
+message ModelList { repeated ModelInfo models = 1; }
+message CreateSdkSessionRequest { string sdk_id = 1; string model_id = 2; string session_name = 3; }
+message CreateSdkSessionResponse { OperationResponse status = 1; string session_id = 2; }
+message SdkStreamRequest { string sdk_session_id = 1; string prompt = 2; }
+
+// Platform-level service (status, readiness, product catalog, commands)
+message CommandQueryRequest {
+  string surface_id = 1;
+  string category = 2;
+  string command_id = 3;
+}
+message CommandDiscoveryReply { string discovery_json = 1; }
+message CommandIndexReply { string index_json = 1; }
+message WorkbenchReply { string workbench_json = 1; }
+
+service WayangService {
+  rpc GetStatus (StatusRequest) returns (StatusReply) {}
+  rpc GetReadiness (ReadinessRequest) returns (ReadinessReply) {}
+  rpc GetReadinessProfile (ReadinessProfileRequest) returns (ReadinessReply) {}
+  rpc GetProductCatalog (CatalogRequest) returns (CatalogReply) {}
+  rpc GetProfilesForSurface (SurfaceProfilesRequest) returns (ProfilesReply) {}
+  rpc GetProfileDetail (ProfileDetailRequest) returns (ProfileDetailReply) {}
+  rpc GetSdkBoundaryCatalog (BoundaryCatalogRequest) returns (BoundaryCatalogReply) {}
+  rpc GetSdkBoundaryDetail (BoundaryDetailRequest) returns (BoundaryDetailReply) {}
+  rpc DiscoverCommands (CommandQueryRequest) returns (CommandDiscoveryReply) {}
+  rpc IndexCommands (CommandQueryRequest) returns (CommandIndexReply) {}
+  rpc WorkbenchCommands (CommandQueryRequest) returns (WorkbenchReply) {}
+}
+
+// Session and SDK services
+service SessionService {
+  rpc AppendTranscript(AppendTranscriptRequest) returns (AppendTranscriptResponse);
+  rpc GetTranscript(ListSessionsRequest) returns (stream TranscriptEntry);
+}
+
+service SdkService {
+  rpc ListProviders(Empty) returns (ProviderList);
+  rpc CreateSdk(CreateSdkRequest) returns (CreateSdkResponse);
+  rpc DestroySdk(DestroySdkRequest) returns (OperationResponse);
+  rpc ListModels(ListModelsRequest) returns (ModelList);
+  rpc CreateSdkSession(CreateSdkSessionRequest) returns (CreateSdkSessionResponse);
+  rpc SdkStream(SdkStreamRequest) returns (stream CodeChunk);
+}

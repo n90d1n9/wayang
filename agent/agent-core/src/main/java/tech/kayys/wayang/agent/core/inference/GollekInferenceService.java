@@ -125,7 +125,7 @@ public class GollekInferenceService {
     public AgentInferenceResponse inferWithToolLoop(AgentInferenceRequest request) {
         Instant start = Instant.now();
         int maxIterations = request.getMaxToolIterations();
-        List<ToolDefinition> tools = resolveTools(request);
+        List<tech.kayys.gollek.spi.tool.ToolDefinition> tools = resolveTools(request);
 
         // If no tools, fall back to simple inference
         if (tools == null || tools.isEmpty() || maxIterations <= 0) {
@@ -278,12 +278,12 @@ public class GollekInferenceService {
      * @param request Agent inference request
      * @return Multi stream of chunks
      */
-    public Multi<StreamingInferenceChunk> inferStream(AgentInferenceRequest request) {
+    public Multi<tech.kayys.wayang.agent.spi.InferenceTypes.StreamingChunk> inferStream(AgentInferenceRequest request) {
         // 1. Inject memory context
         String systemPromptWithMemory = injectMemoryContext(request);
 
         // 2. Merge MCP + skill tools
-        List<ToolDefinition> allTools = resolveTools(request);
+        List<tech.kayys.gollek.spi.tool.ToolDefinition> allTools = resolveTools(request);
 
         // 3. Build request with streaming enabled
         AgentInferenceRequest streamingRequest = AgentInferenceRequest.builder()
@@ -297,14 +297,20 @@ public class GollekInferenceService {
                 .agentId(request.getAgentId())
                 .useMemory(request.getUseMemory())
                 .stream(true)
-                .tools(allTools)
+                .tools(request.getTools())
                 .build();
 
         InferenceRequest gollekRequest = buildGollekRequest(streamingRequest, systemPromptWithMemory, allTools);
 
         try {
             // Enhanced: Use GollekAgentClient streaming
-            return agentClient.stream(gollekRequest);
+            return agentClient.stream(gollekRequest).map(chunk -> new tech.kayys.wayang.agent.spi.InferenceTypes.StreamingChunk(
+                    chunk.requestId(),
+                    chunk.delta(),
+                    List.of(),
+                    chunk.finishReason(),
+                    null
+            ));
         } catch (Exception e) {
             log.error("Streaming inference failed: {}", e.getMessage(), e);
             return Multi.createFrom().failure(e);
@@ -442,12 +448,18 @@ public class GollekInferenceService {
      * Merges explicit tools from the request with discovered tools from enabled MCP
      * servers.
      */
-    private List<ToolDefinition> resolveTools(AgentInferenceRequest request) {
-        List<ToolDefinition> tools = new ArrayList<>();
+    private List<tech.kayys.gollek.spi.tool.ToolDefinition> resolveTools(AgentInferenceRequest request) {
+        List<tech.kayys.gollek.spi.tool.ToolDefinition> tools = new ArrayList<>();
 
         // 1. Add tools explicitly requested (if any)
         if (request.getTools() != null && !request.getTools().isEmpty()) {
-            tools.addAll(request.getTools());
+            for (var t : request.getTools()) {
+                tools.add(tech.kayys.gollek.spi.tool.ToolDefinition.builder()
+                        .name(t.name())
+                        .description(t.description())
+                        .parameters(t.parameters())
+                        .build());
+            }
         }
 
         // 2. Discover and bridge MCP tools from enabled servers
@@ -535,7 +547,17 @@ public class GollekInferenceService {
 
         // Conversation history (multi-turn)
         if (request.getConversationHistory() != null && !request.getConversationHistory().isEmpty()) {
-            messages.addAll(request.getConversationHistory());
+            for (var m : request.getConversationHistory()) {
+                if ("user".equals(m.role())) {
+                    messages.add(Message.user(m.content()));
+                } else if ("assistant".equals(m.role())) {
+                    messages.add(Message.assistant(m.content()));
+                } else if ("tool".equals(m.role()) && m instanceof tech.kayys.wayang.agent.spi.InferenceTypes.ToolResultMessage tm) {
+                    messages.add(Message.tool(tm.toolCallId(), tm.content()));
+                } else {
+                    messages.add(Message.user(m.content()));
+                }
+            }
         }
 
         // Current user message
@@ -552,7 +574,7 @@ public class GollekInferenceService {
     private InferenceRequest buildGollekRequest(
             AgentInferenceRequest request,
             String overrideSystemPrompt,
-            List<ToolDefinition> tools) {
+            List<tech.kayys.gollek.spi.tool.ToolDefinition> tools) {
 
         List<Message> messages = buildMessageList(request, overrideSystemPrompt);
         return buildGollekRequestFromMessages(request, messages, tools);
@@ -565,7 +587,7 @@ public class GollekInferenceService {
     private InferenceRequest buildGollekRequestFromMessages(
             AgentInferenceRequest request,
             List<Message> messages,
-            List<ToolDefinition> tools) {
+            List<tech.kayys.gollek.spi.tool.ToolDefinition> tools) {
 
         int maxTokens = request.getMaxTokens() != null ? request.getMaxTokens() : 2048;
 
@@ -828,7 +850,17 @@ public class GollekInferenceService {
                 .totalTokens(gollekResponse.getTokensUsed())
                 .latency(latency)
                 .cached(false)
-                .toolCalls(gollekResponse.getToolCalls())
+                .toolCalls(gollekResponse.getToolCalls() != null 
+                    ? gollekResponse.getToolCalls().stream().map(tc -> {
+                        String args = "{}";
+                        try {
+                            args = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(tc.arguments());
+                        } catch (Exception e) {
+                            log.warn("Failed to serialize tool arguments: {}", e.getMessage());
+                        }
+                        return new tech.kayys.wayang.agent.spi.InferenceTypes.ToolCall(null, "function", tc.name(), args);
+                    }).toList()
+                    : List.<tech.kayys.wayang.agent.spi.InferenceTypes.ToolCall>of())
                 .finishReason(gollekResponse.getFinishReason() != null ? gollekResponse.getFinishReason().name() : null)
                 .build();
     }
