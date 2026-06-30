@@ -23,6 +23,7 @@
         <module>golek-tool-http</module>
         <module>golek-tool-sandbox</module>
         <module>golek-tool-rest</module>
+        <module>wayang-tool-os</module>
         <!-- Legacy Gollek inference plugin bridge; reintroduce after Wayang/Gamelan plugin migration. -->
         <module>wayang-tool-runtime</module>
     </modules>

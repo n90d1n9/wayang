@@ -35,13 +35,11 @@
             <groupId>tech.kayys.gollek</groupId>
             <artifactId>gollek-sdk</artifactId>
             <version>0.1.0-SNAPSHOT</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>tech.kayys.gollek</groupId>
             <artifactId>gollek-sdk-java-local</artifactId>
             <version>0.1.0-SNAPSHOT</version>
-            <scope>provided</scope>
         </dependency>
 
         <!-- Explicit compile-scope deps for Gollek SDK classes used in WayangCodeCommand.
@@ -51,37 +49,31 @@
             <groupId>tech.kayys.gollek</groupId>
             <artifactId>gollek-sdk-core</artifactId>
             <version>0.1.0-SNAPSHOT</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>tech.kayys.gollek</groupId>
             <artifactId>gollek-sdk-session</artifactId>
             <version>0.1.0-SNAPSHOT</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>tech.kayys.gollek</groupId>
             <artifactId>gollek-spi</artifactId>
             <version>0.1.0-SNAPSHOT</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>tech.kayys.gollek</groupId>
             <artifactId>gollek-spi-inference</artifactId>
             <version>0.1.0-SNAPSHOT</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>tech.kayys.gollek</groupId>
             <artifactId>gollek-spi-model</artifactId>
             <version>0.1.0-SNAPSHOT</version>
-            <scope>provided</scope>
         </dependency>
         <dependency>
             <groupId>tech.kayys.gollek</groupId>
             <artifactId>gollek-spi-provider</artifactId>
             <version>0.1.0-SNAPSHOT</version>
-            <scope>provided</scope>
         </dependency>
 
         <dependency>
@@ -93,6 +85,24 @@
         <dependency>
             <groupId>tech.kayys.wayang</groupId>
             <artifactId>wayang-tools</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>wayang-tool-os</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>wayang-tool-mcp</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>agent-skills-builtin</artifactId>
             <version>${project.version}</version>
         </dependency>
 
@@ -129,9 +139,42 @@
             <artifactId>assertj-core</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>wayang-api-grpc</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- GGUF/llama.cpp inference provider — registers LLMProvider via SPI so
+             local GGUF models can run inference without subprocess fallback. -->
+        <dependency>
+            <groupId>tech.kayys.gollek</groupId>
+            <artifactId>gollek-runner-llamacpp</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+        </dependency>
+
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>agent-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>wayang-tool-mcp</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <resource>
+                <directory>../../skills/skills</directory>
+                <targetPath>default-skills</targetPath>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -177,6 +220,14 @@
                                     <artifact>io.quarkus.arc:*</artifact>
                                     <excludes>
                                         <exclude>META-INF/beans.xml</exclude>
+                                    </excludes>
+                                </filter>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
                                     </excludes>
                                 </filter>
                             </filters>

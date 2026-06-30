@@ -31,24 +31,26 @@ import java.lang.reflect.Method;
         mixinStandardHelpOptions = true,
         subcommands = {
                 WayangCodeCommand.class,
-                WayangGollekProxyCommand.class,
-                WayangPlatformCommands.StatusCommand.class,
-                WayangPlatformCommands.ProductsCommand.class,
-                WayangPlatformCommands.SdkBoundariesCommand.class,
-                WayangPlatformCommands.ReadinessProfilesCommand.class,
-                WayangPlatformCommands.ProfilesCommand.class,
-                WayangContextCommands.WorkspaceCommand.class,
-                WayangContextCommands.HarnessCommand.class,
-                WayangSpecCommands.SpecCommand.class,
-                WayangRunCommands.RunCommand.class,
-                WayangSkillCommands.SkillsCommand.class,
-                WayangProviderCapabilityCommands.ProvidersCommand.class,
-                WayangContractCommands.ContractsCommand.class,
-                WayangStandardsCommands.StandardsCommand.class,
-                WayangWorkbenchCommands.CommandsCommand.class,
-                WayangWorkbenchCommands.WorkbenchCommand.class,
-                WayangTuiCommands.TuiCommand.class
-        })
+               WayangProjectCommand.class,
+               WayangGollekProxyCommand.class,
+               WayangPlatformCommands.StatusCommand.class,
+               WayangPlatformCommands.ProductsCommand.class,
+               WayangPlatformCommands.SdkBoundariesCommand.class,
+               WayangPlatformCommands.ReadinessProfilesCommand.class,
+               WayangPlatformCommands.ProfilesCommand.class,
+               WayangContextCommands.WorkspaceCommand.class,
+               WayangContextCommands.HarnessCommand.class,
+               WayangSpecCommands.SpecCommand.class,
+               WayangRunCommands.RunCommand.class,
+               WayangSkillCommands.SkillsCommand.class,
+               WayangProviderCapabilityCommands.ProvidersCommand.class,
+               WayangContractCommands.ContractsCommand.class,
+               WayangStandardsCommands.StandardsCommand.class,
+               WayangWorkbenchCommands.CommandsCommand.class,
+               WayangWorkbenchCommands.WorkbenchCommand.class,
+               WayangTuiCommands.TuiCommand.class,
+               WayangServeCommand.class
+        } )
 public final class WayangGollekCli implements Runnable {
 
     private final WayangGollekSdk injectedSdk;

@@ -69,7 +69,7 @@ done
 GRADLE_BUILD_TASKS=(clean)
 if [[ ${#SUPPORTED_MODULES[@]} -gt 0 ]]; then
   for module in "${SUPPORTED_MODULES[@]}"; do
-    GRADLE_BUILD_TASKS+=("${module}:build")
+    GRADLE_BUILD_TASKS+=("${module}:build" "${module}:publishToMavenLocal")
   done
 fi
 

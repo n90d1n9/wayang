@@ -51,7 +51,21 @@ public final class GollekSdkAdapter {
 
                         for (Object o : models) {
                             if (o == null) continue;
-                            String line = o.toString();
+                            
+                            // If it's a ModelInfo object, try to extract the modelId
+                            String modelIdStr = null;
+                            try {
+                                java.lang.reflect.Method getModelId = o.getClass().getMethod("getModelId");
+                                Object id = getModelId.invoke(o);
+                                if (id != null) modelIdStr = id.toString();
+                            } catch (Exception e) {
+                                // not a ModelInfo object, fall back to toString
+                            }
+                            if (modelIdStr == null) {
+                                modelIdStr = o.toString();
+                            }
+                            
+                            String line = modelIdStr;
                             // strip ANSI color sequences
                             String plain = line.replaceAll("\u001B\\[[;\\d]*m", "");
                             String low = plain.toLowerCase();
@@ -97,6 +111,78 @@ public final class GollekSdkAdapter {
         if (env != null && !env.isBlank()) return Optional.of(env.trim());
         return Optional.empty();
     }
+
+    /**
+     * Returns a stable identifier for a model row: prefers modelId (the actual
+     * filename / provider key) over shortId (the hex hash).
+     */
+    public record ModelRow(String shortId, String name, String format, String sizeStr) {
+        /** The value to pass to agent.setModelId() – same as shortId field here which stores modelId. */
+        public String modelId() { return shortId; }
+    }
+
+    public List<ModelRow> listModelsStructured() {
+        try {
+            List<?> raw = WayangGollekFacade.listModels();
+            List<ModelRow> result = new java.util.ArrayList<>();
+            for (Object o : raw) {
+                if (o == null) continue;
+
+                // Attempt to extract fields via reflection (handles ModelInfo objects)
+                String modelId = null;
+                String shortId = null;
+                String name = null;
+                String format = null;
+                String sizeStr = null;
+
+                try {
+                    try { modelId = invokeStrMethod(o, "getModelId"); } catch (Exception ignored) {}
+                    try { shortId = invokeStrMethod(o, "getShortId"); } catch (Exception ignored) {}
+                    try { name    = invokeStrMethod(o, "getName"); }    catch (Exception ignored) {}
+                    try { format  = invokeStrMethod(o, "getFormat"); }  catch (Exception ignored) {}
+                    try { sizeStr = invokeStrMethod(o, "getSizeFormatted"); } catch (Exception ignored) {}
+                } catch (Exception ignored) {}
+
+                if (modelId != null && !modelId.isBlank()) {
+                    // Use modelId as the stable key to pass to the provider.
+                    // Display shortId (hex) if available, else truncate modelId.
+                    String displayId = (shortId != null && !shortId.isBlank()) ? shortId : modelId.substring(0, Math.min(8, modelId.length()));
+                    String displayName = (name != null && !name.isBlank()) ? name : modelId;
+                    result.add(new ModelRow(modelId, displayName, format != null ? format : "", sizeStr != null ? sizeStr : ""));
+                    continue;
+                }
+
+                // Fallback: parse the toString() / plain string line
+                String plain = o.toString().replaceAll("\u001B\\[[;\\d]*m", "");
+                String[] toks = plain.trim().split("\\s+");
+                if (toks.length >= 6) {
+                    String id = toks[0];
+                    if (id.equals("ID")) continue; // header
+                    String tName = "";
+                    String tFormat = "";
+                    String tSize = "";
+                    for (int i = 1; i < toks.length; i++) {
+                        if (toks[i].length() > 3 && toks[i].contains("-") && tName.isEmpty()) tName = toks[i];
+                        if (toks[i].equalsIgnoreCase("gguf") || toks[i].equalsIgnoreCase("safetensors") || toks[i].equalsIgnoreCase("onnx") || toks[i].equalsIgnoreCase("litert")) tFormat = toks[i];
+                        if ((toks[i].equals("GB") || toks[i].equals("MB") || toks[i].equals("KB")) && i > 0) tSize = toks[i-1] + " " + toks[i];
+                    }
+                    result.add(new ModelRow(id, tName.isEmpty() ? toks[1] : tName, tFormat, tSize));
+                } else if (toks.length >= 1) {
+                    result.add(new ModelRow(toks[0], toks.length > 1 ? toks[1] : toks[0], "", ""));
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    private static String invokeStrMethod(Object obj, String methodName) throws Exception {
+        java.lang.reflect.Method m = obj.getClass().getMethod(methodName);
+        Object res = m.invoke(obj);
+        return res != null ? res.toString() : null;
+    }
+
 
     public List<String> listModelsStrings() {
         try {

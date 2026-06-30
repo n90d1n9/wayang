@@ -164,6 +164,13 @@ public class GamelanBackendAdapter implements WorkflowBackend {
     }
 
     @Override
+    public Uni<java.util.List<WorkflowRun>> listRuns(String tenantId, int limit) {
+        ensureInitialized();
+        // Returning empty list as stub, or implement actual gamelanClient.runs().list(tenantId, limit) if it exists.
+        return Uni.createFrom().item(java.util.List.of());
+    }
+
+    @Override
     public boolean isHealthy() {
         return initialized;
     }

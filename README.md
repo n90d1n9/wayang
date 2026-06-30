@@ -5,6 +5,27 @@ keeps agent contracts, orchestration, skills, tools, memory, RAG, MCP bridges,
 guardrails, HITL, vector stores, and runtime adapters in one Maven reactor while
 keeping concrete inference and workflow engines behind SDK/SPI boundaries.
 
+## Installation
+
+You can install Wayang directly to your `~/.local/bin` using our multi-platform install script.
+By default, it will attempt to install the high-performance GraalVM **Native Binary** for your OS and Architecture. 
+If a native binary is not available, it will fallback to the JVM JAR.
+
+**Default Installation (Native, falls back to JVM)**
+```bash
+curl -sSL https://raw.githubusercontent.com/kayys/wayang/main/install.sh | bash
+```
+
+**Force JVM Installation**
+```bash
+curl -sSL https://raw.githubusercontent.com/kayys/wayang/main/install.sh | bash -s -- --jvm
+```
+
+**Install a Specific Version**
+```bash
+curl -sSL https://raw.githubusercontent.com/kayys/wayang/main/install.sh | bash -s -- --version v1.0.0
+```
+
 ## Architecture
 
 The active reactor is organized around these layers:

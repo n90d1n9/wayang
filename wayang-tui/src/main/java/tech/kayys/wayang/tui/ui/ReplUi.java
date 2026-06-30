@@ -1,0 +1,749 @@
+package tech.kayys.wayang.tui.ui;
+
+import tech.kayys.wayang.sdk.agent.WayangAgent;
+import tech.kayys.wayang.sdk.agent.WayangAgentListener;
+import tech.kayys.wayang.sdk.agent.PermissionDecision;
+import tech.kayys.wayang.sdk.json.Json;
+import tech.kayys.wayang.sdk.json.JsonValue;
+import tech.kayys.wayang.tools.spi.Tool;
+import tech.kayys.wayang.tools.spi.ToolResult;
+import tech.kayys.wayang.tui.config.Config;
+import tech.kayys.wayang.tui.render.TextWrap;
+import tech.kayys.wayang.tui.render.Theme;
+import tech.kayys.wayang.tui.term.*;
+
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.function.Consumer;
+import java.util.List;
+
+/**
+ * The primary "scrolling REPL" UI for Wayang Code, modeled after Claude Code / Copilot CLI:
+ * normal terminal scrollback for the conversation, with a fixed input bar
+ * pinned to the bottom of the screen via a VT100 scroll region (DECSTBM).
+ *
+ * Falls back to a simple line-buffered mode automatically when stdin/stdout
+ * isn't an interactive TTY (piped input, CI, etc).
+ */
+public final class ReplUi {
+
+    private final Config config;
+    private final WayangAgent agent;
+    private final ModelManager modelManager;
+
+    private final TerminalMode termMode = new TerminalMode();
+    private TermOut out;
+    private KeyDecoder keys;
+    private final InputBuffer input = new InputBuffer();
+    private final Object termLock = new Object();
+
+    private volatile boolean running = true;
+    private volatile boolean streaming = false;
+    private volatile Consumer<PermissionDecision> pendingPermissionResponder;
+    private volatile String pendingToolName;
+    private volatile Thread agentThread;
+
+    private volatile int polledCols = 80, polledRows = 24;
+    private int cols = 80, rows = 24;
+    private int inputHeight = 2;
+    private int scrollBottom = 0; // 0 = not yet initialized
+
+    private String exitAction = null; // null = quit, or "panel" to request switching UI modes
+    private boolean expectingModelSelection = false;
+
+    /**
+     * @param config       TUI configuration (active profile determines which model is displayed)
+     * @param agent        the Wayang agent that executes turns
+     * @param modelManager optional model-list provider for the /models command; may be null
+     */
+    public ReplUi(Config config, WayangAgent agent, ModelManager modelManager) {
+        this.config = config;
+        this.agent = agent;
+        this.modelManager = modelManager;
+    }
+
+    /** Runs the REPL until the user quits. Returns "panel" if they requested switching UI modes, else null. */
+    public String run() throws IOException {
+        PrintStream utf8Out = new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8);
+        System.setOut(utf8Out);
+        out = new TermOut(new FileOutputStream(FileDescriptor.out));
+        keys = new KeyDecoder(System.in);
+
+        boolean raw = termMode.enterRaw();
+        try {
+            if (raw) {
+                runInteractive();
+            } else {
+                runSimple();
+            }
+        } finally {
+            if (raw) {
+                out.resetScrollRegion();
+                out.showCursor();
+                out.moveTo(rows, 1);
+                out.flush();
+            }
+            termMode.restore();
+        }
+        return exitAction;
+    }
+
+    // =========================================================================================
+    // Simple (non-TTY) fallback: cooked line-buffered mode. Used for piped/CI/non-interactive use.
+    // =========================================================================================
+
+    private void runSimple() throws IOException {
+        BufferedReader br = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
+        System.out.println(bannerPlain());
+        System.out.println("(No interactive terminal detected -- using line mode. Type /help for commands.)");
+        System.out.println();
+
+        String line;
+        while (running && (line = br.readLine()) != null) {
+            line = line.strip();
+            if (line.isEmpty()) continue;
+
+            if (expectingModelSelection && line.matches("\\d+")) {
+                line = "/models " + line;
+            }
+            expectingModelSelection = false;
+
+            if (line.startsWith("/")) {
+                if (!handleSlashSimple(line)) break;
+                continue;
+            }
+            runTurnSimple(line, br);
+        }
+    }
+
+    private void runTurnSimple(String text, BufferedReader br) {
+        WayangAgentListener listener = new WayangAgentListener() {
+            @Override public void onTextDelta(String t) { System.out.print(t.replace("\r\n", "\n").replace("\n", "\r\n")); System.out.flush(); }
+
+            @Override public void onToolCallStart(String id, String name) {
+                System.out.println();
+                System.out.println("→ " + name);
+            }
+
+            @Override public void onToolCallReady(String id, String name, JsonValue in) {
+                System.out.println("  " + summarizeArgs(in));
+            }
+
+            @Override public void onToolPermissionNeeded(String id, String name, JsonValue in, Consumer<PermissionDecision> responder) {
+                System.out.print("  Allow '" + name + "' to run? [y]es/[n]o/[a]lways: ");
+                System.out.flush();
+                try {
+                    String resp = br.readLine();
+                    responder.accept(parseDecision(resp));
+                } catch (IOException e) {
+                    responder.accept(PermissionDecision.DENY);
+                }
+            }
+
+            @Override public void onToolResult(String id, String name, ToolResult result) {
+                System.out.println((!result.success() ? "✗ " : "✓ ") + name + ": " + firstLine(result.output().orElse(result.error())));
+            }
+
+            @Override public void onUsage(int in, int outTok) { /* not shown in simple mode */ }
+
+            @Override public void onDone(String reason) { System.out.println(); System.out.println(); }
+
+            @Override public void onError(String message) {
+                System.out.println();
+                System.out.println("Error: " + message);
+                System.out.println();
+            }
+        };
+        agent.send(text, listener);
+    }
+
+    private PermissionDecision parseDecision(String resp) {
+        if (resp == null) return PermissionDecision.DENY;
+        resp = resp.strip().toLowerCase();
+        if (resp.startsWith("a")) return PermissionDecision.APPROVE_ALWAYS_THIS_TOOL;
+        if (resp.startsWith("y")) return PermissionDecision.APPROVE_ONCE;
+        return PermissionDecision.DENY;
+    }
+
+    /** Returns false if the command requests quitting. */
+    private boolean handleSlashSimple(String cmd) {
+        String[] parts = cmd.split("\\s+", 2);
+        switch (parts[0]) {
+            case "/quit", "/exit" -> { return false; }
+            case "/help" -> { for (String l : helpLines()) System.out.println(stripAnsiForPlain(l)); }
+            case "/clear" -> { agent.clearHistory(); System.out.println("History cleared."); }
+            case "/panel" -> { exitAction = "panel"; return false; }
+            case "/models" -> {
+                if (parts.length > 1) {
+                    String arg = parts[1].trim();
+                    if (arg.startsWith("pull ")) {
+                        String modelSpec = arg.substring(5).trim();
+                        if (modelManager != null) {
+                            modelManager.pullModel(System.out, modelSpec);
+                        } else {
+                            System.out.println("Model pulling not supported.");
+                        }
+                    } else {
+                        String modelId = arg.startsWith("set ") ? arg.substring(4).trim() : arg;
+                        if (modelId.matches("\\d+") && modelManager != null) {
+                            int idx = Integer.parseInt(modelId) - 1;
+                            List<ModelManager.ModelRow> models = modelManager.listModels();
+                            if (idx >= 0 && idx < models.size()) {
+                                modelId = models.get(idx).shortId();
+                            }
+                        }
+                        if (agent != null) {
+                            agent.setModelId(modelId);
+                            System.out.println("Model assigned: " + modelId);
+                        }
+                    }
+                } else {
+                    expectingModelSelection = true;
+                    printModelsSimple();
+                }
+            }
+            case "/tools" -> { printToolsSimple(); }
+            default -> System.out.println("Unknown command: " + parts[0] + " (try /help)");
+        }
+        return true;
+    }
+    
+    private void printToolsSimple() {
+        if (agent == null) { System.out.println("Agent not available."); return; }
+        java.util.Collection<tech.kayys.wayang.tools.spi.Tool> tools = agent.tools();
+        if (tools == null || tools.isEmpty()) {
+            System.out.println("No tools available.");
+        } else {
+            System.out.println("Available tools (" + tools.size() + "):");
+            for (tech.kayys.wayang.tools.spi.Tool t : tools) {
+                System.out.println("  - " + t.name() + ": " + t.description());
+            }
+        }
+    }
+
+    private void printModelsSimple() {
+        if (modelManager == null) { System.out.println("Model list not available."); return; }
+        List<ModelManager.ModelRow> models = modelManager.listModels();
+        if (models.isEmpty()) {
+            System.out.println("No models found. Run: /models pull <model>");
+        } else {
+            System.out.println("Available models:");
+            int i = 1;
+            for (ModelManager.ModelRow m : models) {
+                System.out.println("  [" + i + "] " + m.shortId() + "  " + m.format() + "  " + m.sizeStr());
+                i++;
+            }
+            System.out.println("\nType /models <number> to assign a model.");
+        }
+    }
+
+    // =========================================================================================
+    // Interactive raw-mode UI
+    // =========================================================================================
+
+    private void runInteractive() throws IOException {
+        Thread poller = new Thread(this::pollSizeLoop, "size-poller");
+        poller.setDaemon(true);
+        poller.start();
+
+        int[] initial = TerminalMode.size();
+        polledCols = initial[0];
+        polledRows = initial[1];
+        cols = initial[0];
+        rows = initial[1];
+        inputHeight = Math.max(2, input.lineCount() + 1);
+        scrollBottom = Math.max(1, rows - inputHeight);
+
+        out.write(Ansi.CLEAR_SCREEN);
+        out.write(Ansi.CURSOR_HOME);
+        out.setScrollRegion(1, scrollBottom);
+        appendBlock(bannerLines());
+        redrawInputBox();
+
+        while (running) {
+            Key key;
+            try {
+                key = keys.readKey();
+            } catch (IOException e) {
+                break;
+            }
+
+            if (pendingPermissionResponder != null) {
+                handlePermissionKey(key);
+                continue;
+            }
+
+            if (streaming) {
+                handleKeyWhileStreaming(key);
+                continue;
+            }
+
+            handleKeyIdle(key);
+        }
+    }
+
+    private void pollSizeLoop() {
+        while (running) {
+            int[] s = TerminalMode.size();
+            polledCols = s[0];
+            polledRows = s[1];
+            try { Thread.sleep(400); } catch (InterruptedException e) { return; }
+        }
+    }
+
+    private void handlePermissionKey(Key key) {
+        PermissionDecision decision = null;
+        if (key.isChar()) {
+            char c = Character.toLowerCase((char) key.codePoint());
+            if (c == 'y') decision = PermissionDecision.APPROVE_ONCE;
+            else if (c == 'a') decision = PermissionDecision.APPROVE_ALWAYS_THIS_TOOL;
+            else if (c == 'n') decision = PermissionDecision.DENY;
+        } else if (key.kind() == Key.Kind.ESCAPE || key.kind() == Key.Kind.CTRL_C) {
+            decision = PermissionDecision.DENY;
+        }
+        if (decision == null) return;
+
+        String label = switch (decision) {
+            case APPROVE_ONCE -> "approved (once)";
+            case APPROVE_ALWAYS_THIS_TOOL -> "approved (always for " + pendingToolName + ")";
+            case DENY -> "denied";
+        };
+        String color = decision == PermissionDecision.DENY ? Theme.ERROR : Theme.TOOL_OK;
+        appendBlock(List.of(Ansi.fg(color) + "  " + label + Ansi.RESET));
+
+        Consumer<PermissionDecision> responder = pendingPermissionResponder;
+        pendingPermissionResponder = null;
+        pendingToolName = null;
+        responder.accept(decision);
+    }
+
+    private void handleKeyWhileStreaming(Key key) {
+        switch (key.kind()) {
+            case CTRL_C -> {
+                Thread t = agentThread;
+                if (t != null) t.interrupt();
+            }
+            case ENTER, SHIFT_ENTER, ALT_ENTER, NEWLINE -> { /* ignore submission while busy */ }
+            default -> input.apply(key);
+        }
+    }
+
+    private void handleKeyIdle(Key key) {
+        switch (key.kind()) {
+            case CTRL_C -> {
+                if (input.isEmpty()) { running = false; }
+                else { input.clear(); redrawInputBox(); }
+            }
+            case CTRL_D -> { if (input.isEmpty()) running = false; }
+            case CTRL_L -> { fullRedraw(); }
+            case ENTER -> submit();
+            default -> {
+                if (input.apply(key)) redrawInputBox();
+            }
+        }
+    }
+
+    private void submit() {
+        String text = input.text().strip();
+        input.clear();
+        if (text.isEmpty()) { redrawInputBox(); return; }
+
+        if (expectingModelSelection && text.matches("\\d+")) {
+            text = "/models " + text;
+        }
+        expectingModelSelection = false;
+        
+        final String submittedText = text;
+
+        if (submittedText.startsWith("/")) {
+            redrawInputBox();
+            handleSlashInteractive(submittedText);
+            return;
+        }
+
+        appendBlock(userEchoLines(submittedText));
+        streaming = true;
+        redrawInputBox();
+
+        WayangAgentListener listener = new InteractiveListener();
+        agentThread = new Thread(() -> {
+            try {
+                agent.send(submittedText, listener);
+            } finally {
+                streaming = false;
+                redrawInputBox();
+            }
+        }, "agent-turn");
+        agentThread.setDaemon(true);
+        agentThread.start();
+    }
+
+    private void handleSlashInteractive(String cmd) {
+        String[] parts = cmd.split("\\s+", 2);
+        switch (parts[0]) {
+            case "/quit", "/exit" -> running = false;
+            case "/help" -> appendBlock(helpLines());
+            case "/clear" -> { agent.clearHistory(); fullRedraw(); }
+            case "/panel" -> { exitAction = "panel"; running = false; }
+            case "/tools" -> {
+                List<String> lines = new ArrayList<>();
+                lines.add("");
+                lines.add(Ansi.BOLD + "Available Tools & Skills" + Ansi.RESET);
+                if (agent == null || agent.tools() == null || agent.tools().isEmpty()) {
+                    lines.add(Ansi.fg(Theme.WARN) + "  No tools available." + Ansi.RESET);
+                } else {
+                    for (tech.kayys.wayang.tools.spi.Tool t : agent.tools()) {
+                        lines.add("  " + Ansi.fg(Theme.TOOL_OK) + t.name() + Ansi.RESET
+                                + Ansi.dim("  " + (t.description() != null ? t.description() : "")));
+                    }
+                }
+                lines.add("");
+                appendBlock(lines);
+            }
+            case "/models" -> {
+                if (parts.length > 1) {
+                    String arg = parts[1].trim();
+                    if (arg.startsWith("pull ")) {
+                        String modelSpec = arg.substring(5).trim();
+                        if (modelManager != null) {
+                            synchronized (termLock) {
+                                out.moveTo(scrollBottom, 1);
+                                out.line("");
+                                out.flush();
+                                System.out.println();
+                                modelManager.pullModel(System.out, modelSpec);
+                            }
+                            fullRedraw();
+                        } else {
+                            appendBlock(List.of(Ansi.fg(Theme.WARN) + "Model pulling not supported." + Ansi.RESET));
+                        }
+                    } else {
+                        String modelId = arg.startsWith("set ") ? arg.substring(4).trim() : arg;
+                        if (modelId.matches("\\d+") && modelManager != null) {
+                            int idx = Integer.parseInt(modelId) - 1;
+                            List<ModelManager.ModelRow> models = modelManager.listModels();
+                            if (idx >= 0 && idx < models.size()) {
+                                modelId = models.get(idx).shortId();
+                            }
+                        }
+                        if (agent != null) {
+                            agent.setModelId(modelId);
+                            appendBlock(List.of(Ansi.fg(Theme.TOOL_OK) + "Model assigned: " + modelId + Ansi.RESET));
+                        }
+                    }
+                } else {
+                    if (modelManager != null) {
+                        expectingModelSelection = true;
+                        List<ModelManager.ModelRow> models = modelManager.listModels();
+                        List<String> lines = new ArrayList<>();
+                        lines.add("");
+                        lines.add(Ansi.BOLD + "Available Models" + Ansi.RESET);
+                        if (models.isEmpty()) {
+                            lines.add(Ansi.fg(Theme.WARN) + "  No models found." + Ansi.RESET
+                                    + Ansi.dim("  Run: /models pull <model>"));
+                        } else {
+                            int i = 1;
+                            for (ModelManager.ModelRow m : models) {
+                                lines.add("  [" + i + "] " + Ansi.fg(Theme.TOOL_OK) + m.name() + Ansi.RESET
+                                        + Ansi.dim("  " + m.format() + "  " + m.sizeStr()));
+                                i++;
+                            }
+                        }
+                        lines.add("");
+                        lines.add(Ansi.dim("Type ") + Ansi.BOLD + "/models <number>" + Ansi.RESET + Ansi.dim(" or ") + Ansi.BOLD + "/models <name>" + Ansi.RESET + Ansi.dim(" to assign a model."));
+                        lines.add("");
+                        appendBlock(lines);
+                    } else {
+                        appendBlock(List.of(Ansi.fg(Theme.WARN) + "Model list not available in this mode." + Ansi.RESET));
+                    }
+                }
+            }
+            default -> appendBlock(List.of(
+                    Ansi.fg(Theme.ERROR) + "Unknown command: " + parts[0] + Ansi.RESET
+                    + Ansi.dim("  (try /help)")));
+        }
+    }
+
+    // ---------- transcript rendering (interactive mode) ----------
+
+    private void appendBlock(List<String> lines) {
+        synchronized (termLock) {
+            recomputeLayoutIfNeeded();
+            out.moveTo(scrollBottom, 1);
+            for (String l : lines) {
+                if (l.isEmpty()) { out.line(""); continue; }
+                for (String wrapped : TextWrap.wrap(l, Math.max(10, cols))) out.line(wrapped);
+            }
+            out.flush();
+        }
+    }
+
+    private String getWorkspacePrefix() {
+        if (agent == null || agent.workspace() == null) return "";
+        return "[" + agent.workspace().getFileName().toString() + "] ";
+    }
+
+    private List<String> userEchoLines(String text) {
+        String wp = getWorkspacePrefix();
+        String styled = Ansi.BOLD + Ansi.fg(Theme.USER) + wp + "› " + Ansi.RESET + Ansi.fg(Theme.USER) + text + Ansi.RESET;
+        List<String> result = new ArrayList<>();
+        result.add("");
+        result.add(styled);
+        return result;
+    }
+
+    private List<String> helpLines() {
+        List<String> l = new ArrayList<>();
+        l.add("");
+        l.add(Ansi.BOLD + "Commands" + Ansi.RESET);
+        l.add("  " + Ansi.BOLD + "/models" + Ansi.RESET + "     List available models");
+        l.add("  " + Ansi.BOLD + "/models <id>" + Ansi.RESET + "Assign an active model");
+        l.add("  " + Ansi.BOLD + "/models pull <id>" + Ansi.RESET + " Pull a model from HuggingFace/Ollama");
+        l.add("  /help            show this help");
+        l.add("  /clear           clear conversation history");
+        l.add("  /panel           switch to panel UI mode");
+        l.add("  /quit, /exit     exit");
+        l.add("");
+        l.add(Ansi.BOLD + "Keys" + Ansi.RESET);
+        l.add("  Enter            send message");
+        l.add("  Shift/Alt+Enter  insert newline");
+        l.add("  Ctrl+C           clear input, or interrupt a running response");
+        l.add("  Ctrl+L           redraw screen");
+        l.add("");
+        return l;
+    }
+
+    /**
+     * Returns the banner lines displayed at startup.
+     * Shows "No model selected" in amber when the active profile has no model configured.
+     */
+    private List<String> bannerLines() {
+        List<String> l = new ArrayList<>();
+        String title = Ansi.BOLD + Ansi.fg(Theme.ACCENT) + "Wayang Code" + Ansi.RESET;
+
+        // Resolve model for display -- show a clear "No model selected" when blank
+        String curModel = null;
+        try {
+            Config.Profile profile = config != null ? config.activeProfile() : null;
+            if (profile != null) curModel = profile.model;
+        } catch (Exception ignored) {}
+
+        String modelDisplay = (curModel == null || curModel.isBlank())
+                ? Ansi.fg(Theme.WARN) + "No model selected" + Ansi.RESET
+                        + Ansi.dim("  (use /models or --model <id>)")
+                : curModel;
+
+        l.add(title + Ansi.dim("  — terminal AI coding agent  ·  Model: ") + modelDisplay);
+        l.add(Ansi.dim("  Type your message and press Enter. /help for commands."));
+        l.add("");
+        return l;
+    }
+
+    private String bannerPlain() {
+        return "Wayang Code — terminal AI coding agent";
+    }
+
+    private String summarizeArgs(JsonValue input) {
+        String s = Json.write(input);
+        if (s.length() > 140) s = s.substring(0, 140) + "...";
+        return s;
+    }
+
+    private String firstLine(String s) {
+        if (s == null) return "";
+        int idx = s.indexOf('\n');
+        String first = idx == -1 ? s : s.substring(0, idx);
+        if (first.length() > 160) first = first.substring(0, 160) + "...";
+        return first + (idx != -1 ? "  (+more)" : "");
+    }
+
+    private String stripAnsiForPlain(String s) { return Ansi.strip(s); }
+
+    // ---------- input box rendering ----------
+
+    private void recomputeLayoutIfNeeded() {
+        int newCols = polledCols;
+        int newRows = polledRows;
+        int newInputHeight = Math.max(2, input.lineCount() + 1);
+        int newScrollBottom = Math.max(1, newRows - newInputHeight);
+
+        if (scrollBottom == 0) {
+            cols = newCols; rows = newRows; inputHeight = newInputHeight; scrollBottom = newScrollBottom;
+            out.setScrollRegion(1, scrollBottom);
+            return;
+        }
+
+        boolean terminalResized = newCols != cols || newRows != rows;
+        boolean boxHeightChanged = newScrollBottom != scrollBottom;
+
+        if (terminalResized) {
+            cols = newCols; rows = newRows; inputHeight = newInputHeight; scrollBottom = newScrollBottom;
+            out.resetScrollRegion();
+            out.write(Ansi.CLEAR_SCREEN);
+            out.write(Ansi.CURSOR_HOME);
+            out.setScrollRegion(1, scrollBottom);
+            out.moveTo(scrollBottom, 1);
+            out.line(Ansi.dim("── terminal resized to " + cols + "x" + rows + " ──"));
+            return;
+        }
+
+        if (boxHeightChanged) {
+            if (newScrollBottom > scrollBottom) {
+                for (int r = scrollBottom + 1; r <= Math.min(newScrollBottom, rows); r++) {
+                    out.moveTo(r, 1);
+                    out.clearLine();
+                }
+            }
+            inputHeight = newInputHeight; scrollBottom = newScrollBottom;
+            out.setScrollRegion(1, scrollBottom);
+        }
+    }
+
+    private void redrawInputBox() {
+        synchronized (termLock) {
+            recomputeLayoutIfNeeded();
+
+            String fullText = input.text();
+            int cursorPos = input.cursor();
+            int cursorLineIdx = countNewlinesBefore(fullText, cursorPos);
+            int lineStartIdx = fullText.lastIndexOf('\n', Math.max(0, cursorPos - 1)) + 1;
+            int cursorCol = cursorPos - lineStartIdx;
+
+            String[] lines = input.lines();
+            String wp = getWorkspacePrefix();
+            int promptWidth = wp.length() + 2; // wp length + "› "
+            int availWidth = Math.max(4, cols - promptWidth);
+            int cursorVisCol = promptWidth + 1;
+
+            for (int i = 0; i < lines.length; i++) {
+                int row = scrollBottom + 1 + i;
+                out.moveTo(row, 1);
+                out.clearLine();
+                String marker = i == 0
+                        ? Ansi.fg(Theme.ACCENT) + (streaming ? "⚙ " + " ".repeat(Math.max(0, promptWidth - 2)) : wp + "› ") + Ansi.RESET
+                        : " ".repeat(promptWidth);
+                String lineText = lines[i];
+                String display;
+                int startOffset = 0;
+                if (i == cursorLineIdx) {
+                    startOffset = Math.max(0, cursorCol - availWidth + 1);
+                    int end = Math.min(lineText.length(), startOffset + availWidth);
+                    display = lineText.substring(Math.min(startOffset, lineText.length()), end);
+                    cursorVisCol = promptWidth + (cursorCol - startOffset) + 1;
+                } else if (lineText.length() > availWidth) {
+                    display = lineText.substring(0, Math.max(0, availWidth - 1)) + "…";
+                } else {
+                    display = lineText;
+                }
+                out.write(marker + (streaming ? Ansi.dim(display) : display));
+            }
+
+            int hintRow = scrollBottom + lines.length + 1;
+            out.moveTo(hintRow, 1);
+            out.clearLine();
+            String hint = streaming
+                    ? Ansi.fg(Theme.DIM) + "Working…  Ctrl+C to interrupt" + Ansi.RESET
+                    : Ansi.fg(Theme.DIM) + "Enter to send · Shift+Enter newline · /help · Ctrl+C clear/exit" + Ansi.RESET;
+            out.write(TextWrap.truncate(hint, cols));
+
+            int cursorRow = scrollBottom + 1 + cursorLineIdx;
+            out.moveTo(cursorRow, cursorVisCol);
+            out.flush();
+        }
+    }
+
+    private int countNewlinesBefore(String s, int pos) {
+        int count = 0;
+        for (int i = 0; i < pos && i < s.length(); i++) if (s.charAt(i) == '\n') count++;
+        return count;
+    }
+
+    private void fullRedraw() {
+        synchronized (termLock) {
+            out.resetScrollRegion();
+            out.write(Ansi.CLEAR_SCREEN);
+            out.write(Ansi.CURSOR_HOME);
+            scrollBottom = 0;
+            recomputeLayoutIfNeeded();
+            appendBlock(bannerLines());
+            redrawInputBox();
+        }
+    }
+
+    // ---------- listener used while streaming in interactive mode ----------
+
+    private final class InteractiveListener implements WayangAgentListener {
+        private boolean streamOpen = false;
+
+        private void ensureOpen() {
+            if (!streamOpen) {
+                synchronized (termLock) {
+                    recomputeLayoutIfNeeded();
+                    out.moveTo(scrollBottom, 1);
+                    out.write(Ansi.fg(Theme.ASSISTANT));
+                    out.flush();
+                }
+                streamOpen = true;
+            }
+        }
+
+        private void closeIfOpen() {
+            if (streamOpen) {
+                synchronized (termLock) {
+                    out.write(Ansi.RESET);
+                    out.write("\r\n\r\n");
+                    out.flush();
+                }
+                streamOpen = false;
+            }
+        }
+
+        @Override public void onTextDelta(String t) {
+            ensureOpen();
+            synchronized (termLock) {
+                out.write(t.replace("\r\n", "\n").replace("\n", "\r\n"));
+                out.flush();
+            }
+        }
+
+        @Override public void onToolCallStart(String id, String name) {
+            closeIfOpen();
+            appendBlock(List.of(Ansi.fg(Theme.TOOL) + "→ " + name + Ansi.RESET));
+        }
+
+        @Override public void onToolCallReady(String id, String name, JsonValue toolInput) {
+            appendBlock(List.of(Ansi.dim("  " + summarizeArgs(toolInput))));
+        }
+
+        @Override public void onToolPermissionNeeded(String id, String name, JsonValue toolInput,
+                                                     Consumer<PermissionDecision> responder) {
+            pendingPermissionResponder = responder;
+            pendingToolName = name;
+            appendBlock(List.of(
+                    Ansi.fg(Theme.TOOL) + "  Allow '" + name + "' to run?" + Ansi.RESET
+                    + Ansi.dim("  [y]es  [a]lways  [n]o")
+            ));
+            redrawInputBox();
+        }
+
+        @Override public void onToolResult(String id, String name, ToolResult result) {
+            String marker = !result.success()
+                    ? Ansi.fg(Theme.ERROR) + "✗ "
+                    : Ansi.fg(Theme.TOOL_OK) + "✓ ";
+            String out = result.output().orElse(result.error() != null ? result.error() : "");
+            appendBlock(List.of(marker + name + Ansi.RESET + Ansi.dim(": " + firstLine(out))));
+        }
+
+        @Override public void onUsage(int inTok, int outTok) { /* could surface in hint line later */ }
+
+        @Override public void onDone(String reason) {
+            closeIfOpen();
+        }
+
+        @Override public void onError(String message) {
+            closeIfOpen();
+            appendBlock(List.of(Ansi.fg(Theme.ERROR) + "Error: " + message + Ansi.RESET));
+        }
+    }
+}
