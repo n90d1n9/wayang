@@ -152,9 +152,17 @@ public class GollekSubprocessProvider implements StreamingProvider {
                 "--max-tokens", String.valueOf(maxTokens),
                 "--temperature", String.valueOf(temperature)
         );
+        
+        String quantize = System.getProperty("wayang.model.quantize");
+        if (quantize != null && !quantize.isBlank()) {
+            pb.command().add("--quantize");
+            pb.command().add(quantize.trim());
+        }
+        
         pb.redirectErrorStream(false);
         pb.redirectError(ProcessBuilder.Redirect.DISCARD);
         pb.environment().put("NO_COLOR", "1");
+        pb.environment().put("GOLLEK_MAX_DIRECT_MEMORY", "12g");
 
         Process process = pb.start();
 
@@ -166,8 +174,8 @@ public class GollekSubprocessProvider implements StreamingProvider {
 
             while ((line = reader.readLine()) != null) {
                 if (!inModelOutput) {
-                    // The "---" separator marks the start of model output
-                    if (line.startsWith("---")) {
+                    // The exact "---" separator marks the start of model output
+                    if (line.equals("---")) {
                         inModelOutput = true;
                     }
                     continue; // skip all pre-separator telemetry
@@ -180,7 +188,8 @@ public class GollekSubprocessProvider implements StreamingProvider {
 
                 // Post-output telemetry — stop
                 if (line.startsWith("[Fast GGUF") || line.startsWith("[GGUF")
-                        || line.startsWith("Performance Metrics:")) {
+                        || line.startsWith("Performance Metrics:")
+                        || line.startsWith("[Stream updates:")) {
                     break;
                 }
 
@@ -205,9 +214,33 @@ public class GollekSubprocessProvider implements StreamingProvider {
                 || line.startsWith("Model: ")
                 || line.startsWith("Provider: ")
                 || line.startsWith("Execution route:")
+                || line.startsWith("Quantization:")
+                || line.startsWith("KV cache quantization:")
+                || line.startsWith("Platform:")
+                || line.startsWith("✓ GPU acceleration")
+                || line.startsWith("⚠️  Running on CPU")
+                || line.startsWith("--------------------------------------------------")
                 || line.startsWith("[Fast GGUF")
                 || line.startsWith("[GGUF")
                 || line.startsWith("Performance Metrics:")
+                || line.startsWith("  load time")
+                || line.startsWith("  prompt eval")
+                || line.startsWith("  decode")
+                || line.startsWith("  latency")
+                || line.startsWith("  engine ttft")
+                || line.startsWith("  profile:")
+                || line.startsWith("    prefill")
+                || line.startsWith("    decode")
+                || line.startsWith("    sampling")
+                || line.startsWith("    engine ttft")
+                || line.startsWith("    attention")
+                || line.startsWith("    ffn")
+                || line.startsWith("    logits")
+                || line.startsWith("    bottleneck")
+                || line.startsWith("    profile advice")
+                || line.startsWith("    host load")
+                || line.startsWith("    benchmark note")
+                || line.startsWith("    benchmark advice")
                 || line.startsWith("  open time")
                 || line.startsWith("  generate call")
                 || line.startsWith("  generation")

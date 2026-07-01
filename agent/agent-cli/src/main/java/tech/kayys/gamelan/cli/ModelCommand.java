@@ -8,7 +8,7 @@ import tech.kayys.gamelan.agent.SdkProvider;
 import tech.kayys.gamelan.util.AnsiPrinter;
 import tech.kayys.gollek.sdk.core.GollekSdk;
 import tech.kayys.gollek.sdk.exception.SdkException;
-import tech.kayys.gollek.sdk.model.ModelInfo;
+import tech.kayys.gollek.spi.model.ModelInfo;
 
 import java.util.List;
 
@@ -65,9 +65,9 @@ public class ModelCommand implements Runnable {
                 }
                 printer.sectionHeader("Local Models (" + models.size() + ")");
                 for (ModelInfo m : models) {
-                    printer.listItem(m.id(),
-                            "[" + m.format() + "]"
-                            + (m.contextWindow() > 0 ? " ctx:" + m.contextWindow() : ""));
+                    printer.listItem(m.getModelId(),
+                            "[" + m.getFormat() + "]"
+                            + (m.getContextLength() != null && m.getContextLength() > 0 ? " ctx:" + m.getContextLength() : ""));
                 }
             } catch (SdkException e) {
                 printer.error("Cannot list models: " + e.getMessage());
@@ -155,15 +155,9 @@ public class ModelCommand implements Runnable {
             GollekSdk sdk = sdkProvider.sdk();
             try {
                 sdk.getModelInfo(modelId).ifPresentOrElse(info -> {
-                    printer.sectionHeader("Model: " + info.id());
-                    printer.println("  Format      : " + info.format());
-                    printer.println("  Context     : " + info.contextWindow());
-                    printer.println("  Streaming   : " + info.supportsStreaming());
-                    printer.println("  Tools       : " + info.supportsTools());
-                    if (info.capabilities() != null && !info.capabilities().isEmpty()) {
-                        printer.println("  Capabilities:");
-                        info.capabilities().forEach((k, v) -> printer.println("    " + k + ": " + v));
-                    }
+                    printer.sectionHeader("Model: " + info.getModelId());
+                    printer.println("  Format      : " + info.getFormat());
+                    printer.println("  Context     : " + (info.getContextLength() != null ? info.getContextLength() : "N/A"));
                 }, () -> printer.error("Model not found: " + modelId));
             } catch (SdkException e) {
                 printer.error("Cannot fetch model info: " + e.getMessage());

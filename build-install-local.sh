@@ -15,7 +15,7 @@ set -euo pipefail
 DEFAULT_INSTALL_DIR="${HOME}/.local/bin"
 INSTALL_DIR="${DEFAULT_INSTALL_DIR}"   # can be overridden via CLI
 GRADLE_WRAPPER="./gradlew"
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ---------- Helper functions ----------
 log()   { printf '%b\n' "${*}" ; }
@@ -52,15 +52,15 @@ mkdir -p "$INSTALL_DIR"
 # ---------- Build the CLI ----------
 info "Building Wayang‑Gollek CLI …"
 cd "$PROJECT_ROOT/cli/wayang-gollek-cli"
-# The Gradle wrapper will download the correct Gradle version automatically.
-"$GRADLE_WRAPPER" clean assemble --no-daemon
+# The CLI is a Maven project
+"$PROJECT_ROOT/mvnw" clean package -DskipTests
 
-# Find the built JAR (the task `assemble` creates `build/libs/*.jar`)
-JAR_PATH=$(find build/libs -name "*-all.jar" -print -quit || true)
+# Find the built JAR (the shade plugin creates a fat jar, usually overriding the main one)
+JAR_PATH=$(find target -name "wayang-gollek-cli-*.jar" | grep -v original | head -n 1 || true)
 
 if [[ -z "$JAR_PATH" ]]; then
   # Fallback: some projects produce a plain JAR without `-all`
-  JAR_PATH=$(find build/libs -name "*.jar" -print -quit || true)
+  JAR_PATH=$(find target -name "*.jar" -print -quit || true)
 fi
 
 if [[ -z "$JAR_PATH" ]]; then
@@ -82,7 +82,7 @@ cat > "$WRAPPER_PATH" <<'EOS'
 # Resolve the location of the JAR relative to the wrapper.
 # ($0 may be a symlink, so we resolve it.)
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
-JAR_PATH="${SCRIPT_DIR}/../share/wayang-gollek-cli.jar"
+JAR_PATH="${SCRIPT_DIR}/share/wayang-gollek-cli.jar"
 
 exec java --add-modules jdk.incubator.vector -jar "$JAR_PATH" "$@"
 EOS

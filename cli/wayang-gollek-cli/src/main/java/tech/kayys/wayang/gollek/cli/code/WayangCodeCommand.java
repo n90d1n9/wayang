@@ -113,6 +113,10 @@ final class WayangCodeCommand implements Callable<Integer> {
             description = "Disable memory context for this session.")
     boolean noMemory;
 
+    @Option(names = {"--quantize"},
+            description = "Quantization mode (e.g., turbo) to reduce memory footprint of large models.")
+    String quantize;
+
     @Option(names = {"--harness"},
             description = "Attach harness verification checks to each run.")
     boolean harness;
@@ -159,6 +163,10 @@ final class WayangCodeCommand implements Callable<Integer> {
         if (Boolean.getBoolean("wayang.cli.debug")) {
             try { System.err.println("[DEBUG] WayangCodeCommand.call() prompt='" + prompt + "' model='" + modelId + "' provider='" + providerId + "' once='" + once + "'"); } catch (Throwable ignore) {}
             try { if (parent != null && parent.context() != null) parent.context().out().println("  Debug: WayangCodeCommand.call() prompt='" + prompt + "' model='" + modelId + "' provider='" + providerId + "' once='" + once + "'"); } catch (Throwable ignore) {}
+        }
+
+        if (quantize != null && !quantize.isBlank()) {
+            System.setProperty("wayang.model.quantize", quantize.trim());
         }
 
         boolean color = !noColor && isColorSupported();

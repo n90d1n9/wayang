@@ -134,7 +134,8 @@ public class WayangInferenceService {
 
                     // Stop emitting when we hit post-output telemetry markers
                     if (line.startsWith("[Fast GGUF") || line.startsWith("[GGUF")
-                            || line.startsWith("Performance Metrics:")) {
+                            || line.startsWith("Performance Metrics:")
+                            || line.startsWith("[Stream updates:")) {
                         break;
                     }
 
@@ -202,9 +203,33 @@ public class WayangInferenceService {
                 || line.startsWith("Model: ")
                 || line.startsWith("Provider: ")
                 || line.startsWith("Execution route:")
+                || line.startsWith("Quantization:")
+                || line.startsWith("KV cache quantization:")
+                || line.startsWith("Platform:")
+                || line.startsWith("✓ GPU acceleration")
+                || line.startsWith("⚠️  Running on CPU")
+                || line.startsWith("--------------------------------------------------")
                 || line.startsWith("[Fast GGUF")
                 || line.startsWith("[GGUF")
                 || line.startsWith("Performance Metrics:")
+                || line.startsWith("  load time")
+                || line.startsWith("  prompt eval")
+                || line.startsWith("  decode")
+                || line.startsWith("  latency")
+                || line.startsWith("  engine ttft")
+                || line.startsWith("  profile:")
+                || line.startsWith("    prefill")
+                || line.startsWith("    decode")
+                || line.startsWith("    sampling")
+                || line.startsWith("    engine ttft")
+                || line.startsWith("    attention")
+                || line.startsWith("    ffn")
+                || line.startsWith("    logits")
+                || line.startsWith("    bottleneck")
+                || line.startsWith("    profile advice")
+                || line.startsWith("    host load")
+                || line.startsWith("    benchmark note")
+                || line.startsWith("    benchmark advice")
                 || line.startsWith("  open time")
                 || line.startsWith("  generate call")
                 || line.startsWith("  generation")

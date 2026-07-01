@@ -31,6 +31,11 @@ Wayang integrates directly with OS-level tools and external MCP servers.
 - **Tool Mapping**: Tools for viewing files, searching directories, and running shell commands are automatically mapped to JSON schemas.
 - **Native Prompting**: To optimize for smaller context windows (e.g., 3B-8B models), Wayang passes raw tool schemas to the underlying execution engine, which natively formats them according to the specific model's pre-trained tool format, avoiding redundant or confusing manual prompt injections.
 
+### 6. Workflow Engine (Gamelan Integration)
+Wayang utilizes the **Gamelan Workflow Engine** as a stateful, durable orchestration substrate through the `WorkflowBackend` SPI.
+- **Durable State & Suspend/Resume**: When the agent requires Human-in-the-Loop (HITL) approval (e.g., for destructive bash commands), the `GamelanBackendAdapter` fires a `suspendRun()` event to the workflow engine. This safely pauses the agent state. Once approved, `resumeRun()` is fired, continuing the execution.
+- **Multi-Tenant Isolation**: Workflow runs are mapped using `correlationId` and `tenantId`, allowing fleets of Wayang agents to be run safely at enterprise scale.
+
 ## System Flow Diagram
 
 ```mermaid
@@ -75,6 +80,45 @@ graph TD
     AgentCore -- "Executes tool/MCP" --> MCP
     AgentCore -- "Executes file/shell" --> OSTools
     
+    %% Workflow Engine
+    AgentCore -- "Durable Orchestration" --> Gamelan[GamelanBackendAdapter <br> Workflow Engine]
+    
     %% Human in the loop
     OSTools -. "Permission Prompt" .-> TUI
+    Gamelan -. "Suspend / Resume" .-> TUI
+```
+
+## Human-in-the-Loop (HITL) Sequence
+
+This sequence diagram illustrates how Wayang handles destructive OS commands by utilizing the Gamelan Workflow Engine for safe suspension and resumption.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant TUI as Wayang TUI
+    participant Agent as Agent Core
+    participant Gamelan as Gamelan Adapter
+    participant OS as OS Tools / Bash
+
+    User->>TUI: Types prompt (e.g. "Delete all log files")
+    TUI->>Agent: Send Prompt
+    Agent->>Agent: Determines 'run_command' tool needed
+    Agent->>TUI: StreamEvent.ToolUseStart
+    
+    TUI->>User: Displays Permission Prompt [y/n]
+    
+    %% Suspend State
+    Agent->>Gamelan: suspendRun()
+    Gamelan-->>Agent: Run Suspended (Memory Freed)
+    
+    User->>TUI: Types "y" (Approval)
+    
+    %% Resume State
+    TUI->>Gamelan: resumeRun()
+    Gamelan-->>Agent: Run Resumed (Context Restored)
+    
+    Agent->>OS: Executes `rm -rf *.log`
+    OS-->>Agent: Command Output
+    Agent->>TUI: StreamEvent.TextDelta (Summarizes result)
+    TUI->>User: Displays response
 ```
