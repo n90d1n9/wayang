@@ -36,6 +36,20 @@ public final class WayangGollekFacade {
         }
     }
 
+    public static List<?> listProviders() throws Exception {
+        Object sdk = tryCreateSdk();
+        if (sdk != null) {
+            try {
+                Method m = sdk.getClass().getMethod("listAvailableProviders");
+                Object res = m.invoke(sdk);
+                return (List<?>) res;
+            } catch (NoSuchMethodException ns) {
+                // fall through
+            }
+        }
+        return List.of();
+    }
+
     public static boolean modelExists(String modelId) throws Exception {
         Object sdk = tryCreateSdk();
         if (sdk != null) {

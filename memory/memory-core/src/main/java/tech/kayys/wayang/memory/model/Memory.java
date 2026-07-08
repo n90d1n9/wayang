@@ -9,6 +9,18 @@ import java.util.UUID;
  * Represents a memory in the AI system
  */
 public class Memory {
+    
+    // Standard metadata keys
+    public static final String META_CATEGORY = "category";
+    public static final String META_AGENT_ID = "agentId";
+    
+    // Categorical Constants (Claude Memory Format)
+    public static final String CATEGORY_INSTRUCTIONS = "Instructions";
+    public static final String CATEGORY_IDENTITY = "Identity";
+    public static final String CATEGORY_CAREER = "Career";
+    public static final String CATEGORY_PROJECTS = "Projects";
+    public static final String CATEGORY_PREFERENCES = "Preferences";
+
     private String id;
     private String namespace;
     private String content;

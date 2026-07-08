@@ -31,6 +31,7 @@ public final class ReplUi {
     private final Config config;
     private final WayangAgent agent;
     private final ModelManager modelManager;
+    private final ProviderManager providerManager;
 
     private final TerminalMode termMode = new TerminalMode();
     private TermOut out;
@@ -51,16 +52,28 @@ public final class ReplUi {
 
     private String exitAction = null; // null = quit, or "panel" to request switching UI modes
     private boolean expectingModelSelection = false;
+    
+    private java.util.function.Function<String, Boolean> externalSlashHandler;
+
+    public void setExternalSlashHandler(java.util.function.Function<String, Boolean> handler) {
+        this.externalSlashHandler = handler;
+    }
+
+    public void appendBlockLines(List<String> lines) {
+        appendBlock(lines);
+    }
 
     /**
      * @param config       TUI configuration (active profile determines which model is displayed)
      * @param agent        the Wayang agent that executes turns
      * @param modelManager optional model-list provider for the /models command; may be null
+     * @param providerManager optional provider-list provider for the /providers command; may be null
      */
-    public ReplUi(Config config, WayangAgent agent, ModelManager modelManager) {
+    public ReplUi(Config config, WayangAgent agent, ModelManager modelManager, ProviderManager providerManager) {
         this.config = config;
         this.agent = agent;
         this.modelManager = modelManager;
+        this.providerManager = providerManager;
     }
 
     /** Runs the REPL until the user quits. Returns "panel" if they requested switching UI modes, else null. */
@@ -204,7 +217,13 @@ public final class ReplUi {
                 }
             }
             case "/tools" -> { printToolsSimple(); }
-            default -> System.out.println("Unknown command: " + parts[0] + " (try /help)");
+            default -> {
+                if (externalSlashHandler != null) {
+                    return !externalSlashHandler.apply(cmd);
+                } else {
+                    System.out.println("Unknown command: " + parts[0] + " (try /help)");
+                }
+            }
         }
         return true;
     }
@@ -459,9 +478,62 @@ public final class ReplUi {
                     }
                 }
             }
-            default -> appendBlock(List.of(
-                    Ansi.fg(Theme.ERROR) + "Unknown command: " + parts[0] + Ansi.RESET
-                    + Ansi.dim("  (try /help)")));
+            case "/providers" -> {
+                if (providerManager != null) {
+                    List<ProviderManager.ProviderRow> providers = providerManager.listProviders();
+                    try {
+                        ProviderPickerWidget picker = new ProviderPickerWidget(out, keys, providers, cols, rows);
+                        String selected = picker.showAndSelect();
+                        if (selected != null) {
+                            this.exitAction = "provider:" + selected;
+                            this.running = false;
+                        } else {
+                            appendBlock(List.of(Ansi.fg(Theme.WARN) + "Provider selection canceled." + Ansi.RESET));
+                        }
+                    } catch (IOException e) {
+                        appendBlock(List.of(Ansi.fg(Theme.ERROR) + "Error rendering picker: " + e.getMessage() + Ansi.RESET));
+                    }
+                } else {
+                    appendBlock(List.of(Ansi.fg(Theme.WARN) + "Provider list not available." + Ansi.RESET));
+                }
+            }
+            case "/provider" -> {
+                if (parts.length > 1) {
+                    String providerId = parts[1].trim();
+                    this.exitAction = "provider:" + providerId;
+                    this.running = false; // exit ReplUi loop to recreate agent
+                } else {
+                    if (providerManager != null) {
+                        List<ProviderManager.ProviderRow> providers = providerManager.listProviders();
+                        try {
+                            ProviderPickerWidget picker = new ProviderPickerWidget(out, keys, providers, cols, rows);
+                            String selected = picker.showAndSelect();
+                            if (selected != null) {
+                                this.exitAction = "provider:" + selected;
+                                this.running = false;
+                            } else {
+                                appendBlock(List.of(Ansi.fg(Theme.WARN) + "Provider selection canceled." + Ansi.RESET));
+                            }
+                        } catch (IOException e) {
+                            appendBlock(List.of(Ansi.fg(Theme.ERROR) + "Error rendering picker: " + e.getMessage() + Ansi.RESET));
+                        }
+                    } else {
+                        appendBlock(List.of(Ansi.fg(Theme.WARN) + "Usage: /provider <id>" + Ansi.RESET));
+                    }
+                }
+            }
+            default -> {
+                if (externalSlashHandler != null) {
+                    Boolean shouldExit = externalSlashHandler.apply(cmd);
+                    if (Boolean.TRUE.equals(shouldExit)) {
+                        running = false;
+                    }
+                } else {
+                    appendBlock(List.of(
+                        Ansi.fg(Theme.ERROR) + "Unknown command: " + parts[0] + Ansi.RESET
+                        + Ansi.dim("  (try /help)")));
+                }
+            }
         }
     }
 
@@ -505,6 +577,19 @@ public final class ReplUi {
         l.add("  /panel           switch to panel UI mode");
         l.add("  /quit, /exit     exit");
         l.add("");
+        l.add(Ansi.BOLD + "Sessions & Projects" + Ansi.RESET);
+        l.add("  /sessions                   List sessions for current project");
+        l.add("  /sessions resume <id>       Resume a saved session");
+        l.add("  /sessions fork <id> [name]  Fork a session into a new branch");
+        l.add("  /sessions delete <id>       Delete a stored session");
+        l.add("  /projects                   List known projects");
+        l.add("  /project <id>               Switch to a different project");
+        l.add("");
+        l.add(Ansi.BOLD + "Status & Info" + Ansi.RESET);
+        l.add("  /status          Show platform adapter status");
+        l.add("  /info            Display system info");
+        l.add("  /tools           List all available tools");
+        l.add("");
         l.add(Ansi.BOLD + "Keys" + Ansi.RESET);
         l.add("  Enter            send message");
         l.add("  Shift/Alt+Enter  insert newline");
@@ -524,9 +609,13 @@ public final class ReplUi {
 
         // Resolve model for display -- show a clear "No model selected" when blank
         String curModel = null;
+        String curProvider = null;
         try {
             Config.Profile profile = config != null ? config.activeProfile() : null;
-            if (profile != null) curModel = profile.model;
+            if (profile != null) {
+                curModel = profile.model;
+                curProvider = profile.provider;
+            }
         } catch (Exception ignored) {}
 
         String modelDisplay = (curModel == null || curModel.isBlank())
@@ -534,7 +623,8 @@ public final class ReplUi {
                         + Ansi.dim("  (use /models or --model <id>)")
                 : curModel;
 
-        l.add(title + Ansi.dim("  — terminal AI coding agent  ·  Model: ") + modelDisplay);
+        String providerDisplay = (curProvider != null && !curProvider.isBlank()) ? curProvider : "gollek (default)";
+        l.add(title + Ansi.dim("  — terminal AI coding agent  ·  Model: ") + modelDisplay + Ansi.dim("  ·  Provider: ") + providerDisplay);
         l.add(Ansi.dim("  Type your message and press Enter. /help for commands."));
         l.add("");
         return l;

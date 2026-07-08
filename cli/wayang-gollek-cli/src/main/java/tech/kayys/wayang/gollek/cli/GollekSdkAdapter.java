@@ -33,10 +33,25 @@ public final class GollekSdkAdapter {
             java.nio.file.Path cfg = java.nio.file.Paths.get(System.getProperty("user.home"), ".wayang", "config.json");
             if (java.nio.file.Files.exists(cfg)) {
                 String content = java.nio.file.Files.readString(cfg);
-                java.util.regex.Pattern p = java.util.regex.Pattern.compile("\\\"(?:model|defaultModel|default_model)\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
-                java.util.regex.Matcher m = p.matcher(content);
-                if (m.find()) {
-                    String cfgModel = m.group(1).trim();
+                String cfgModel = null;
+                if (this.preferredProvider != null && !this.preferredProvider.isBlank()) {
+                    java.util.regex.Pattern pp = java.util.regex.Pattern.compile("\\\"" + this.preferredProvider + "Model\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
+                    java.util.regex.Matcher pm = pp.matcher(content);
+                    if (pm.find()) {
+                        cfgModel = pm.group(1).trim();
+                    }
+                }
+                
+                // Only fall back to the global defaultModel if no provider is preferred OR the preferred provider is 'gollek'
+                if (cfgModel == null && (this.preferredProvider == null || this.preferredProvider.isBlank() || this.preferredProvider.equals("gollek"))) {
+                    java.util.regex.Pattern p = java.util.regex.Pattern.compile("\\\"(?:model|defaultModel|default_model)\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
+                    java.util.regex.Matcher m = p.matcher(content);
+                    if (m.find()) {
+                        cfgModel = m.group(1).trim();
+                    }
+                }
+                
+                if (cfgModel != null) {
                     // Try to resolve to a local gollek model id by scanning 'gollek list' output.
                     try {
                         List<?> models = tech.kayys.wayang.gollek.sdk.WayangGollekFacade.listModels();
@@ -121,6 +136,8 @@ public final class GollekSdkAdapter {
         public String modelId() { return shortId; }
     }
 
+    public record ProviderRow(String id, String name, String version, String status, String defaultModel) {}
+
     public List<ModelRow> listModelsStructured() {
         try {
             List<?> raw = WayangGollekFacade.listModels();
@@ -177,10 +194,15 @@ public final class GollekSdkAdapter {
         }
     }
 
-    private static String invokeStrMethod(Object obj, String methodName) throws Exception {
-        java.lang.reflect.Method m = obj.getClass().getMethod(methodName);
-        Object res = m.invoke(obj);
-        return res != null ? res.toString() : null;
+    private static String invokeStrMethod(Object obj, String... methodNames) {
+        for (String methodName : methodNames) {
+            try {
+                java.lang.reflect.Method m = obj.getClass().getMethod(methodName);
+                Object res = m.invoke(obj);
+                if (res != null) return res.toString();
+            } catch (Exception ignored) {}
+        }
+        return null;
     }
 
 
@@ -193,9 +215,53 @@ public final class GollekSdkAdapter {
         }
     }
 
-    public List<String> listAvailableProviders() {
-        // CLI does not have provider registry without SDK; return empty list
-        return List.of();
+    public List<ProviderRow> listAvailableProviders() {
+        try {
+            List<?> raw = WayangGollekFacade.listProviders();
+            List<ProviderRow> result = new java.util.ArrayList<>();
+            for (Object o : raw) {
+                if (o == null) continue;
+                String id = null, name = null, version = null, status = null;
+                try {
+                    id = invokeStrMethod(o, "getId", "id");
+                    name = invokeStrMethod(o, "getName", "name");
+                    version = invokeStrMethod(o, "getVersion", "version");
+                    Object health = null;
+                    try { health = o.getClass().getMethod("getHealth").invoke(o); } catch (Exception e) {}
+                    if (health == null) {
+                        try { health = o.getClass().getMethod("healthStatus").invoke(o); } catch (Exception e) {}
+                    }
+                    if (health != null) {
+                        status = invokeStrMethod(health, "status", "name", "toString");
+                    }
+                } catch (Exception ignored) {}
+                
+                if (id != null) {
+                    String defaultModel = invokeStrMethod(o, "getDefaultModel", "defaultModel");
+                    if (defaultModel == null) {
+                        try {
+                            Object meta = o.getClass().getMethod("metadata").invoke(o);
+                            java.nio.file.Files.writeString(java.nio.file.Paths.get("/tmp/meta_debug.txt"), "meta class: " + (meta == null ? "null" : meta.getClass().getName()) + "\nmeta value: " + meta + "\n", java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+                            if (meta instanceof java.util.Map) {
+                                Object dm = ((java.util.Map<?, ?>) meta).get("defaultModel");
+                                if (dm != null) defaultModel = dm.toString();
+                            } else if (meta != null) {
+                                defaultModel = invokeStrMethod(meta, "defaultModel", "getDefaultModel");
+                            }
+                        } catch (Exception e) {
+                            try { java.nio.file.Files.writeString(java.nio.file.Paths.get("/tmp/meta_debug.txt"), "error: " + e + "\n", java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND); } catch(Exception ignore) {}
+                        }
+                    }
+                    result.add(new ProviderRow(id, name != null ? name : id, version != null ? version : "", status != null ? status : "UNKNOWN", defaultModel != null ? defaultModel : ""));
+                } else {
+                    // string fallback
+                    result.add(new ProviderRow(o.toString(), o.toString(), "", "", ""));
+                }
+            }
+            return result;
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     public void setPreferredProvider(String providerId) {
@@ -219,6 +285,25 @@ public final class GollekSdkAdapter {
         } catch (Exception ignored) {
         }
         return Optional.empty();
+    }
+
+    public void writeConfigProvider(String providerId) {
+        try {
+            java.nio.file.Path cfg = java.nio.file.Paths.get(System.getProperty("user.home"), ".wayang", "config.json");
+            if (java.nio.file.Files.exists(cfg)) {
+                String content = java.nio.file.Files.readString(cfg);
+                if (content.contains("\"provider\"")) {
+                    content = content.replaceAll("\\\"provider\\\"\\s*:\\s*\\\"[^\\\"]+\\\"", "\"provider\": \"" + providerId + "\"");
+                } else {
+                    content = content.replaceFirst("\\}", ",\n  \"provider\": \"" + providerId + "\"\n}");
+                }
+                java.nio.file.Files.writeString(cfg, content);
+            } else {
+                java.nio.file.Files.createDirectories(cfg.getParent());
+                java.nio.file.Files.writeString(cfg, "{\n  \"provider\": \"" + providerId + "\"\n}");
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     public Object getSystemInfo() {

@@ -106,7 +106,7 @@ public final class Main {
             if (mode == Config.UiMode.PANEL) {
                 next = new PanelUi(config, agent).run();
             } else {
-                next = new ReplUi(config, agent, null).run();
+                next = new ReplUi(config, agent, null, null).run();
             }
             if ("panel".equals(next)) { mode = Config.UiMode.PANEL; continue; }
             if ("repl".equals(next)) { mode = Config.UiMode.REPL; continue; }

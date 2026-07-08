@@ -28,12 +28,33 @@ import java.util.function.Consumer;
 public class WayangProvider implements Provider {
 
     private String modelId;
+    private String providerId;
+    private String apiKey;
     private final tech.kayys.wayang.gollek.sdk.WayangInferenceService service;
 
     public WayangProvider(String modelId) {
+        this(modelId, null, null);
+    }
+
+    public WayangProvider(String modelId, String providerId, String apiKey) {
         this.modelId = modelId;
+        this.providerId = providerId;
+        this.apiKey = apiKey;
+        // Inject API key as System property so provider plugins pick it up
+        injectApiKey();
+        // Configure SDK preferred provider before initialization
+        if (providerId != null && !providerId.isBlank()) {
+            System.setProperty("gollek.preferred.provider", providerId);
+        }
         this.service = WayangInferenceServiceFactory.create(
                 "You are a helpful coding assistant.", this.modelId);
+        // Set preferred provider on SDK after creation
+        try {
+            tech.kayys.gollek.sdk.core.GollekSdk sdk = service.getSdk();
+            if (sdk != null && providerId != null && !providerId.isBlank()) {
+                sdk.setPreferredProvider(providerId);
+            }
+        } catch (Throwable ignore) {}
     }
     
     public void setModelId(String modelId) {
@@ -42,6 +63,12 @@ public class WayangProvider implements Provider {
     
     public String getModelId() {
         return this.modelId;
+    }
+
+    private void injectApiKey() {
+        if (this.providerId != null && !this.providerId.isBlank() && this.apiKey != null && !this.apiKey.isBlank()) {
+            System.setProperty(this.providerId + ".api.key", this.apiKey);
+        }
     }
 
     @Override

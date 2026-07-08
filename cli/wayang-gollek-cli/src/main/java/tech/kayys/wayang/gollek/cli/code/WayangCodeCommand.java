@@ -169,6 +169,15 @@ final class WayangCodeCommand implements Callable<Integer> {
             System.setProperty("wayang.model.quantize", quantize.trim());
         }
 
+        System.setProperty("gollek.gguf.fast_run.quiet", "true");
+        System.setProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager");
+
+        // Suppress Weld logs
+        try {
+            java.util.logging.Logger.getLogger("org.jboss.weld").setLevel(java.util.logging.Level.SEVERE);
+            java.util.logging.Logger.getLogger("org.jboss.logmanager").setLevel(java.util.logging.Level.SEVERE);
+        } catch (Throwable ignore) {}
+
         boolean color = !noColor && isColorSupported();
 
         // Initialize GollekSdk locally — with config.json authoritative unless --ignore-config
@@ -199,6 +208,11 @@ final class WayangCodeCommand implements Callable<Integer> {
                 }
             } catch (Throwable ignore) {
                 // parent.sdk() may not be accessible; fall back to CLI flag only
+            }
+
+            if (effectiveProvider == null || effectiveProvider.isBlank()) {
+                String env = System.getenv("WAYANG_PROVIDER");
+                if (env != null && !env.isBlank()) effectiveProvider = env.trim();
             }
 
             // Use lightweight adapter that does not require full Gollek SDK at runtime.
@@ -255,6 +269,27 @@ final class WayangCodeCommand implements Callable<Integer> {
             }
         };
 
+        tech.kayys.wayang.tui.ui.ProviderManager providerManager = new tech.kayys.wayang.tui.ui.ProviderManager() {
+            @Override
+            public java.util.List<ProviderRow> listProviders() {
+                java.util.List<ProviderRow> rows = new java.util.ArrayList<>();
+                for (GollekSdkAdapter.ProviderRow r : sdkAdapter.listAvailableProviders()) {
+                    rows.add(new ProviderRow(r.id(), r.name(), r.version(), r.status(), r.defaultModel()));
+                }
+                return rows;
+            }
+        };
+        
+        // If we still don't have a resolved model (e.g. no <provider>Model in config),
+        // fallback to the provider's default model from metadata!
+        if (resolvedModel == null || resolvedModel.isBlank()) {
+            for (var p : providerManager.listProviders()) {
+                if (p.id().equals(this.providerId) && p.defaultModel() != null && !p.defaultModel().isBlank()) {
+                    resolvedModel = p.defaultModel();
+                    break;
+                }
+            }
+        }
         // Resolve workspace
         String resolvedWorkspace = (workspacePath != null && !workspacePath.isBlank())
                 ? workspacePath : ".";
@@ -287,6 +322,7 @@ final class WayangCodeCommand implements Callable<Integer> {
         try {
             // Best-effort: apply preferred provider into lightweight adapter
             try { sdkAdapter.setPreferredProvider(providerId); } catch (Throwable ignore) {}
+            try { tech.kayys.wayang.gollek.sdk.WayangInferenceServiceFactory.getOrCreateSdk().setPreferredProvider(providerId); } catch (Throwable ignore) {}
         } catch (Throwable ignored) {}
         this.chatSession = createChatSession(resolvedModel, providerId, workspaceDir);
         // If a session id was provided and persistence is available, attempt to resume
@@ -306,7 +342,7 @@ final class WayangCodeCommand implements Callable<Integer> {
 
         // Print banner
         if (!"json-stream".equalsIgnoreCase(format)) {
-            printBanner(out, color, resolvedSession, workspaceDir, resolvedModel);
+            printBanner(out, color, resolvedSession, workspaceDir, resolvedModel, providerId);
         }
 
         if ("json-stream".equalsIgnoreCase(format)) {
@@ -333,6 +369,7 @@ final class WayangCodeCommand implements Callable<Integer> {
             tech.kayys.wayang.tui.config.Config.Profile profile = new tech.kayys.wayang.tui.config.Config.Profile();
             profile.name = profileId;
             profile.model = resolvedModel;
+            profile.provider = this.providerId;
             Object promptObj = tech.kayys.wayang.gollek.cli.WayangCodePromptComposer.systemPrompt(new tech.kayys.wayang.gollek.cli.WayangCodePromptContext(
                     profileId,
                     workspaceDir,
@@ -345,13 +382,27 @@ final class WayangCodeCommand implements Callable<Integer> {
             tuiConfig.profiles.add(profile);
             tuiConfig.activeProfile = profile.name;
 
-            tech.kayys.wayang.sdk.provider.Provider tuiProvider = new tech.kayys.wayang.gollek.cli.code.WayangProvider(resolvedModel);
+            String tuiApiKey = null;
+            if (this.providerId != null && !this.providerId.isBlank()) {
+                try {
+                    java.nio.file.Path provConfig = java.nio.file.Paths.get("./config/providers", this.providerId + ".yaml");
+                    if (java.nio.file.Files.exists(provConfig)) {
+                        String content = java.nio.file.Files.readString(provConfig);
+                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("api\\.key:\\s*([^\\n]+)").matcher(content);
+                        if (m.find()) {
+                            tuiApiKey = m.group(1).trim();
+                        }
+                    }
+                } catch (Exception ignore) {}
+            }
+            tech.kayys.wayang.sdk.provider.Provider tuiProvider = new tech.kayys.wayang.gollek.cli.code.WayangProvider(resolvedModel, this.providerId, tuiApiKey);
             
             tech.kayys.wayang.sdk.agent.WayangAgent tuiAgent = new tech.kayys.wayang.sdk.agent.WayangAgentBuilder()
                     .provider(tuiProvider)
                     .registerOsTools()
                     .addAllTools(tech.kayys.wayang.gollek.cli.code.WayangCodeSkillAdapter.discoverSkills(workspaceDir))
                     .addAllTools(tech.kayys.wayang.gollek.cli.code.WayangCodeMcpAdapter.discoverMcpTools(workspaceDir))
+                    .addAllTools(tech.kayys.wayang.gollek.cli.WayangMemoryAgentTools.getTools())
                     .systemPrompt(profile.systemPrompt)
                     .temperature(profile.temperature)
                     .maxTokens(profile.maxTokens)
@@ -360,8 +411,76 @@ final class WayangCodeCommand implements Callable<Integer> {
                     .build();
 
             // Interactive REPL loop
-            tech.kayys.wayang.tui.ui.ReplUi ui = new tech.kayys.wayang.tui.ui.ReplUi(tuiConfig, tuiAgent, modelManager);
-            ui.run();
+            tech.kayys.wayang.tui.ui.ReplUi ui = new tech.kayys.wayang.tui.ui.ReplUi(tuiConfig, tuiAgent, modelManager, providerManager);
+            
+            ui.setExternalSlashHandler(cmd -> {
+                try {
+                    java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                    java.io.PrintStream ps = new java.io.PrintStream(baos, true, java.nio.charset.StandardCharsets.UTF_8);
+                    boolean shouldExit = handleSlashCommand(cmd, ctx, ps, color, workspaceDir.toString());
+                    ps.flush();
+                    String output = baos.toString(java.nio.charset.StandardCharsets.UTF_8);
+                    if (!output.isEmpty()) {
+                        ui.appendBlockLines(java.util.Arrays.asList(output.split("\\r?\\n")));
+                    }
+                    return shouldExit;
+                } catch (Exception e) {
+                    ui.appendBlockLines(java.util.Arrays.asList("\u001B[31mError executing command: " + e.getMessage() + "\u001B[0m"));
+                    return false;
+                }
+            });
+            
+            String exitAction = ui.run();
+
+            if (exitAction != null && exitAction.startsWith("provider:")) {
+                String newProvider = exitAction.substring("provider:".length());
+                java.io.Console console = System.console();
+                if (console != null) {
+                    String apiKey = console.readLine("Enter API Key for " + newProvider + " (or press Enter to skip): ");
+                    if (apiKey != null && !apiKey.isBlank()) {
+                        try {
+                            java.nio.file.Path provConfig = java.nio.file.Paths.get("./config/providers", newProvider + ".yaml");
+                            java.nio.file.Files.createDirectories(provConfig.getParent());
+                            java.nio.file.Files.writeString(provConfig, "id: " + newProvider + "\nproperties:\n  api.key: " + apiKey + "\n");
+                        } catch (Exception e) {
+                            printError(out, color, "Warning: failed to save API key to config: " + e.getMessage());
+                        }
+                    }
+                }
+                this.providerId = newProvider;
+                this.modelId = null;
+                
+                try {
+                    java.nio.file.Path cfg = java.nio.file.Paths.get(System.getProperty("user.home"), ".wayang", "config.json");
+                    if (java.nio.file.Files.exists(cfg)) {
+                        String content = java.nio.file.Files.readString(cfg);
+                        content = content.replaceAll("\"provider\"\\s*:\\s*\"[^\"]+\"", "\"provider\":\"" + newProvider + "\"");
+                        
+                        // Check if a specific model for this provider is already configured
+                        java.util.regex.Pattern pp = java.util.regex.Pattern.compile("\\\"" + newProvider + "Model\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"");
+                        java.util.regex.Matcher pm = pp.matcher(content);
+                        if (!pm.find()) {
+                            // If not, fetch the provider's default model from metadata and add it
+                            for (var p : providerManager.listProviders()) {
+                                if (p.id().equals(newProvider) && p.defaultModel() != null && !p.defaultModel().isBlank()) {
+                                    this.modelId = p.defaultModel();
+                                    break;
+                                }
+                            }
+                            if (this.modelId != null) {
+                                // Add it gracefully before the closing brace
+                                content = content.replaceFirst("\\}", ",\n  \"" + newProvider + "Model\": \"" + this.modelId + "\"\n}");
+                                out.println(color ? "\u001B[33mConfigured fallback model for " + newProvider + ": " + this.modelId + "\u001B[0m" : "Configured fallback model for " + newProvider + ": " + this.modelId);
+                            }
+                        }
+                        
+                        java.nio.file.Files.writeString(cfg, content);
+                    }
+                } catch (Exception e) {}
+                
+                return this.call();
+            }
+
 
         } catch (Exception e) {
             printError(out, color, "Error starting TUI: " + e.getMessage());
@@ -373,7 +492,7 @@ final class WayangCodeCommand implements Callable<Integer> {
 
     // ─── banner ──────────────────────────────────────────────────────────────
 
-    private void printBanner(PrintStream out, boolean color, String session, Path workspace, String resolvedModel) {
+    private void printBanner(PrintStream out, boolean color, String session, Path workspace, String resolvedModel, String providerId) {
         String c = color ? CYAN + BOLD : "";
         String d = color ? DIM : "";
         String r = color ? RESET : "";
@@ -394,6 +513,9 @@ final class WayangCodeCommand implements Callable<Integer> {
         String modelDisplay = (resolvedModel == null || resolvedModel.isBlank())
                 ? y + "No model selected" + r + d + "  (use /models to select, or pass --model <id>)" : resolvedModel;
         out.println(d + "  model     : " + modelDisplay + r);
+        String provDisplay = (providerId == null || providerId.isBlank()) 
+                ? "gollek (default)" : providerId;
+        out.println(d + "  provider  : " + provDisplay + r);
         if (codeExtensionDiscovery != null && codeExtensionDiscovery.discoveredCount() > 0) {
             out.println(d + "  extensions: " + codeExtensionDiscovery.activeCount()
                     + "/" + codeExtensionDiscovery.discoveredCount() + " active" + r);
@@ -504,15 +626,15 @@ final class WayangCodeCommand implements Callable<Integer> {
 
         if (cmd.equals("/providers")) {
             try {
-                java.util.List<String> providers = sdkAdapter.listAvailableProviders();
+                java.util.List<tech.kayys.wayang.gollek.cli.GollekSdkAdapter.ProviderRow> providers = sdkAdapter.listAvailableProviders();
                 if (providers.isEmpty()) {
                     out.println("  No providers found.");
                 } else {
                     out.println();
-                    out.printf("  %-15s %-15s %-30s%n", "ID", "NAME", "DESCRIPTION");
+                    out.printf("  %-15s %-15s %-30s%n", "ID", "NAME", "STATUS");
                     out.println("  " + "─".repeat(60));
-                    for (String pid : providers) {
-                        out.printf("  %-15s %-15s %-30s%n", pid, "-", "");
+                    for (tech.kayys.wayang.gollek.cli.GollekSdkAdapter.ProviderRow p : providers) {
+                        out.printf("  %-15s %-15s %-30s%n", p.id(), p.name(), p.status());
                     }
                 }
             } catch (Exception e) {
@@ -528,16 +650,17 @@ final class WayangCodeCommand implements Callable<Integer> {
             } else {
                 try {
                     // Validate provider exists via Gollek SDK
-                    java.util.List<String> available = sdkAdapter.listAvailableProviders();
+                    java.util.List<tech.kayys.wayang.gollek.cli.GollekSdkAdapter.ProviderRow> available = sdkAdapter.listAvailableProviders();
                     boolean found = false;
                     if (available != null) {
-                        for (var p : available) { if (p.equals(newProviderId)) { found = true; break; } }
+                        for (var p : available) { if (p.id().equals(newProviderId)) { found = true; break; } }
                     }
                     if (!found) {
-                        String known = available == null ? "<unknown>" : available.toString();
+                        String known = available == null ? "<unknown>" : available.stream().map(p -> p.id()).toList().toString();
                         printError(out, color, "Provider '" + newProviderId + "' not found. Known providers: " + known);
                     } else {
                         sdkAdapter.setPreferredProvider(newProviderId);
+                        sdkAdapter.writeConfigProvider(newProviderId);
                         String currentModel = chatSession == null ? modelId : chatSessionGetModelId(chatSession);
                         refreshCodeAgentExtensions(resolveWorkspacePath(workspace), currentModel, currentSessionId, newProviderId);
                         this.chatSession = createChatSession(currentModel, newProviderId, resolveWorkspacePath(workspace));

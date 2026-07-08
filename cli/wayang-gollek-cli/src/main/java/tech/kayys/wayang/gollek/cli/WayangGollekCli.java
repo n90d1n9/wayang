@@ -49,7 +49,8 @@ import java.lang.reflect.Method;
                WayangWorkbenchCommands.CommandsCommand.class,
                WayangWorkbenchCommands.WorkbenchCommand.class,
                WayangTuiCommands.TuiCommand.class,
-               WayangServeCommand.class
+               WayangServeCommand.class,
+               WayangMemoryCommands.MemoryCommand.class
         } )
 public final class WayangGollekCli implements Runnable {
 
@@ -100,6 +101,7 @@ public final class WayangGollekCli implements Runnable {
     }
 
     public static void main(String[] args) {
+        System.setProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager");
         System.exit(execute(args));
     }
 

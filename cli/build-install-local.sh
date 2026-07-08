@@ -84,7 +84,13 @@ mkdir -p "$INSTALL_DIR" "$SHARE_DIR"
 cp "$JAR_FILE" "${SHARE_DIR}/wayang-gollek-cli.jar"
 
 WRAPPER="${INSTALL_DIR}/${BINARY_NAME}"
-printf '#!/usr/bin/env bash\nexec java --add-modules jdk.incubator.vector -jar "%s/share/wayang-gollek-cli.jar" "$@"\n' "$INSTALL_DIR" > "$WRAPPER"
+cat > "$WRAPPER" <<EOF
+#!/usr/bin/env bash
+exec java \
+  --add-modules jdk.incubator.vector \
+  -Djava.util.logging.manager=org.jboss.logmanager.LogManager \
+  -jar "$SHARE_DIR/wayang-gollek-cli.jar" "\$@"
+EOF
 chmod +x "$WRAPPER"
 
 echo "INFO: Installed '$BINARY_NAME' wrapper to $WRAPPER"

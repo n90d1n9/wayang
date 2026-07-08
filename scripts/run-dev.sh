@@ -59,15 +59,25 @@ export JAVA_TOOL_OPTIONS
 # Use ~/.wayang/config.json as authoritative source for model/provider unless WAYANG_IGNORE_CONFIG is set
 CFG="$HOME/.wayang/config.json"
 if [ -f "$CFG" ] && [ -z "${WAYANG_IGNORE_CONFIG:-}" ]; then
-  # extract model (accept model/defaultModel/default_model) and provider keys
-  MODEL=$(grep -oE '"(?:model|defaultModel|default_model)"\s*:\s*"[^"]+"' "$CFG" | sed -E 's/.*:\s*"([^"]+)".*/\1/' | head -n1)
-  PROVIDER=$(grep -oE '"provider"\s*:\s*"[^"]+"' "$CFG" | sed -E 's/.*:\s*"([^"]+)".*/\1/' | head -n1)
+  PROVIDER=$(grep -oE '"provider"[[:space:]]*:[[:space:]]*"[^"]+"' "$CFG" | sed -E 's/.*:[[:space:]]*"([^"]+)".*/\1/' | head -n1 || true)
+  
+  if [ -n "$PROVIDER" ]; then
+    export WAYANG_PROVIDER="$PROVIDER"
+  fi
+
+  # Try to find provider-specific model first (e.g. "cerebrasModel": "...")
+  MODEL=""
+  if [ -n "$PROVIDER" ] && [ "$PROVIDER" != "gollek" ]; then
+    MODEL=$(grep -oE "\"${PROVIDER}Model\"[[:space:]]*:[[:space:]]*\"[^\"]+\"" "$CFG" | sed -E 's/.*:[[:space:]]*"([^"]+)".*/\1/' | head -n1 || true)
+  fi
+
+  # If not found and provider is gollek (or not set), fall back to global defaultModel
+  if [ -z "$MODEL" ] && { [ -z "$PROVIDER" ] || [ "$PROVIDER" = "gollek" ]; }; then
+    MODEL=$(grep -oE '"(model|defaultModel|default_model)"[[:space:]]*:[[:space:]]*"[^"]+"' "$CFG" | sed -E 's/.*:[[:space:]]*"([^"]+)".*/\1/' | head -n1 || true)
+  fi
 
   if [ -n "$MODEL" ]; then
     export WAYANG_MODEL="$MODEL"
-  fi
-  if [ -n "$PROVIDER" ]; then
-    export WAYANG_PROVIDER="$PROVIDER"
   fi
 fi
 

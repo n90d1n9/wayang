@@ -85,7 +85,7 @@ public final class PanelUi {
         if (!raw) {
             // Panel mode fundamentally needs a real terminal; fall back to the REPL's line mode instead.
             System.out.println("Panel mode requires an interactive terminal; falling back to line mode.");
-            return new ReplUi(config, agent, null).run();
+            return new ReplUi(config, agent, null, null).run();
         }
 
         try {

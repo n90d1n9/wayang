@@ -1,0 +1,189 @@
+package tech.kayys.wayang.memory.service;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import io.smallrye.mutiny.Uni;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import tech.kayys.aljabr.core.memory.rocksdb.RocksDbMemoryStore;
+import tech.kayys.wayang.memory.model.Memory;
+import tech.kayys.wayang.memory.service.MemoryStatistics;
+import tech.kayys.wayang.memory.model.ScoredMemory;
+import tech.kayys.wayang.vector.VectorEntry;
+import tech.kayys.wayang.vector.VectorQuery;
+import tech.kayys.wayang.vector.faiss.FaissVectorStore;
+
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+import java.util.stream.Collectors;
+
+/**
+ * Local long-term memory engine combining FAISS for fast vector indexing 
+ * and RocksDB for durable metadata and content storage.
+ */
+public class FaissRocksDBMemoryStore implements VectorMemoryStore {
+
+    private static final Logger LOG = LoggerFactory.getLogger(FaissRocksDBMemoryStore.class);
+    
+    private final FaissVectorStore faissStore;
+    private final RocksDbMemoryStore rocksDbStore;
+    private final ObjectMapper objectMapper;
+
+    public FaissRocksDBMemoryStore(FaissVectorStore faissStore, String rocksDbPath) {
+        this.faissStore = faissStore;
+        this.rocksDbStore = new RocksDbMemoryStore(rocksDbPath);
+        this.objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    }
+
+    @Override
+    public Uni<String> store(Memory memory) {
+        return storeBatch(List.of(memory)).map(ids -> ids.get(0));
+    }
+
+    @Override
+    public Uni<List<String>> storeBatch(List<Memory> memories) {
+        List<VectorEntry> vectorEntries = new ArrayList<>();
+        List<String> ids = new ArrayList<>();
+        
+        for (Memory memory : memories) {
+            try {
+                // 1. Store durable document in RocksDB
+                byte[] json = objectMapper.writeValueAsBytes(memory);
+                MemorySegment segment = MemorySegment.ofArray(json);
+                rocksDbStore.put(memory.getId().getBytes(StandardCharsets.UTF_8), segment);
+                
+                // 2. Prepare Vector for FAISS
+                if (memory.getEmbedding() != null) {
+                    List<Float> floats = new ArrayList<>(memory.getEmbedding().length);
+                    for (float f : memory.getEmbedding()) floats.add(f);
+                    vectorEntries.add(new VectorEntry(memory.getId(), floats, memory.getContent() != null ? memory.getContent() : "", memory.getMetadata()));
+                }
+                
+                ids.add(memory.getId());
+            } catch (JsonProcessingException e) {
+                LOG.error("Failed to serialize memory {}", memory.getId(), e);
+            }
+        }
+        
+        // 3. Store vectors in FAISS
+        if (!vectorEntries.isEmpty()) {
+            return faissStore.store(vectorEntries).replaceWith(ids);
+        }
+        
+        return Uni.createFrom().item(ids);
+    }
+
+    @Override
+    public Uni<List<ScoredMemory>> search(float[] queryEmbedding, int limit, double minSimilarity, Map<String, Object> filters) {
+        List<Float> floats = new ArrayList<>(queryEmbedding.length);
+        for (float f : queryEmbedding) floats.add(f);
+        
+        VectorQuery query = new VectorQuery(floats, limit, (float) minSimilarity);
+        
+        return faissStore.search(query, filters)
+                .map(results -> {
+                    List<ScoredMemory> scoredMemories = new ArrayList<>();
+                    try (Arena arena = Arena.ofConfined()) {
+                        for (var result : results) {
+                            // FAISS results are already filtered by topK. We assume similarity is 1.0 since VectorStore doesn't return scores.
+                            byte[] key = result.id().getBytes(StandardCharsets.UTF_8);
+                            Optional<MemorySegment> segOpt = rocksDbStore.getZeroCopy(key, arena);
+                            if (segOpt.isPresent()) {
+                                byte[] json = segOpt.get().toArray(ValueLayout.JAVA_BYTE);
+                                try {
+                                    Memory memory = objectMapper.readValue(json, Memory.class);
+                                    scoredMemories.add(new ScoredMemory(memory, 1.0));
+                                } catch (Exception e) {
+                                    LOG.error("Error parsing memory JSON", e);
+                                }
+                            }
+                        }
+                    }
+                    return scoredMemories;
+                });
+    }
+
+    @Override
+    public Uni<List<ScoredMemory>> hybridSearch(float[] queryEmbedding, List<String> keywords, int limit, double semanticWeight) {
+        return search(queryEmbedding, limit, 0.0, Collections.emptyMap());
+    }
+
+    @Override
+    public Uni<Memory> retrieve(String memoryId) {
+        return retrieveBatch(List.of(memoryId)).map(list -> list.isEmpty() ? null : list.get(0));
+    }
+
+    @Override
+    public Uni<List<Memory>> retrieveBatch(List<String> memoryIds) {
+        List<Memory> memories = new ArrayList<>();
+        try (Arena arena = Arena.ofConfined()) {
+            for (String id : memoryIds) {
+                byte[] key = id.getBytes(StandardCharsets.UTF_8);
+                Optional<MemorySegment> segOpt = rocksDbStore.getZeroCopy(key, arena);
+                if (segOpt.isPresent()) {
+                    byte[] json = segOpt.get().toArray(ValueLayout.JAVA_BYTE);
+                    try {
+                        memories.add(objectMapper.readValue(json, Memory.class));
+                    } catch (Exception e) {
+                        LOG.error("Error parsing memory JSON", e);
+                    }
+                }
+            }
+        }
+        return Uni.createFrom().item(memories);
+    }
+
+    @Override
+    public Uni<Memory> updateMetadata(String memoryId, Map<String, Object> metadata) {
+        return retrieve(memoryId).flatMap(existing -> {
+            if (existing == null) return Uni.createFrom().nullItem();
+            
+            Map<String, Object> newMetadata = new HashMap<>(existing.getMetadata());
+            newMetadata.putAll(metadata);
+            
+            Memory updated = Memory.builder()
+                .id(existing.getId())
+                .namespace(existing.getNamespace())
+                .content(existing.getContent())
+                .embedding(existing.getEmbedding())
+                .type(existing.getType())
+                .metadata(newMetadata)
+                .timestamp(existing.getTimestamp())
+                .expiresAt(existing.getExpiresAt())
+                .importance(existing.getImportance())
+                .build();
+                
+            return store(updated).replaceWith(updated);
+        });
+    }
+
+    @Override
+    public Uni<Boolean> delete(String memoryId) {
+        rocksDbStore.delete(memoryId.getBytes(StandardCharsets.UTF_8));
+        return faissStore.delete(List.of(memoryId)).replaceWith(true);
+    }
+
+    @Override
+    public Uni<Long> deleteNamespace(String namespace) {
+        return Uni.createFrom().item(0L); // Not implemented yet
+    }
+
+    @Override
+    public Uni<MemoryStatistics> getStatistics(String namespace) {
+        return Uni.createFrom().item(new MemoryStatistics(namespace, 0, 0, 0, 0, 0, 0.0, null, null));
+    }
+
+    @Override
+    public Uni<List<Memory>> searchByFilter(Map<String, Object> filters) {
+        // RocksDB doesn't support metadata filtering natively without full scan.
+        // We will scan FAISS metadata instead, then retrieve the full documents.
+        VectorQuery query = new VectorQuery(Collections.nCopies(faissStore.getDimension(), 0f), 10000, 0f);
+        return faissStore.search(query, filters)
+            .map(results -> results.stream().map(r -> r.id()).collect(Collectors.toList()))
+            .flatMap(this::retrieveBatch);
+    }
+}
