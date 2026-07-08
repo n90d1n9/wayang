@@ -91,6 +91,18 @@ public final class WayangAgent {
 
     public List<ChatMessage> history()          { return history; }
     public void clearHistory()                  { history.clear(); sessionApprovedTools.clear(); persistHistory(); }
+
+    /**
+     * Replace the current conversation history with the provided messages.
+     * Used when switching projects or resuming a different session mid-session.
+     * Clears session-approved tools to avoid carrying over approval grants.
+     */
+    public void replaceHistory(List<ChatMessage> newHistory) {
+        history.clear();
+        sessionApprovedTools.clear();
+        if (newHistory != null) history.addAll(newHistory);
+        persistHistory();
+    }
     
     private void persistHistory() {
         try {
@@ -156,7 +168,7 @@ public final class WayangAgent {
                 persistHistory();
             }
 
-            boolean wantsTools = "tool_use".equals(acc.stopReason) && !acc.toolUses.isEmpty();
+            boolean wantsTools = !acc.toolUses.isEmpty();
             if (!wantsTools) {
                 listener.onDone(acc.stopReason == null ? "end_turn" : acc.stopReason);
                 return;

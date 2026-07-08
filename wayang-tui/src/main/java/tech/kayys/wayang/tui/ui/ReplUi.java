@@ -59,6 +59,28 @@ public final class ReplUi {
         this.externalSlashHandler = handler;
     }
 
+    public interface PickerCallback {
+        List<GenericPickerWidget.PickerItem> getItems();
+        void onSelect(String id);
+    }
+    
+    private final Map<String, PickerCallback> pickerCallbacks = new HashMap<>();
+    
+    public void registerPicker(String command, PickerCallback callback) {
+        pickerCallbacks.put(command, callback);
+    }
+
+    // --- Autocomplete State ---
+    private boolean autocompleteActive = false;
+    private List<String> autocompleteOptions = new ArrayList<>();
+    private int autocompleteSelectionIndex = 0;
+    private static final List<String> KNOWN_COMMANDS = List.of(
+        "/help", "/clear", "/panel", "/quit", "/exit", 
+        "/models", "/models pull", "/providers", "/provider", "/tools", 
+        "/sessions", "/sessions resume", "/sessions fork", "/sessions delete", 
+        "/projects", "/project", "/status", "/info"
+    );
+
     public void appendBlockLines(List<String> lines) {
         appendBlock(lines);
     }
@@ -349,17 +371,86 @@ public final class ReplUi {
     }
 
     private void handleKeyIdle(Key key) {
+        // Intercept navigation/selection if autocomplete is active
+        if (autocompleteActive) {
+            switch (key.kind()) {
+                case ARROW_UP -> {
+                    autocompleteSelectionIndex--;
+                    if (autocompleteSelectionIndex < 0) autocompleteSelectionIndex = autocompleteOptions.size() - 1;
+                    redrawInputBox();
+                    return;
+                }
+                case ARROW_DOWN -> {
+                    autocompleteSelectionIndex++;
+                    if (autocompleteSelectionIndex >= autocompleteOptions.size()) autocompleteSelectionIndex = 0;
+                    redrawInputBox();
+                    return;
+                }
+                case TAB -> {
+                    // Always expand into buffer for further editing
+                    if (autocompleteSelectionIndex >= 0 && autocompleteSelectionIndex < autocompleteOptions.size()) {
+                        String selection = autocompleteOptions.get(autocompleteSelectionIndex);
+                        input.clear();
+                        input.insert(selection + " ");
+                        updateAutocompleteState();
+                        redrawInputBox();
+                        return;
+                    }
+                }
+                case ENTER -> {
+                    // Submit leaf commands immediately; expand multi-word commands into buffer
+                    if (autocompleteSelectionIndex >= 0 && autocompleteSelectionIndex < autocompleteOptions.size()) {
+                        String selection = autocompleteOptions.get(autocompleteSelectionIndex);
+                        autocompleteActive = false;
+                        input.clear();
+                        input.insert(selection);
+                        redrawInputBox();
+                        submit(); // submit immediately without trailing space
+                        return;
+                    }
+                }
+                case ESCAPE -> {
+                    autocompleteActive = false;
+                    redrawInputBox();
+                    return;
+                }
+                default -> {}
+            }
+        }
+
         switch (key.kind()) {
             case CTRL_C -> {
                 if (input.isEmpty()) { running = false; }
-                else { input.clear(); redrawInputBox(); }
+                else { input.clear(); updateAutocompleteState(); redrawInputBox(); }
             }
             case CTRL_D -> { if (input.isEmpty()) running = false; }
             case CTRL_L -> { fullRedraw(); }
             case ENTER -> submit();
             default -> {
-                if (input.apply(key)) redrawInputBox();
+                if (input.apply(key)) {
+                    updateAutocompleteState();
+                    redrawInputBox();
+                }
             }
+        }
+    }
+
+    private void updateAutocompleteState() {
+        String text = input.text();
+        if (text.startsWith("/")) {
+            String typed = text.toLowerCase();
+            autocompleteOptions.clear();
+            for (String cmd : KNOWN_COMMANDS) {
+                if (cmd.startsWith(typed)) {
+                    autocompleteOptions.add(cmd);
+                }
+            }
+            autocompleteActive = !autocompleteOptions.isEmpty() && !autocompleteOptions.contains(text.trim());
+            if (autocompleteSelectionIndex >= autocompleteOptions.size()) {
+                autocompleteSelectionIndex = 0;
+            }
+        } else {
+            autocompleteActive = false;
         }
     }
 
@@ -421,7 +512,7 @@ public final class ReplUi {
                 appendBlock(lines);
             }
             case "/models" -> {
-                if (parts.length > 1) {
+                if (parts.length > 1 && !parts[1].isBlank()) {
                     String arg = parts[1].trim();
                     if (arg.startsWith("pull ")) {
                         String modelSpec = arg.substring(5).trim();
@@ -453,26 +544,26 @@ public final class ReplUi {
                     }
                 } else {
                     if (modelManager != null) {
-                        expectingModelSelection = true;
                         List<ModelManager.ModelRow> models = modelManager.listModels();
-                        List<String> lines = new ArrayList<>();
-                        lines.add("");
-                        lines.add(Ansi.BOLD + "Available Models" + Ansi.RESET);
                         if (models.isEmpty()) {
-                            lines.add(Ansi.fg(Theme.WARN) + "  No models found." + Ansi.RESET
-                                    + Ansi.dim("  Run: /models pull <model>"));
+                            appendBlock(List.of(Ansi.fg(Theme.WARN) + "  No models found." + Ansi.RESET + Ansi.dim("  Run: /models pull <model>")));
                         } else {
-                            int i = 1;
-                            for (ModelManager.ModelRow m : models) {
-                                lines.add("  [" + i + "] " + Ansi.fg(Theme.TOOL_OK) + m.name() + Ansi.RESET
-                                        + Ansi.dim("  " + m.format() + "  " + m.sizeStr()));
-                                i++;
+                            try {
+                                List<GenericPickerWidget.PickerItem> items = models.stream()
+                                    .map(m -> new GenericPickerWidget.PickerItem(m.shortId(), m.shortId(), m.name(), m.format(), m.sizeStr()))
+                                    .toList();
+                                GenericPickerWidget picker = new GenericPickerWidget(out, keys, "Available Models", items, cols, rows);
+                                String selected = picker.showAndSelect();
+                                if (selected != null) {
+                                    this.exitAction = "model:" + selected;
+                                    this.running = false;
+                                } else {
+                                    appendBlock(List.of(Ansi.fg(Theme.WARN) + "Model selection canceled." + Ansi.RESET));
+                                }
+                            } catch (IOException e) {
+                                appendBlock(List.of(Ansi.fg(Theme.ERROR) + "Error rendering picker: " + e.getMessage() + Ansi.RESET));
                             }
                         }
-                        lines.add("");
-                        lines.add(Ansi.dim("Type ") + Ansi.BOLD + "/models <number>" + Ansi.RESET + Ansi.dim(" or ") + Ansi.BOLD + "/models <name>" + Ansi.RESET + Ansi.dim(" to assign a model."));
-                        lines.add("");
-                        appendBlock(lines);
                     } else {
                         appendBlock(List.of(Ansi.fg(Theme.WARN) + "Model list not available in this mode." + Ansi.RESET));
                     }
@@ -523,6 +614,22 @@ public final class ReplUi {
                 }
             }
             default -> {
+                if (pickerCallbacks.containsKey(parts[0])) {
+                    PickerCallback cb = pickerCallbacks.get(parts[0]);
+                    try {
+                        GenericPickerWidget picker = new GenericPickerWidget(out, keys, parts[0], cb.getItems(), cols, rows);
+                        String selected = picker.showAndSelect();
+                        if (selected != null) {
+                            cb.onSelect(selected);
+                        } else {
+                            appendBlock(List.of(Ansi.fg(Theme.WARN) + parts[0] + " selection canceled." + Ansi.RESET));
+                        }
+                    } catch (IOException e) {
+                        appendBlock(List.of(Ansi.fg(Theme.ERROR) + "Error rendering picker: " + e.getMessage() + Ansi.RESET));
+                    }
+                    return;
+                }
+                
                 if (externalSlashHandler != null) {
                     Boolean shouldExit = externalSlashHandler.apply(cmd);
                     if (Boolean.TRUE.equals(shouldExit)) {
@@ -655,7 +762,8 @@ public final class ReplUi {
     private void recomputeLayoutIfNeeded() {
         int newCols = polledCols;
         int newRows = polledRows;
-        int newInputHeight = Math.max(2, input.lineCount() + 1);
+        int autocompleteHeight = autocompleteActive ? Math.min(5, autocompleteOptions.size()) + 1 : 0; // +1 for a border/header if we want, or just the list
+        int newInputHeight = Math.max(2, input.lineCount() + 1) + autocompleteHeight;
         int newScrollBottom = Math.max(1, newRows - newInputHeight);
 
         if (scrollBottom == 0) {
@@ -705,9 +813,28 @@ public final class ReplUi {
             int promptWidth = wp.length() + 2; // wp length + "› "
             int availWidth = Math.max(4, cols - promptWidth);
             int cursorVisCol = promptWidth + 1;
+            
+            int autocompleteHeight = autocompleteActive ? Math.min(5, autocompleteOptions.size()) : 0;
+            
+            // Draw autocomplete if active
+            if (autocompleteActive) {
+                int startRow = scrollBottom + 1;
+                for (int i = 0; i < autocompleteHeight; i++) {
+                    out.moveTo(startRow + i, 1);
+                    out.clearLine();
+                    if (i < autocompleteOptions.size()) {
+                        String opt = autocompleteOptions.get(i);
+                        if (i == autocompleteSelectionIndex) {
+                            out.write(Ansi.fg("#00ff00") + " > " + opt + Ansi.RESET);
+                        } else {
+                            out.write("   " + Ansi.fg(Theme.DIM) + opt + Ansi.RESET);
+                        }
+                    }
+                }
+            }
 
             for (int i = 0; i < lines.length; i++) {
-                int row = scrollBottom + 1 + i;
+                int row = scrollBottom + 1 + autocompleteHeight + i;
                 out.moveTo(row, 1);
                 out.clearLine();
                 String marker = i == 0
@@ -729,7 +856,7 @@ public final class ReplUi {
                 out.write(marker + (streaming ? Ansi.dim(display) : display));
             }
 
-            int hintRow = scrollBottom + lines.length + 1;
+            int hintRow = scrollBottom + lines.length + 1 + autocompleteHeight;
             out.moveTo(hintRow, 1);
             out.clearLine();
             String hint = streaming
@@ -737,7 +864,7 @@ public final class ReplUi {
                     : Ansi.fg(Theme.DIM) + "Enter to send · Shift+Enter newline · /help · Ctrl+C clear/exit" + Ansi.RESET;
             out.write(TextWrap.truncate(hint, cols));
 
-            int cursorRow = scrollBottom + 1 + cursorLineIdx;
+            int cursorRow = scrollBottom + 1 + autocompleteHeight + cursorLineIdx;
             out.moveTo(cursorRow, cursorVisCol);
             out.flush();
         }
@@ -765,6 +892,18 @@ public final class ReplUi {
 
     private final class InteractiveListener implements WayangAgentListener {
         private boolean streamOpen = false;
+        // Thinking-stream state
+        private boolean inThinkingSection = false;
+        private boolean thinkingLineOpen  = false;
+        private int     thinkingLineCount = 0;
+        private StringBuilder thinkingBuffer = new StringBuilder();
+
+        /** Regex matching LLM planning/summary section headers. */
+        private static final java.util.regex.Pattern THINKING_PATTERN =
+            java.util.regex.Pattern.compile(
+                "^\\*\\*(Plan|Summary|Findings?|Next|Tests?(&\\s*Verification)?|" +
+                "Verification|Answer|Result|Analysis|Research|Approach|Strategy|Steps?)\\**",
+                java.util.regex.Pattern.CASE_INSENSITIVE);
 
         private void ensureOpen() {
             if (!streamOpen) {
@@ -790,11 +929,117 @@ public final class ReplUi {
         }
 
         @Override public void onTextDelta(String t) {
-            ensureOpen();
+            // Detect LLM "thinking" / planning markers so we can render them
+            // as a fleeting dim stream rather than final output.
+            // A line that starts with **Plan**, **Summary**, **Findings**, **Next**,
+            // **Tests**, **Answer**, **Result** is treated as a thinking prefix.
+            thinkingBuffer.append(t);
+            String buf = thinkingBuffer.toString();
+
+            // Flush any complete lines from the buffer
+            int lastNewline = buf.lastIndexOf('\n');
+            if (lastNewline < 0 && buf.length() < 4096) {
+                // No complete line yet and buffer not too large — keep buffering
+                // but emit to screen in thinking style if we're clearly in a thinking section
+                if (inThinkingSection) {
+                    synchronized (termLock) {
+                        recomputeLayoutIfNeeded();
+                        if (!thinkingLineOpen) {
+                            out.moveTo(scrollBottom, 1);
+                            out.write(Ansi.fg(Theme.THINKING) + Ansi.dim(""));
+                            thinkingLineOpen = true;
+                        }
+                        out.write(t.replace("\r\n", "\n").replace("\n", "\r\n"));
+                        out.flush();
+                    }
+                }
+                return;
+            }
+
+            // We have complete line(s) — process them
+            String toProcess = lastNewline >= 0 ? buf.substring(0, lastNewline + 1) : buf;
+            String remainder = lastNewline >= 0 ? buf.substring(lastNewline + 1) : "";
+            thinkingBuffer = new StringBuilder(remainder);
+
+            for (String line : toProcess.split("\n", -1)) {
+                boolean isThinkingLine = THINKING_PATTERN.matcher(line.stripLeading()).find();
+
+                if (isThinkingLine && !inThinkingSection) {
+                    // Transition: entering thinking section
+                    closeIfOpen(); // close any open assistant stream
+                    inThinkingSection = true;
+                    thinkingLineCount = 0;
+                    thinkingLineOpen = false;
+                }
+
+                if (inThinkingSection) {
+                    // Check if we're leaving the thinking section
+                    // (a non-empty line that doesn't look like a section header or continuation)
+                    boolean exitThinking = !line.isBlank()
+                            && !isThinkingLine
+                            && !line.stripLeading().startsWith("-")
+                            && !line.stripLeading().startsWith("*")
+                            && !line.stripLeading().startsWith(">")
+                            && thinkingLineCount > 2;
+
+                    if (exitThinking) {
+                        // Collapse thinking section to a single summary line
+                        collapseThinkingSection();
+                        inThinkingSection = false;
+                        thinkingLineOpen = false;
+                        // Emit this line as normal assistant text
+                        ensureOpen();
+                        synchronized (termLock) {
+                            out.write(line.replace("\r\n", "\n").replace("\n", "\r\n"));
+                            out.write("\r\n");
+                            out.flush();
+                        }
+                    } else {
+                        // Render as dim thinking stream
+                        synchronized (termLock) {
+                            recomputeLayoutIfNeeded();
+                            out.moveTo(scrollBottom, 1);
+                            if (!thinkingLineOpen) {
+                                out.write(Ansi.fg(Theme.THINKING) + Ansi.dim(""));
+                                thinkingLineOpen = true;
+                            }
+                            // Overwrite current line with updated thinking text (single scrolling line)
+                            out.write("\r\033[2K"); // carriage return + clear line
+                            String display = line.isEmpty() ? "" :
+                                    Ansi.fg(Theme.THINKING) + "  ⟳ " + truncateThinking(line) + Ansi.RESET;
+                            out.write(display);
+                            out.flush();
+                        }
+                        if (!line.isBlank()) thinkingLineCount++;
+                    }
+                } else {
+                    // Normal assistant text
+                    ensureOpen();
+                    synchronized (termLock) {
+                        out.write(line.replace("\r\n", "\n").replace("\n", "\r\n"));
+                        if (!line.equals(toProcess.split("\n", -1)[toProcess.split("\n", -1).length - 1]))
+                            out.write("\r\n");
+                        out.flush();
+                    }
+                }
+            }
+        }
+
+        private void collapseThinkingSection() {
             synchronized (termLock) {
-                out.write(t.replace("\r\n", "\n").replace("\n", "\r\n"));
+                // Erase the thinking line and replace with a collapsed indicator
+                out.write("\r\033[2K"); // clear line
+                out.write(Ansi.fg(Theme.DIM) + "  ✦ thinking..." + Ansi.RESET + "\r\n");
                 out.flush();
             }
+            thinkingLineOpen = false;
+            thinkingLineCount = 0;
+        }
+
+        private String truncateThinking(String line) {
+            String s = line.replaceAll("\\*\\*([^*]+)\\*\\*", "$1") // strip bold markers
+                           .replaceAll("[#*`]", "").strip();
+            return s.length() > Math.max(20, cols - 8) ? s.substring(0, cols - 8) + "…" : s;
         }
 
         @Override public void onToolCallStart(String id, String name) {
@@ -803,7 +1048,12 @@ public final class ReplUi {
         }
 
         @Override public void onToolCallReady(String id, String name, JsonValue toolInput) {
-            appendBlock(List.of(Ansi.dim("  " + summarizeArgs(toolInput))));
+            // Args are hidden by default to keep the UX clean.
+            // Set env WAYANG_VERBOSE_TOOLS=1 to show them.
+            if ("1".equals(System.getenv("WAYANG_VERBOSE_TOOLS"))
+                    || Boolean.getBoolean("wayang.verbose.tools")) {
+                appendBlock(List.of(Ansi.dim("  " + summarizeArgs(toolInput))));
+            }
         }
 
         @Override public void onToolPermissionNeeded(String id, String name, JsonValue toolInput,

@@ -19,17 +19,17 @@ public final class WayangGollekFacade {
     private WayangGollekFacade() {}
 
     public static List<?> listModels() throws Exception {
-        Object sdk = tryCreateSdk();
-        if (sdk != null) {
-            Method m = sdk.getClass().getMethod("listModels");
-            Object res = m.invoke(sdk);
-            return (List<?>) res;
-        }
-        // Fallback: run `gollek list` and return as list of strings
+        // Always use shell `gollek list` for listing — the SDK's listModels()
+        // requires a running daemon or initialized local context which may not be
+        // available when just browsing/switching models from the TUI.
         ProcessBuilder pb = new ProcessBuilder("gollek", "list");
         pb.redirectErrorStream(true);
+        // Ensure PATH is inherited so `gollek` can be found
+        String path = System.getenv("PATH");
+        if (path != null) pb.environment().put("PATH", path);
         Process p = pb.start();
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
+        try (java.io.BufferedReader br = new java.io.BufferedReader(
+                new java.io.InputStreamReader(p.getInputStream(), StandardCharsets.UTF_8))) {
             return br.lines().toList();
         } finally {
             try { p.waitFor(); } catch (InterruptedException ignored) {}

@@ -142,7 +142,7 @@ public class GollekSubprocessProvider implements StreamingProvider {
             throws Exception {
         String modelId = request.getModel();
         String prompt = extractPrompt(request);
-        int maxTokens = getIntParam(request, "max_tokens", 4096);
+        int maxTokens = getIntParam(request, "max_tokens", 2048);
         double temperature = getDoubleParam(request, "temperature", 0.7);
 
         ProcessBuilder pb = new ProcessBuilder(
@@ -163,6 +163,11 @@ public class GollekSubprocessProvider implements StreamingProvider {
         pb.redirectError(ProcessBuilder.Redirect.DISCARD);
         pb.environment().put("NO_COLOR", "1");
         pb.environment().put("GOLLEK_MAX_DIRECT_MEMORY", "12g");
+        // Expand the GGUF fast-run context window to 16384 tokens so the full tool+history prompt fits.
+        // GOLLEK_GGUF_FAST_DAEMON=false forces one-shot mode; the daemon reuses its context size from
+        // when it was first started, so we must bypass it to honour our new context setting.
+        pb.environment().put("GOLLEK_JAVA_OPTS", "-Dgollek.gguf.fast_run.context=16384");
+        pb.environment().put("GOLLEK_GGUF_FAST_DAEMON", "false");
 
         Process process = pb.start();
 
@@ -174,8 +179,8 @@ public class GollekSubprocessProvider implements StreamingProvider {
 
             while ((line = reader.readLine()) != null) {
                 if (!inModelOutput) {
-                    // The exact "---" separator marks the start of model output
-                    if (line.equals("---")) {
+                    // The "---..." separator marks the start of model output
+                    if (line.startsWith("---")) {
                         inModelOutput = true;
                     }
                     continue; // skip all pre-separator telemetry
@@ -254,15 +259,30 @@ public class GollekSubprocessProvider implements StreamingProvider {
         if (request.getMessages() == null || request.getMessages().isEmpty()) {
             return "";
         }
-        // Concatenate all user messages
+        
         StringBuilder sb = new StringBuilder();
+        
+        // Extract system prompt (tools are injected here)
         for (tech.kayys.gollek.spi.Message msg : request.getMessages()) {
-            if (msg.getRole() == tech.kayys.gollek.spi.Message.Role.USER
-                    && msg.getContent() != null) {
-                if (sb.length() > 0) sb.append('\n');
-                sb.append(msg.getContent());
+            if (msg.getRole() == tech.kayys.gollek.spi.Message.Role.SYSTEM && msg.getContent() != null) {
+                sb.append(msg.getContent()).append("\n\n");
             }
         }
+        
+        // Extract conversation history
+        for (tech.kayys.gollek.spi.Message msg : request.getMessages()) {
+            if (msg.getContent() != null) {
+                if (msg.getRole() == tech.kayys.gollek.spi.Message.Role.USER) {
+                    sb.append("User: ").append(msg.getContent()).append("\n");
+                } else if (msg.getRole() == tech.kayys.gollek.spi.Message.Role.ASSISTANT) {
+                    sb.append("Assistant: ").append(msg.getContent()).append("\n");
+                }
+            }
+        }
+        
+        // Prompt the model to respond
+        sb.append("Assistant:");
+        
         return sb.toString();
     }
 

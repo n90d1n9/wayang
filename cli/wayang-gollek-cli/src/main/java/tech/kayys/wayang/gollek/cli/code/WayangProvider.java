@@ -93,7 +93,7 @@ public class WayangProvider implements Provider {
         java.util.Map<String, StringBuilder> toolInputBuffers = new java.util.HashMap<>();
         StringBuilder textBuffer = new StringBuilder();
 
-        List<Message> gollekMessages = toGollekMessages(messages);
+        List<Message> gollekMessages = toGollekMessages(messages, this.providerId);
         List<ToolDefinition> gollekTools = toToolDefinitions(tools);
         StringBuilder injectedPrompt = new StringBuilder();
         if (systemPrompt != null && !systemPrompt.isEmpty()) {
@@ -102,6 +102,8 @@ public class WayangProvider implements Provider {
             injectedPrompt.append("You are a helpful coding assistant.");
         }
 
+        ToolPromptAdapter adapter = resolveAdapter(this.providerId);
+        adapter.injectTools(injectedPrompt, tools);
 
         String finalSystemPrompt = injectedPrompt.toString();
 
@@ -124,20 +126,66 @@ public class WayangProvider implements Provider {
                                     
                                     int endIdx = tb.indexOf("</tool_call>");
                                     if (endIdx >= 0) {
-                                        String toolJson = tb.substring("<tool_call>".length(), endIdx).trim();
+                                        String toolRaw = tb.substring("<tool_call>".length(), endIdx).trim();
+                                        
                                         try {
-                                            tech.kayys.wayang.sdk.json.JsonValue parsed = tech.kayys.wayang.sdk.json.Json.parse(toolJson);
                                             String tId = java.util.UUID.randomUUID().toString();
-                                            String tName = parsed.get("name").asString();
-                                            tech.kayys.wayang.sdk.json.JsonValue args = parsed.get("arguments");
-                                            
-                                            onEvent.accept(new StreamEvent.ToolUseStart(tId, tName));
-                                            if (args != null) {
-                                                onEvent.accept(new StreamEvent.ToolUseInputDelta(tId, args.toString()));
+                                            String tName = null;
+                                            tech.kayys.wayang.sdk.json.JsonValue args = null;
+
+                                            // Format 1: standard {"name":"tool","arguments":{...}}
+                                            int jsonStart = toolRaw.indexOf('{');
+                                            int jsonEnd = toolRaw.lastIndexOf('}');
+                                            if (jsonStart == 0 && jsonEnd > jsonStart) {
+                                                // Starts with { — try standard JSON
+                                                try {
+                                                    tech.kayys.wayang.sdk.json.JsonValue parsed = tech.kayys.wayang.sdk.json.Json.parse(toolRaw);
+                                                    tName = parsed.get("name") != null ? parsed.get("name").asString() : null;
+                                                    args = parsed.get("arguments");
+                                                } catch (Exception ignored) {}
                                             }
-                                            onEvent.accept(new StreamEvent.ToolUseEnd(tId, args != null ? args : tech.kayys.wayang.sdk.json.JsonValue.object()));
+
+                                            // Format 2: toolName{...} or toolName({...})
+                                            if (tName == null && jsonStart > 0) {
+                                                String namePart = toolRaw.substring(0, jsonStart).trim();
+                                                // Strip trailing ( if present
+                                                if (namePart.endsWith("(")) namePart = namePart.substring(0, namePart.length() - 1).trim();
+                                                tName = namePart.replaceAll("[^a-zA-Z0-9_]", "");
+                                                String jsonPart = toolRaw.substring(jsonStart, jsonEnd + 1);
+                                                // Try to parse args - they might use single quotes or unquoted keys
+                                                try {
+                                                    args = tech.kayys.wayang.sdk.json.Json.parse(jsonPart);
+                                                } catch (Exception ignored) {
+                                                    // Try fixing common model hallucinations: single-quoted strings, unquoted keys
+                                                    String fixed = jsonPart
+                                                        .replaceAll("'([^']*)'", "\"$1\"")
+                                                        .replaceAll("([{,])\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*:", "$1\"$2\":");
+                                                    try {
+                                                        args = tech.kayys.wayang.sdk.json.Json.parse(fixed);
+                                                    } catch (Exception ignored2) {
+                                                        // Build a simple path argument from raw text
+                                                        args = tech.kayys.wayang.sdk.json.Json.parse("{\"path\": " + com.fasterxml.jackson.databind.node.TextNode.valueOf(jsonPart).toString() + "}");
+                                                    }
+                                                }
+                                            }
+                                            
+                                            // Format 3: toolName with no JSON (just name)
+                                            if (tName == null && !toolRaw.isEmpty()) {
+                                                tName = toolRaw.split("[\\s({]")[0].replaceAll("[^a-zA-Z0-9_]", "");
+                                                args = tech.kayys.wayang.sdk.json.JsonValue.object();
+                                            }
+
+                                            if (tName != null && !tName.isBlank()) {
+                                                onEvent.accept(new StreamEvent.ToolUseStart(tId, tName));
+                                                if (args != null) {
+                                                    onEvent.accept(new StreamEvent.ToolUseInputDelta(tId, args.toString()));
+                                                }
+                                                onEvent.accept(new StreamEvent.ToolUseEnd(tId, args != null ? args : tech.kayys.wayang.sdk.json.JsonValue.object()));
+                                            } else {
+                                                onEvent.accept(new StreamEvent.TextDelta("\n[tool call parse failed: " + toolRaw + "]\n"));
+                                            }
                                         } catch (Exception e) {
-                                            onEvent.accept(new StreamEvent.TextDelta("\n[WayangProvider] Failed to parse tool call: " + toolJson + "\n"));
+                                            onEvent.accept(new StreamEvent.TextDelta("\n[WayangProvider] Failed to parse tool call: " + toolRaw + "\n"));
                                         }
                                         tb = tb.substring(endIdx + "</tool_call>".length());
                                         textBuffer.setLength(0);
@@ -161,8 +209,11 @@ public class WayangProvider implements Provider {
                             if (chunk.toolCallId() != null) {
                                 String tId = chunk.toolCallId();
                                 if (chunk.isToolCallStart()) {
-                                    onEvent.accept(new StreamEvent.ToolUseStart(tId, chunk.toolName()));
-                                    toolInputBuffers.put(tId, new StringBuilder());
+                                    String tName = chunk.toolName();
+                                    if (tName != null && !tName.isBlank()) {
+                                        onEvent.accept(new StreamEvent.ToolUseStart(tId, tName));
+                                        toolInputBuffers.put(tId, new StringBuilder());
+                                    }
                                 } else if (chunk.isToolCallDelta()) {
                                     onEvent.accept(new StreamEvent.ToolUseInputDelta(tId, chunk.toolInputDelta()));
                                     if (toolInputBuffers.containsKey(tId)) {
@@ -191,6 +242,33 @@ public class WayangProvider implements Provider {
                             latch.countDown();
                         },
                         () -> {
+                            String tb = textBuffer.toString();
+                            if (tb.contains("<tool_call>")) {
+                                int startIdx = tb.indexOf("<tool_call>");
+                                String toolJson = tb.substring(startIdx + "<tool_call>".length());
+                                int jsonStart = toolJson.indexOf('{');
+                                int jsonEnd = toolJson.lastIndexOf('}');
+                                if (jsonStart >= 0 && jsonEnd > jsonStart) {
+                                    toolJson = toolJson.substring(jsonStart, jsonEnd + 1);
+                                    try {
+                                        tech.kayys.wayang.sdk.json.JsonValue parsed = tech.kayys.wayang.sdk.json.Json.parse(toolJson);
+                                        String tId = java.util.UUID.randomUUID().toString();
+                                        String tName = parsed.get("name").asString();
+                                        tech.kayys.wayang.sdk.json.JsonValue args = parsed.get("arguments");
+                                        
+                                        if (startIdx > 0) {
+                                            onEvent.accept(new StreamEvent.TextDelta(tb.substring(0, startIdx)));
+                                        }
+                                        onEvent.accept(new StreamEvent.ToolUseStart(tId, tName));
+                                        if (args != null) {
+                                            onEvent.accept(new StreamEvent.ToolUseInputDelta(tId, args.toString()));
+                                        }
+                                        onEvent.accept(new StreamEvent.ToolUseEnd(tId, args != null ? args : tech.kayys.wayang.sdk.json.JsonValue.object()));
+                                        textBuffer.setLength(0); // Successfully processed
+                                    } catch (Exception ignore) {}
+                                }
+                            }
+
                             if (textBuffer.length() > 0) {
                                 onEvent.accept(new StreamEvent.TextDelta(textBuffer.toString()));
                             }
@@ -202,15 +280,26 @@ public class WayangProvider implements Provider {
         latch.await();
     }
 
-    private static List<Message> toGollekMessages(List<ChatMessage> history) {
+    private static List<Message> toGollekMessages(List<ChatMessage> history, String providerId) {
+        boolean useFallback = resolveAdapter(providerId) instanceof XmlFallbackToolAdapter;
+        
         List<Message> result = new ArrayList<>();
         for (ChatMessage m : history) {
             switch (m.role) {
                 case USER -> {
                     List<ContentBlock.ToolResult> toolResults = extractToolResults(m.content);
                     if (!toolResults.isEmpty()) {
-                        for (ContentBlock.ToolResult tr : toolResults) {
-                            result.add(Message.tool(tr.toolUseId(), tr.content()));
+                        if (useFallback) {
+                            StringBuilder sb = new StringBuilder();
+                            for (ContentBlock.ToolResult tr : toolResults) {
+                                sb.append("\n[Tool Result (id: ").append(tr.toolUseId()).append(")]\n");
+                                sb.append(tr.content()).append("\n");
+                            }
+                            result.add(Message.user(sb.toString()));
+                        } else {
+                            for (ContentBlock.ToolResult tr : toolResults) {
+                                result.add(Message.tool(tr.toolUseId(), tr.content()));
+                            }
                         }
                     } else {
                         result.add(Message.user(m.textOnly()));
@@ -221,7 +310,24 @@ public class WayangProvider implements Provider {
                     if (calls.isEmpty()) {
                         result.add(Message.assistant(m.textOnly()));
                     } else {
-                        result.add(Message.assistantWithToolCalls(m.textOnly(), calls));
+                        if (useFallback) {
+                            StringBuilder sb = new StringBuilder();
+                            if (m.textOnly() != null) {
+                                sb.append(m.textOnly());
+                            }
+                            for (ToolCall tc : calls) {
+                                sb.append("\n<tool_call>{\"name\": \"").append(tc.getFunction().getName()).append("\", \"arguments\": ");
+                                try {
+                                    sb.append(new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(tc.getArguments()));
+                                } catch (Exception e) {
+                                    sb.append(tc.getArguments().toString());
+                                }
+                                sb.append("}</tool_call>");
+                            }
+                            result.add(Message.assistant(sb.toString()));
+                        } else {
+                            result.add(Message.assistantWithToolCalls(m.textOnly(), calls));
+                        }
                     }
                 }
             }
@@ -265,5 +371,85 @@ public class WayangProvider implements Provider {
                 .build());
         }
         return defs;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Tool Prompt Abstraction
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private interface ToolPromptAdapter {
+        void injectTools(StringBuilder prompt, List<ToolSpec> tools);
+    }
+
+    private static ToolPromptAdapter resolveAdapter(String providerId) {
+        if (providerId == null || providerId.isBlank()) {
+            return new XmlFallbackToolAdapter();
+        }
+        String id = providerId.toLowerCase();
+        if (id.equals("gollek-subprocess")) {
+            return new XmlFallbackToolAdapter();
+        }
+        if (id.equals("openai") || id.equals("anthropic") || id.equals("gemini") || id.equals("google")) {
+            return new NativeToolAdapter();
+        }
+        return new XmlFallbackToolAdapter();
+    }
+
+    private static class NativeToolAdapter implements ToolPromptAdapter {
+        @Override
+        public void injectTools(StringBuilder prompt, List<ToolSpec> tools) {
+            // No-op: Provider supports native tool payloads (e.g. OpenAI, Anthropic, Gemini)
+        }
+    }
+
+    private static class XmlFallbackToolAdapter implements ToolPromptAdapter {
+        @Override
+        public void injectTools(StringBuilder prompt, List<ToolSpec> tools) {
+            if (tools == null || tools.isEmpty()) return;
+            prompt.append("\n\n[TOOL INSTRUCTIONS]\n");
+            prompt.append("You have access to the following tools. To call a tool, output ONLY this exact XML on its own line:\n");
+            prompt.append("<tool_call>{\"name\": \"TOOL_NAME\", \"arguments\": {\"KEY\": \"VALUE\"}}</tool_call>\n\n");
+            prompt.append("IMPORTANT RULES:\n");
+            prompt.append("- The JSON inside <tool_call> MUST start with {\"name\": followed by the exact tool name\n");
+            prompt.append("- Do NOT write list_dir{...} or list_dir(...) — always use {\"name\": \"list_dir\", \"arguments\": {...}}\n");
+            prompt.append("- After outputting the tool call, stop. Do not write anything else.\n\n");
+            prompt.append("Available tools:\n");
+            for (ToolSpec t : tools) {
+                prompt.append("- ").append(t.name()).append(": ").append(t.description()).append("\n");
+                String schemaJson = "{}";
+                if (t.inputSchema() != null) {
+                    try {
+                        java.util.Map<String, Object> strippedSchema = stripDescriptions(t.inputSchema());
+                        schemaJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(strippedSchema);
+                    } catch (Exception ignore) {
+                        schemaJson = t.inputSchema().toString();
+                    }
+                }
+                prompt.append("  Schema: ").append(schemaJson).append("\n");
+            }
+            prompt.append("\nDo NOT wrap the tool call in markdown code blocks. Output the raw `<tool_call>` tag.\n");
+        }
+
+        @SuppressWarnings("unchecked")
+        private java.util.Map<String, Object> stripDescriptions(java.util.Map<String, Object> schema) {
+            java.util.Map<String, Object> copy = new java.util.LinkedHashMap<>(schema);
+            copy.remove("description");
+            for (java.util.Map.Entry<String, Object> entry : copy.entrySet()) {
+                if (entry.getValue() instanceof java.util.Map) {
+                    entry.setValue(stripDescriptions((java.util.Map<String, Object>) entry.getValue()));
+                } else if (entry.getValue() instanceof java.util.List) {
+                    java.util.List<Object> newList = new java.util.ArrayList<>();
+                    for (Object item : (java.util.List<Object>) entry.getValue()) {
+                        if (item instanceof java.util.Map) {
+                            newList.add(stripDescriptions((java.util.Map<String, Object>) item));
+                        } else {
+                            newList.add(item);
+                        }
+                    }
+                    entry.setValue(newList);
+                }
+            }
+            return copy;
+        }
     }
 }

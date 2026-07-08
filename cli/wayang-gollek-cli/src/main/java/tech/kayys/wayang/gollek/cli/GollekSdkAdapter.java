@@ -145,7 +145,7 @@ public final class GollekSdkAdapter {
             for (Object o : raw) {
                 if (o == null) continue;
 
-                // Attempt to extract fields via reflection (handles ModelInfo objects)
+                // Attempt to extract fields via reflection (handles ModelInfo SDK objects)
                 String modelId = null;
                 String shortId = null;
                 String name = null;
@@ -161,32 +161,42 @@ public final class GollekSdkAdapter {
                 } catch (Exception ignored) {}
 
                 if (modelId != null && !modelId.isBlank()) {
-                    // Use modelId as the stable key to pass to the provider.
-                    // Display shortId (hex) if available, else truncate modelId.
                     String displayId = (shortId != null && !shortId.isBlank()) ? shortId : modelId.substring(0, Math.min(8, modelId.length()));
                     String displayName = (name != null && !name.isBlank()) ? name : modelId;
                     result.add(new ModelRow(modelId, displayName, format != null ? format : "", sizeStr != null ? sizeStr : ""));
                     continue;
                 }
 
-                // Fallback: parse the toString() / plain string line
-                String plain = o.toString().replaceAll("\u001B\\[[;\\d]*m", "");
-                String[] toks = plain.trim().split("\\s+");
-                if (toks.length >= 6) {
-                    String id = toks[0];
-                    if (id.equals("ID")) continue; // header
-                    String tName = "";
-                    String tFormat = "";
-                    String tSize = "";
-                    for (int i = 1; i < toks.length; i++) {
-                        if (toks[i].length() > 3 && toks[i].contains("-") && tName.isEmpty()) tName = toks[i];
-                        if (toks[i].equalsIgnoreCase("gguf") || toks[i].equalsIgnoreCase("safetensors") || toks[i].equalsIgnoreCase("onnx") || toks[i].equalsIgnoreCase("litert")) tFormat = toks[i];
-                        if ((toks[i].equals("GB") || toks[i].equals("MB") || toks[i].equals("KB")) && i > 0) tSize = toks[i-1] + " " + toks[i];
-                    }
-                    result.add(new ModelRow(id, tName.isEmpty() ? toks[1] : tName, tFormat, tSize));
-                } else if (toks.length >= 1) {
-                    result.add(new ModelRow(toks[0], toks.length > 1 ? toks[1] : toks[0], "", ""));
+                // Fallback: parse the raw string line from `gollek list` shell output.
+                // Expected format: ID  GROUP  NAME  ARCH  FORMAT  SIZE_NUM  SIZE_UNIT  MODIFIED
+                // e.g.: "1bd979 Qwen  Qwen3.6-35B-A3B  qwen  safeten...  67 GB  2026-07-01"
+                String plain = o.toString().replaceAll("\u001B\\[[;\\d]*m", "").trim();
+                if (plain.isEmpty()) continue;
+                // Skip header and separator lines
+                if (plain.startsWith("ID") || plain.startsWith("─") || plain.startsWith("-") || plain.startsWith("=")) continue;
+                // Also skip the summary line like "16 model(s) found"
+                if (plain.matches("\\d+ model.*")) continue;
+
+                String[] toks = plain.split("\\s+");
+                if (toks.length < 2) continue;
+
+                // toks[0]=ID, toks[1]=GROUP, toks[2]=NAME, toks[3]=ARCH,
+                // toks[4]=FORMAT, toks[5]=SIZE_NUM, toks[6]=SIZE_UNIT, toks[7]=MODIFIED
+                String id    = toks[0];
+                String tName = toks.length > 2 ? toks[2] : (toks.length > 1 ? toks[1] : id);
+                String tGroup = toks.length > 1 ? toks[1] : "";
+                String tFormat = toks.length > 4 ? toks[4] : "";
+                String tSize = "";
+                if (toks.length > 6) {
+                    // SIZE_NUM at index 5, SIZE_UNIT at index 6
+                    tSize = toks[5] + " " + toks[6];
+                } else if (toks.length > 5) {
+                    tSize = toks[5];
                 }
+
+                // Build a human-readable display name: GROUP/NAME if group available
+                String displayName = (!tGroup.isEmpty() && !tName.isEmpty()) ? tGroup + "/" + tName : tName;
+                result.add(new ModelRow(id, displayName, tFormat, tSize));
             }
             return result;
         } catch (Exception e) {

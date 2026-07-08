@@ -63,8 +63,7 @@ public class WayangInferenceService {
         if (useSubprocessFallback || gollekSdk == null) {
             // SDK could not be initialised — last-resort subprocess path.
             System.err.println("[WayangInferenceService] SDK unavailable; using subprocess fallback for model=" + modelId);
-            String lastUserText = lastUserText(history);
-            return streamViaSubprocess(modelId, systemPrompt, lastUserText, params);
+            return streamViaSubprocess(modelId, systemPrompt, history, tools, params);
         }
         
         // Use the Gollek SDK in-process. Any failure (including SDK_NO_PROVIDERS when
@@ -74,14 +73,19 @@ public class WayangInferenceService {
         return svc.streamChat(gollekSdk, modelId, systemPrompt, history, tools, params);
     }
 
-    private String lastUserText(List<Message> history) {
-        for (int i = history.size() - 1; i >= 0; i--) {
-            Message msg = history.get(i);
-            if (msg.getRole() == Message.Role.USER) {
-                return msg.getContent() != null ? msg.getContent() : "";
+    private String formatHistory(List<Message> history) {
+        StringBuilder sb = new StringBuilder();
+        for (Message msg : history) {
+            if (msg.getContent() != null) {
+                if (msg.getRole() == Message.Role.USER) {
+                    sb.append("User: ").append(msg.getContent()).append("\n");
+                } else if (msg.getRole() == Message.Role.ASSISTANT) {
+                    sb.append("Assistant: ").append(msg.getContent()).append("\n");
+                }
             }
         }
-        return "";
+        sb.append("Assistant:");
+        return sb.toString();
     }
 
     /**
@@ -93,18 +97,38 @@ public class WayangInferenceService {
      * model index entry", "Performance Metrics:", separator lines, etc.).
      * Only the actual model response text is emitted as streaming chunks.
      */
-    private Multi<StreamingInferenceChunk> streamViaSubprocess(String modelId, String systemPrompt, String userPrompt, ChatParams params) {
+    private Multi<StreamingInferenceChunk> streamViaSubprocess(String modelId, String systemPrompt, List<Message> history, List<ToolDefinition> tools, ChatParams params) {
         return Multi.createFrom().emitter(emitter -> {
             try {
                 String effectiveModelId = extractModelId(modelId);
+                String fullPrompt = formatHistory(history);
 
-                ProcessBuilder pb = new ProcessBuilder(
+                if (systemPrompt != null && !systemPrompt.isBlank()) {
+                    fullPrompt = systemPrompt + "\n\n" + fullPrompt;
+                }
+
+                List<String> command = new java.util.ArrayList<>(List.of(
                     "gollek", "run", "--no-banner",
                     "--model", effectiveModelId,
-                    "--prompt", userPrompt,
+                    "--prompt", fullPrompt,
                     "--max-tokens", String.valueOf(params.maxTokens()),
                     "--temperature", String.valueOf(params.temperature())
-                );
+                ));
+                
+                if (tools != null && !tools.isEmpty()) {
+                    try {
+                        java.nio.file.Path tempTools = java.nio.file.Files.createTempFile("gollek-tools-", ".json");
+                        tempTools.toFile().deleteOnExit();
+                        com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                        mapper.writeValue(tempTools.toFile(), tools);
+                        command.add("--tool-file");
+                        command.add(tempTools.toAbsolutePath().toString());
+                        command.add("--tool-choice");
+                        command.add("auto");
+                    } catch (Exception ignored) {}
+                }
+
+                ProcessBuilder pb = new ProcessBuilder(command);
                 pb.redirectErrorStream(false);
                 pb.redirectError(ProcessBuilder.Redirect.DISCARD);
                 pb.environment().put("NO_COLOR", "1");

@@ -1,6 +1,7 @@
 tech.kayys.wayang.tool.os.BashTool
 tech.kayys.wayang.tool.os.CreateDirTool
 tech.kayys.wayang.tool.os.EditFileTool
+tech.kayys.wayang.tool.os.FetchUrlTool
 tech.kayys.wayang.tool.os.GlobTool
 tech.kayys.wayang.tool.os.GrepTool
 tech.kayys.wayang.tool.os.ListDirTool
@@ -9,4 +10,5 @@ tech.kayys.wayang.tool.os.PatchTool
 tech.kayys.wayang.tool.os.ReadFileTool
 tech.kayys.wayang.tool.os.SearchFilesTool
 tech.kayys.wayang.tool.os.ThinkTool
+tech.kayys.wayang.tool.os.WebSearchTool
 tech.kayys.wayang.tool.os.WriteFileTool

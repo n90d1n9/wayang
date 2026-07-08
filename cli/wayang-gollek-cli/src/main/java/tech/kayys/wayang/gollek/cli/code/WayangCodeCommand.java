@@ -148,6 +148,10 @@ final class WayangCodeCommand implements Callable<Integer> {
     // Current active session id (resolved/auto-generated)
     private String currentSessionId;
 
+    // Shared context for agent internal tools
+    private final tech.kayys.wayang.gollek.cli.WayangInternalAgentTools.AgentContext agentCtx =
+            new tech.kayys.wayang.gollek.cli.WayangInternalAgentTools.AgentContext();
+
     // ToolsFactory loaded via ServiceLoader for pluggable tool implementations
     private ToolsFactory toolsFactory;
     private WayangCodeAgentContext codeAgentContext;
@@ -396,19 +400,32 @@ final class WayangCodeCommand implements Callable<Integer> {
                 } catch (Exception ignore) {}
             }
             tech.kayys.wayang.sdk.provider.Provider tuiProvider = new tech.kayys.wayang.gollek.cli.code.WayangProvider(resolvedModel, this.providerId, tuiApiKey);
-            
+
+            // Populate shared context for internal agent tools
+            agentCtx.projectStore = this.projectStore;
+            agentCtx.resolvedProjectKey = this.resolvedProjectKey;
+            agentCtx.currentSessionId = this.currentSessionId;
+            agentCtx.model = resolvedModel;
+            agentCtx.provider = this.providerId;
+            agentCtx.workspace = workspaceDir != null ? workspaceDir.toString() : null;
+            agentCtx.memoryEnabled = !noMemory;
+            agentCtx.harnessEnabled = harness;
+
             tech.kayys.wayang.sdk.agent.WayangAgent tuiAgent = new tech.kayys.wayang.sdk.agent.WayangAgentBuilder()
                     .provider(tuiProvider)
                     .registerOsTools()
                     .addAllTools(tech.kayys.wayang.gollek.cli.code.WayangCodeSkillAdapter.discoverSkills(workspaceDir))
                     .addAllTools(tech.kayys.wayang.gollek.cli.code.WayangCodeMcpAdapter.discoverMcpTools(workspaceDir))
                     .addAllTools(tech.kayys.wayang.gollek.cli.WayangMemoryAgentTools.getTools())
+                    .addAllTools(tech.kayys.wayang.gollek.cli.WayangInternalAgentTools.getTools(agentCtx))
                     .systemPrompt(profile.systemPrompt)
                     .temperature(profile.temperature)
                     .maxTokens(profile.maxTokens)
                     .autoApproveTools(profile.autoApproveTools)
                     .workspace(workspaceDir)
                     .build();
+
+            agentCtx.agent = tuiAgent;
 
             // Interactive REPL loop
             tech.kayys.wayang.tui.ui.ReplUi ui = new tech.kayys.wayang.tui.ui.ReplUi(tuiConfig, tuiAgent, modelManager, providerManager);
@@ -429,7 +446,67 @@ final class WayangCodeCommand implements Callable<Integer> {
                     return false;
                 }
             });
-            
+            ui.registerPicker("/projects", new tech.kayys.wayang.tui.ui.ReplUi.PickerCallback() {
+                public java.util.List<tech.kayys.wayang.tui.ui.GenericPickerWidget.PickerItem> getItems() {
+                    try {
+                        if (projectStore != null) {
+                            java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(java.time.ZoneId.systemDefault());
+                            return projectStore.listProjects().stream()
+                                .map(p -> new tech.kayys.wayang.tui.ui.GenericPickerWidget.PickerItem(
+                                        p.id(), p.id(), p.name(), p.directory(), 
+                                        p.updatedAt() != null ? fmt.format(p.updatedAt()) : ""))
+                                .toList();
+                        }
+                    } catch (Exception ignored) {}
+                    return java.util.List.of();
+                }
+                public void onSelect(String id) {
+                    try {
+                        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                        java.io.PrintStream ps = new java.io.PrintStream(baos, true, java.nio.charset.StandardCharsets.UTF_8);
+                        handleSlashCommand("/project " + id, ctx, ps, color, workspaceDir.toString());
+                        ps.flush();
+                        String output = baos.toString(java.nio.charset.StandardCharsets.UTF_8);
+                        if (!output.isEmpty()) ui.appendBlockLines(java.util.Arrays.asList(output.split("\\r?\\n")));
+                    } catch (Exception ignored) {}
+                }
+            });
+
+            ui.registerPicker("/sessions", new tech.kayys.wayang.tui.ui.ReplUi.PickerCallback() {
+                public java.util.List<tech.kayys.wayang.tui.ui.GenericPickerWidget.PickerItem> getItems() {
+                    try {
+                        if (projectStore != null && resolvedProjectKey != null) {
+                            java.time.format.DateTimeFormatter fmt = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(java.time.ZoneId.systemDefault());
+                            tech.kayys.wayang.sdk.gollek.model.Project proj = projectStore.listProjects().stream()
+                                    .filter(p -> p.id().equals(resolvedProjectKey)).findFirst().orElse(null);
+                            if (proj != null) {
+                                return proj.sessions().stream()
+                                    .map(s -> new tech.kayys.wayang.tui.ui.GenericPickerWidget.PickerItem(
+                                            s.id(), s.id(), s.name(), "", 
+                                            s.lastAccess() != null ? fmt.format(s.lastAccess()) : ""))
+                                    .toList();
+                            } else {
+                                // fallback to listSessions if project model doesn't hold it
+                                return projectStore.listSessions(resolvedProjectKey).stream()
+                                    .map(s -> new tech.kayys.wayang.tui.ui.GenericPickerWidget.PickerItem(s, s, "", "", ""))
+                                    .toList();
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                    return java.util.List.of();
+                }
+                public void onSelect(String id) {
+                    try {
+                        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+                        java.io.PrintStream ps = new java.io.PrintStream(baos, true, java.nio.charset.StandardCharsets.UTF_8);
+                        handleSlashCommand("/sessions resume " + id, ctx, ps, color, workspaceDir.toString());
+                        ps.flush();
+                        String output = baos.toString(java.nio.charset.StandardCharsets.UTF_8);
+                        if (!output.isEmpty()) ui.appendBlockLines(java.util.Arrays.asList(output.split("\\r?\\n")));
+                    } catch (Exception ignored) {}
+                }
+            });
+
             String exitAction = ui.run();
 
             if (exitAction != null && exitAction.startsWith("provider:")) {
@@ -479,8 +556,29 @@ final class WayangCodeCommand implements Callable<Integer> {
                 } catch (Exception e) {}
                 
                 return this.call();
+            } else if (exitAction != null && exitAction.startsWith("model:")) {
+                String newModel = exitAction.substring("model:".length());
+                System.out.println((color ? GREEN : "") + "Switching model to " + newModel + "..." + (color ? RESET : ""));
+                
+                // If the user selects a model from /models (which lists local gollek models),
+                // we implicitly switch back to the local provider if they were using a remote one.
+                this.providerId = null;
+                this.modelId = newModel;
+                
+                try {
+                    java.nio.file.Path cfg = java.nio.file.Paths.get(System.getProperty("user.home"), ".wayang", "config.json");
+                    if (java.nio.file.Files.exists(cfg)) {
+                        String content = java.nio.file.Files.readString(cfg);
+                        // Clear the preferred provider since we are switching to a local model
+                        content = content.replaceAll("\"provider\"\\s*:\\s*\"[^\"]+\"", "\"provider\":\"\"");
+                        // Update the default model
+                        content = content.replaceAll("\"model\"\\s*:\\s*\"[^\"]+\"", "\"model\":\"" + newModel + "\"");
+                        java.nio.file.Files.writeString(cfg, content);
+                    }
+                } catch (Exception e) {}
+                
+                return this.call();
             }
-
 
         } catch (Exception e) {
             printError(out, color, "Error starting TUI: " + e.getMessage());
@@ -765,6 +863,14 @@ final class WayangCodeCommand implements Callable<Integer> {
                 return false;
             }
             try {
+                // 1. Save current session before switching
+                if (agentCtx.agent != null && this.currentSessionId != null && this.resolvedProjectKey != null) {
+                    try {
+                        this.projectStore.saveTranscript(this.resolvedProjectKey, this.currentSessionId,
+                                (java.util.List) agentCtx.agent.history());
+                    } catch (Exception ignored) {}
+                }
+                
                 this.resolvedProjectKey = arg;
                 try {
                     ProjectStore store = new ProjectStore(null);
@@ -781,6 +887,51 @@ final class WayangCodeCommand implements Callable<Integer> {
                         printError(out, color, "Failed to switch project: " + e2.getMessage());
                     }
                 }
+                
+                agentCtx.resolvedProjectKey = this.resolvedProjectKey;
+                
+                // 2. Load most-recent session (if any)
+                String resumedSession = null;
+                int msgCount = 0;
+                if (this.projectStore != null) {
+                    try {
+                        java.util.List<String> sessions = this.projectStore.listSessions(resolvedProjectKey);
+                        if (!sessions.isEmpty()) {
+                            String targetSid = sessions.get(sessions.size() - 1);
+                            java.util.List<?> transcript = this.projectStore.loadTranscript(resolvedProjectKey, targetSid);
+                            if (agentCtx.agent != null) {
+                                java.util.List<tech.kayys.wayang.sdk.provider.ChatMessage> messages = new java.util.ArrayList<>();
+                                for (Object item : transcript) {
+                                    if (item instanceof java.util.Map<?,?> m) {
+                                        String r = m.get("role") != null ? m.get("role").toString().toUpperCase() : "ASSISTANT";
+                                        tech.kayys.wayang.sdk.provider.ChatMessage.Role role = 
+                                            tech.kayys.wayang.sdk.provider.ChatMessage.Role.USER.name().equals(r) ? 
+                                            tech.kayys.wayang.sdk.provider.ChatMessage.Role.USER : 
+                                            tech.kayys.wayang.sdk.provider.ChatMessage.Role.ASSISTANT;
+                                        String txt = m.get("text") != null ? m.get("text").toString() : "";
+                                        messages.add(new tech.kayys.wayang.sdk.provider.ChatMessage(role, 
+                                            java.util.List.of(new tech.kayys.wayang.sdk.provider.ContentBlock.Text(txt))));
+                                    }
+                                }
+                                agentCtx.agent.replaceHistory(messages);
+                            }
+                            this.currentSessionId = targetSid;
+                            agentCtx.currentSessionId = targetSid;
+                            resumedSession = targetSid;
+                            msgCount = transcript != null ? transcript.size() : 0;
+                        } else {
+                            if (agentCtx.agent != null) agentCtx.agent.clearHistory();
+                            this.currentSessionId = java.util.UUID.randomUUID().toString();
+                            agentCtx.currentSessionId = this.currentSessionId;
+                        }
+                    } catch (Exception ignored) {
+                        if (agentCtx.agent != null) agentCtx.agent.clearHistory();
+                    }
+                }
+                
+                if (resumedSession != null) printInfo(out, color, "Resumed session '" + resumedSession + "' (" + msgCount + " messages).");
+                else printInfo(out, color, "Started a new session.");
+                
             } catch (Exception e) {
                 printError(out, color, "Failed to switch project: " + e.getMessage());
             }
@@ -811,11 +962,37 @@ final class WayangCodeCommand implements Callable<Integer> {
             if (sid.isEmpty()) { printInfo(out, color, "Usage: /sessions resume <session-id>"); return false; }
             if (projectStore == null) { printInfo(out, color, "Session persistence unavailable."); return false; }
             try {
+                // Save current session before switching
+                if (agentCtx.agent != null && this.currentSessionId != null && this.resolvedProjectKey != null) {
+                    try {
+                        this.projectStore.saveTranscript(this.resolvedProjectKey, this.currentSessionId,
+                                (java.util.List) agentCtx.agent.history());
+                    } catch (Exception ignored) {}
+                }
+                
                 var transcript = projectStore.loadTranscript(resolvedProjectKey, sid);
                 if (transcript == null || transcript.isEmpty()) { printInfo(out, color, "No transcript found for " + sid); return false; }
-                for (var m : transcript) chatSessionAddMessage(chatSession, m);
+                
+                if (agentCtx.agent != null) {
+                    java.util.List<tech.kayys.wayang.sdk.provider.ChatMessage> messages = new java.util.ArrayList<>();
+                    for (Object item : transcript) {
+                        if (item instanceof java.util.Map<?,?> m) {
+                            String r = m.get("role") != null ? m.get("role").toString().toUpperCase() : "ASSISTANT";
+                            tech.kayys.wayang.sdk.provider.ChatMessage.Role role = 
+                                tech.kayys.wayang.sdk.provider.ChatMessage.Role.USER.name().equals(r) ? 
+                                tech.kayys.wayang.sdk.provider.ChatMessage.Role.USER : 
+                                tech.kayys.wayang.sdk.provider.ChatMessage.Role.ASSISTANT;
+                            String txt = m.get("text") != null ? m.get("text").toString() : "";
+                            messages.add(new tech.kayys.wayang.sdk.provider.ChatMessage(role, 
+                                java.util.List.of(new tech.kayys.wayang.sdk.provider.ContentBlock.Text(txt))));
+                        }
+                    }
+                    agentCtx.agent.replaceHistory(messages);
+                }
+                
                 this.currentSessionId = sid;
-                printInfo(out, color, "Resumed session " + sid + " (" + transcript.size() + " messages)");
+                agentCtx.currentSessionId = sid;
+                printInfo(out, color, "Resumed session " + sid + " (" + transcript.size() + " messages loaded)");
             } catch (Exception e) {
                 printError(out, color, "Failed to resume session: " + e.getMessage());
             }

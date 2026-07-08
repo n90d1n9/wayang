@@ -24,105 +24,12 @@ public class ProviderPickerWidget {
         this.termRows = termRows;
     }
 
-    /**
-     * Renders an interactive modal picker.
-     * Blocks until a selection is made or canceled.
-     * @return The selected provider ID, or null if canceled.
-     */
     public String showAndSelect() throws IOException {
-        if (providers.isEmpty()) {
-            return null;
-        }
-
-        int selectedIndex = 0;
-        int topIndex = 0;
+        List<GenericPickerWidget.PickerItem> items = providers.stream()
+            .map(p -> new GenericPickerWidget.PickerItem(p.id(), p.id(), p.name(), p.version(), p.status()))
+            .toList();
         
-        // Calculate modal dimensions
-        int modalWidth = Math.min(termCols - 4, 80);
-        int maxRows = Math.min(termRows - 6, 15);
-        if (maxRows < 3) maxRows = 3;
-        
-        // Modal position
-        int modalRow = Math.max(2, (termRows - maxRows - 2) / 2);
-        int modalCol = Math.max(2, (termCols - modalWidth) / 2);
-
-        out.hideCursor();
-        out.write(Ansi.SAVE_CURSOR);
-
-        try {
-            while (true) {
-                render(modalRow, modalCol, modalWidth, maxRows, topIndex, selectedIndex);
-                Key k = keys.readKey();
-                
-                if (k.kind() == Key.Kind.ARROW_UP) {
-                    selectedIndex--;
-                    if (selectedIndex < 0) selectedIndex = 0;
-                    if (selectedIndex < topIndex) topIndex = selectedIndex;
-                } else if (k.kind() == Key.Kind.ARROW_DOWN) {
-                    selectedIndex++;
-                    if (selectedIndex >= providers.size()) selectedIndex = providers.size() - 1;
-                    if (selectedIndex >= topIndex + maxRows) topIndex = selectedIndex - maxRows + 1;
-                } else if (k.kind() == Key.Kind.ENTER || k.kind() == Key.Kind.NEWLINE || (k.kind() == Key.Kind.CHAR && (k.codePoint() == '\n' || k.codePoint() == '\r'))) {
-                    return providers.get(selectedIndex).id();
-                } else if (k.kind() == Key.Kind.ESCAPE || (k.kind() == Key.Kind.CHAR && (k.codePoint() == 'q' || k.codePoint() == 'Q'))) {
-                    return null;
-                }
-            }
-        } finally {
-            out.write(Ansi.RESTORE_CURSOR);
-            out.showCursor();
-            out.flush();
-        }
-    }
-
-    private void render(int r, int c, int w, int maxRows, int topIndex, int selectedIndex) {
-        String boxColor = Theme.DIM;
-        String titleColor = Theme.ACCENT;
-        
-        out.moveTo(r, c);
-        out.write(boxColor + "┌─ " + titleColor + "Available Providers " + boxColor + "─".repeat(Math.max(0, w - 23)) + "┐" + Ansi.RESET);
-        
-        for (int i = 0; i < maxRows; i++) {
-            int idx = topIndex + i;
-            out.moveTo(r + 1 + i, c);
-            if (idx < providers.size()) {
-                ProviderRow m = providers.get(idx);
-                boolean isSelected = (idx == selectedIndex);
-                
-                String prefix = isSelected ? Ansi.fg("#00ff00") + " > " + Ansi.RESET : "   ";
-                String rowColor = isSelected ? Ansi.fg("#ffffff") : Ansi.fg(Theme.ASSISTANT);
-                
-                String sid = padRight(m.id(), 16);
-                String sname = padRight(truncate(m.name(), 30), 32);
-                String sfmt = padRight(m.version(), 8);
-                String ssize = padRight(m.status(), 12);
-                
-                String text = prefix + rowColor + sid + sname + sfmt + ssize + Ansi.RESET;
-                
-                int visLen = 3 + 16 + 32 + 8 + 12;
-                String padding = " ".repeat(Math.max(0, w - 2 - visLen));
-                out.write(boxColor + "│" + text + padding + boxColor + "│" + Ansi.RESET);
-            } else {
-                out.write(boxColor + "│" + " ".repeat(Math.max(0, w - 2)) + "│" + Ansi.RESET);
-            }
-        }
-        
-        out.moveTo(r + 1 + maxRows, c);
-        String footer = " ↑↓ select │ Enter confirm │ Esc cancel ";
-        out.write(boxColor + "└" + "─".repeat(Math.max(0, w - 2 - footer.length())) + footer + "┘" + Ansi.RESET);
-        
-        out.flush();
-    }
-
-    private String padRight(String s, int n) {
-        if (s == null) s = "";
-        if (s.length() >= n) return s.substring(0, n);
-        return s + " ".repeat(n - s.length());
-    }
-
-    private String truncate(String s, int n) {
-        if (s == null) return "";
-        if (s.length() <= n) return s;
-        return s.substring(0, n - 1) + "…";
+        GenericPickerWidget generic = new GenericPickerWidget(out, keys, "Available Providers", items, termCols, termRows);
+        return generic.showAndSelect();
     }
 }
