@@ -1,0 +1,91 @@
+package tech.kayys.gollek.agent.skills.repo.db;
+
+import jakarta.enterprise.inject.spi.CDI;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import tech.kayys.gollek.agent.skills.repo.spi.SkillContent;
+import tech.kayys.wayang.skill.spi.SkillDefinition;
+import tech.kayys.wayang.skills.store.SkillEntry;
+import tech.kayys.wayang.skills.store.SkillStoreBackend;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletionStage;
+import java.util.stream.Collectors;
+
+/**
+ * Bridges the synchronous, zero-dependency WayangSkillStore SPI with
+ * the Mutiny/Hibernate Reactive DatabaseSkillRepository.
+ */
+public class DatabaseSkillStoreBackendAdapter implements SkillStoreBackend {
+
+    private static final Logger log = LoggerFactory.getLogger(DatabaseSkillStoreBackendAdapter.class);
+
+    @Override
+    public String name() {
+        return "Database (PostgreSQL via Panache Reactive)";
+    }
+
+    private DatabaseSkillRepository getRepo() {
+        try {
+            return CDI.current().select(DatabaseSkillRepository.class).get();
+        } catch (Exception e) {
+            log.warn("DatabaseSkillRepository CDI bean not available. Are you running outside Quarkus?");
+            throw e;
+        }
+    }
+
+    @Override
+    public CompletionStage<List<SkillEntry>> loadAll() {
+        return getRepo().list(0, 10000)
+                .map(metadataList -> metadataList.stream()
+                        .map(m -> SkillEntry.builder()
+                                .id(m.id())
+                                .name(m.name())
+                                .description(m.description())
+                                .category(m.category())
+                                .source("db")
+                                .format(SkillEntry.SkillFormat.JSON)
+                                .path(m.contentPath())
+                                .readOnly(false)
+                                .enabled(m.enabled())
+                                // We populate definition on-demand or with minimal fields
+                                .definition(new SkillDefinition(
+                                        m.id(), m.name(), m.description(),
+                                        m.category(), m.version(), m.author(),
+                                        "", Map.of(), List.of()
+                                ))
+                                .build())
+                        .collect(Collectors.toList()))
+                .subscribeAsCompletionStage();
+    }
+
+    @Override
+    public CompletionStage<Void> save(SkillDefinition def) {
+        SkillContent content = new SkillContent.Builder()
+                .metadata(new tech.kayys.gollek.agent.skills.repo.spi.SkillMetadata.Builder()
+                        .id(def.id())
+                        .name(def.name())
+                        .version(def.version())
+                        .description(def.description())
+                        .category(def.category())
+                        .author(def.author())
+                        .tags(List.of())
+                        .enabled(true)
+                        .build())
+                .content(def.instructions())
+                .manifest(def.metadata()) // metadata map -> manifest
+                .build();
+        
+        return getRepo().save(content)
+                .replaceWithVoid()
+                .subscribeAsCompletionStage();
+    }
+
+    @Override
+    public CompletionStage<Void> delete(String id) {
+        return getRepo().delete(id)
+                .replaceWithVoid()
+                .subscribeAsCompletionStage();
+    }
+}

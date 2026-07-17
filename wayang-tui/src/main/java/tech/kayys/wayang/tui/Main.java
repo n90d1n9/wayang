@@ -63,8 +63,11 @@ public final class Main {
             return;
         }
 
-        // First run: write the default config to disk so the user has something to edit.
-        if (!java.nio.file.Files.exists(configPath)) {
+        // Write the default config to disk if it doesn't exist, OR if we just 
+        // initialized the default profiles because it was a raw CLI config.
+        if (!java.nio.file.Files.exists(configPath) || config.profiles.size() > 0) {
+            // Actually, we want to save it unconditionally so that the file gets
+            // the merged schema (CLI flat keys + TUI profiles).
             config.save(configPath);
         }
 
@@ -136,10 +139,10 @@ public final class Main {
                   --mode <repl|panel>   UI layout (default: repl)
                   --agent <chat|agent>  chat-only or full coding-agent (with file/bash tools)
                   --profile <name>      Use a named profile from the config file
-                  --config <path>       Path to config.json (default: ~/.agentic-tui/config.json)
+                  --config <path>       Path to config.json (default: ~/.wayang/config.json)
                   --help                Show this help
 
-                Config file: ~/.agentic-tui/config.json (created on first run)
+                Config file: ~/.wayang/config.json (created on first run)
                 API keys: set via environment variables, e.g. ANTHROPIC_API_KEY, OPENAI_API_KEY
 
                 Try it instantly with no API key: agentic-tui --provider demo

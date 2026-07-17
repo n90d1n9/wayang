@@ -75,7 +75,7 @@ ImportStatementValidator validator = new ImportStatementValidator(
 // Validate a single file
 List<ImportValidationIssue> fileIssues = validator.validateContent(
     Path.of("/path/to/MyClass.java"),
-    "package com.example;\nimport tech.kayys.aljabr.tokenizer.spi.Tokenizer;\n..."
+    "package tech.kayys;\nimport tech.kayys.aljabr.tokenizer.spi.Tokenizer;\n..."
 );
 
 // Validate a directory

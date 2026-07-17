@@ -22,9 +22,10 @@ import java.util.stream.Collectors;
 public class ProjectStore {
     private final PersistenceStrategy persistence;
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules().enable(SerializationFeature.INDENT_OUTPUT);
+    private final Path base;
 
     public ProjectStore(Path baseDir) throws Exception {
-        Path base = baseDir != null ? baseDir : Paths.get(System.getProperty("user.home"), ".wayang");
+        this.base = baseDir != null ? baseDir : Paths.get(System.getProperty("user.home"), ".wayang", "management");
         this.persistence = new JsonFilePersistence(base);
         // If no projects exist yet, attempt to migrate legacy session-store layout into the new projects store
         try {
@@ -39,8 +40,7 @@ public class ProjectStore {
      */
     public int migrateLegacySessions() {
         try {
-            Path base = Paths.get(System.getProperty("user.home"), ".wayang");
-            return migrateFromLegacySessions(base);
+            return migrateFromLegacySessions(this.base);
         } catch (Exception e) {
             return 0;
         }
@@ -136,6 +136,23 @@ public class ProjectStore {
         for (Project p : list) if (p.id().equals(projectId)) { p.addSession(s); persistence.saveProject(p); return s; }
         throw new IllegalArgumentException("project not found: " + projectId);
     }
+    
+    public void updateSession(String projectId, Session updated) throws Exception {
+        List<Project> list = persistence.listProjects();
+        for (Project p : list) {
+            if (p.id().equals(projectId)) {
+                for (int i = 0; i < p.sessions().size(); i++) {
+                    if (p.sessions().get(i).id().equals(updated.id())) {
+                        p.sessions().set(i, updated);
+                        persistence.saveProject(p);
+                        return;
+                    }
+                }
+                throw new IllegalArgumentException("session not found: " + updated.id());
+            }
+        }
+        throw new IllegalArgumentException("project not found: " + projectId);
+    }
 
     // Session storage helpers (use migrated projects/<id>/sessions where available)
     public void saveTranscript(String projectId, String sessionId, java.util.List<?> messages) throws Exception {
@@ -163,9 +180,21 @@ public class ProjectStore {
     }
 
     public boolean deleteSession(String projectId, String sessionId) throws Exception {
+        boolean removedFromMeta = false;
+        List<Project> list = persistence.listProjects();
+        for (Project p : list) {
+            if (p.id().equals(projectId)) {
+                removedFromMeta = p.sessions().removeIf(s -> s.id().equals(sessionId));
+                if (removedFromMeta) {
+                    persistence.saveProject(p);
+                }
+                break;
+            }
+        }
         Path sessionsDir = getSessionsDir(projectId);
         Path file = sessionsDir.resolve("session-" + sessionId + ".json");
-        return Files.deleteIfExists(file);
+        boolean fileDeleted = Files.deleteIfExists(file);
+        return removedFromMeta || fileDeleted;
     }
 
     /**
@@ -200,7 +229,6 @@ public class ProjectStore {
 
     private Path getSessionsDir(String projectId) {
         try {
-            Path base = Paths.get(System.getProperty("user.home"), ".wayang");
             Path migrated = base.resolve("projects").resolve(projectId).resolve("sessions");
             if (Files.exists(migrated) && Files.isDirectory(migrated)) return migrated;
         } catch (Exception ignored) {}

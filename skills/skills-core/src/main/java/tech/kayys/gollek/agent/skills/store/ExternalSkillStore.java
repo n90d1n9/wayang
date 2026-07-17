@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
  * Directory layout:
  * 
  * <pre>
- * ~/.golok/skills/
+ * ~/.wayang/skills/
  *   ├── cc-skills/           # cloned repo
  *   │   └── skills/
  *   │       ├── conventional-git/SKILL.md

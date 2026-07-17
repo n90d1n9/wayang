@@ -7,15 +7,19 @@ import java.util.ServiceLoader;
  * Service provider interface for backend discovery.
  *
  * <p>
- * Implementations of this interface are discovered via Java's {@link ServiceLoader}
+ * Implementations of this interface are discovered via Java's
+ * {@link ServiceLoader}
  * mechanism and register backend adapters with the {@link BackendRegistry}.
  * </p>
  *
  * <h3>Implementation Example:</h3>
+ * 
  * <pre>{@code
  * public class GollekBackendProvider implements BackendProvider {
  *     @Override
- *     public String name() { return "gollek"; }
+ *     public String name() {
+ *         return "gollek";
+ *     }
  *
  *     @Override
  *     public InferenceBackend createInferenceBackend(Map<String, Object> config) {
@@ -30,9 +34,11 @@ import java.util.ServiceLoader;
  * }</pre>
  *
  * <h3>Registration:</h3>
- * Create {@code META-INF/services/tech.kayys.wayang.agent.spi.BackendProvider} with:
+ * Create {@code META-INF/services/tech.kayys.wayang.agent.spi.BackendProvider}
+ * with:
+ * 
  * <pre>
- * com.example.GollekBackendProvider
+ * tech.kayys.GollekBackendProvider
  * </pre>
  *
  * @author Wayang Team
@@ -72,7 +78,7 @@ public interface BackendProvider {
      * @return workflow backend instance
      */
     default WorkflowBackend createWorkflowBackend(java.util.Map<String, Object> config) {
-        return null;  // Optional
+        return null; // Optional
     }
 
     /**

@@ -490,6 +490,7 @@ public class FileSkillRepository implements SkillRepository {
                         }
                     })
                     .sum();
+        }
     }
 
     private String calculateChecksum(String content) {

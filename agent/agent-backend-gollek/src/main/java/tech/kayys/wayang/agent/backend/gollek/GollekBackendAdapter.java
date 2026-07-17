@@ -35,8 +35,36 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Adapts the current Gollek SDK inference API to the backend-agnostic Wayang
- * {@link InferenceBackend} contract.
+ * Backend adapter that wraps Gollek SDK to implement the backend-agnostic
+ * {@link InferenceBackend} SPI.
+ *
+ * <p>
+ * This adapter translates between wayang-gollek's backend-agnostic SPI types
+ * and Gollek SDK's native types, enabling any code that depends on
+ * {@code InferenceBackend} to work with Gollek without direct coupling.
+ * </p>
+ *
+ * <h3>Usage:</h3>
+ * <pre>{@code
+ * // Programmatic (no Quarkus)
+ * GollekSdk sdk = GollekSdk.builder().build();
+ * InferenceBackend backend = new GollekBackendAdapter(sdk);
+ * backend.initialize(config);
+ *
+ * Uni<InferenceResponse> response = backend.infer(request);
+ * }</pre>
+ *
+ * <h3>Features:</h3>
+ * <ul>
+ *   <li>Full inference support (sync + streaming)</li>
+ *   <li>Provider discovery and health checking</li>
+ *   <li>Capability detection from Gollek provider registry</li>
+ *   <li>Graceful lifecycle management</li>
+ * </ul>
+ *
+ * @author Wayang Team
+ * @version 1.0.0
+ * @since 2026-04-06
  */
 public class GollekBackendAdapter implements InferenceBackend {
 

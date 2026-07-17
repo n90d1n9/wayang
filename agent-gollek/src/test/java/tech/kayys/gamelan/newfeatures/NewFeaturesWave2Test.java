@@ -30,12 +30,16 @@ class NewFeaturesWave2Test {
 
     // ── MultiModalProcessor ────────────────────────────────────────────────
 
-    @Mock GamelanConfig  config;
-    @Mock AgentTelemetry telemetry;
+    @Mock
+    GamelanConfig config;
+    @Mock
+    AgentTelemetry telemetry;
 
-    @InjectMocks MultiModalProcessor multiModal;
+    @InjectMocks
+    MultiModalProcessor multiModal;
 
-    @TempDir Path tmpDir;
+    @TempDir
+    Path tmpDir;
 
     @Test
     void analyzeReturnsErrorForMissingFile() {
@@ -48,17 +52,17 @@ class NewFeaturesWave2Test {
     @Test
     void analyzeSucceedsForExistingImage(@TempDir Path tmp) throws IOException {
         // Create a minimal valid PNG (1x1 white pixel)
-        byte[] minimalPng = new byte[]{
-            (byte)0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
-            0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,         // IHDR length + type
-            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,         // 1x1
-            0x08, 0x02, 0x00, 0x00, 0x00, (byte)0x90, 0x77, 0x53,   // 8bit RGB
-            (byte)0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41,   // IDAT
-            0x54, 0x08, (byte)0xD7, 0x63, (byte)0xF8,
-            (byte)0xFF, (byte)0xFF, 0x3F, 0x00, 0x05, (byte)0xFE,
-            0x02, (byte)0xFE, (byte)0xDC, (byte)0xCC, 0x59, (byte)0xE7,
-            0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44,         // IEND
-            (byte)0xAE, 0x42, 0x60, (byte)0x82
+        byte[] minimalPng = new byte[] {
+                (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+                0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR length + type
+                0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1
+                0x08, 0x02, 0x00, 0x00, 0x00, (byte) 0x90, 0x77, 0x53, // 8bit RGB
+                (byte) 0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, // IDAT
+                0x54, 0x08, (byte) 0xD7, 0x63, (byte) 0xF8,
+                (byte) 0xFF, (byte) 0xFF, 0x3F, 0x00, 0x05, (byte) 0xFE,
+                0x02, (byte) 0xFE, (byte) 0xDC, (byte) 0xCC, 0x59, (byte) 0xE7,
+                0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, // IEND
+                (byte) 0xAE, 0x42, 0x60, (byte) 0x82
         };
         Path imgFile = tmp.resolve("test.png");
         Files.write(imgFile, minimalPng);
@@ -117,11 +121,15 @@ class NewFeaturesWave2Test {
 
     // ── CiCdIntegration ────────────────────────────────────────────────────
 
-    @Mock SingleAgentOrchestrator orchestrator2;
-    @Mock GamelanConfig           config2;
-    @Mock AgentTelemetry          telemetry2;
+    @Mock
+    SingleAgentOrchestrator orchestrator2;
+    @Mock
+    GamelanConfig config2;
+    @Mock
+    AgentTelemetry telemetry2;
 
-    @InjectMocks CiCdIntegration ci;
+    @InjectMocks
+    CiCdIntegration ci;
 
     @BeforeEach
     void setUpCi() {
@@ -203,10 +211,10 @@ class NewFeaturesWave2Test {
     void parseJunitXml() {
         String xml = """
                 <testsuite>
-                  <testcase name="testFindById" classname="com.example.UserServiceTest">
+                  <testcase name="testFindById" classname="tech.kayys.UserServiceTest">
                     <failure message="expected not null">assertion failed</failure>
                   </testcase>
-                  <testcase name="testCreate" classname="com.example.UserServiceTest"/>
+                  <testcase name="testCreate" classname="tech.kayys.UserServiceTest"/>
                 </testsuite>
                 """;
         var result = ci.parseTestOutput(xml, CiCdIntegration.TestFormat.JUNIT_XML);
@@ -226,7 +234,8 @@ class NewFeaturesWave2Test {
     @Test
     void trackFlakyTests() {
         // Alternate pass/fail to simulate flaky test
-        for (int i = 0; i < 10; i++) ci.trackResult("FlakyTest#testFlaky", i % 2 == 0);
+        for (int i = 0; i < 10; i++)
+            ci.trackResult("FlakyTest#testFlaky", i % 2 == 0);
         List<CiCdIntegration.FlakyTest> flaky = ci.detectFlakyTests();
         assertThat(flaky).anyMatch(f -> f.testName().equals("FlakyTest#testFlaky"));
         assertThat(flaky.get(0).isFlaky()).isTrue();
@@ -235,7 +244,8 @@ class NewFeaturesWave2Test {
 
     @Test
     void nonFlakyTestNotDetectedAsFlaky() {
-        for (int i = 0; i < 10; i++) ci.trackResult("StableTest#testStable", true);
+        for (int i = 0; i < 10; i++)
+            ci.trackResult("StableTest#testStable", true);
         List<CiCdIntegration.FlakyTest> flaky = ci.detectFlakyTests();
         assertThat(flaky).noneMatch(f -> f.testName().equals("StableTest#testStable"));
     }
@@ -244,9 +254,9 @@ class NewFeaturesWave2Test {
     void parseCoverageReport(@TempDir Path tmp) throws IOException {
         String xml = """
                 <coverage>
-                  <class name="com.example.UserService" line-rate="0.95" branch-rate="0.88"/>
-                  <class name="com.example.LegacyCode" line-rate="0.45" branch-rate="0.20"/>
-                  <class name="com.example.Utils" line-rate="0.72" branch-rate="0.60"/>
+                  <class name="tech.kayys.UserService" line-rate="0.95" branch-rate="0.88"/>
+                  <class name="tech.kayys.LegacyCode" line-rate="0.45" branch-rate="0.20"/>
+                  <class name="tech.kayys.Utils" line-rate="0.72" branch-rate="0.60"/>
                 </coverage>
                 """;
         Path coverage = tmp.resolve("coverage.xml");
@@ -262,9 +272,11 @@ class NewFeaturesWave2Test {
 
     // ── HotConfigManager ──────────────────────────────────────────────────
 
-    @Mock AgentTelemetry telemetry3;
+    @Mock
+    AgentTelemetry telemetry3;
 
-    @InjectMocks HotConfigManager hotConfig;
+    @InjectMocks
+    HotConfigManager hotConfig;
 
     @Test
     void loadConfigFile(@TempDir Path tmp) throws IOException {
@@ -339,7 +351,7 @@ class NewFeaturesWave2Test {
 
     @Test
     void configChangeRecordTypes() {
-        var added   = new HotConfigManager.ConfigChange("key", null, "new");
+        var added = new HotConfigManager.ConfigChange("key", null, "new");
         var removed = new HotConfigManager.ConfigChange("key", "old", null);
         var updated = new HotConfigManager.ConfigChange("key", "old", "new");
 
@@ -355,7 +367,10 @@ class NewFeaturesWave2Test {
     @Test
     void registerCustomValidator() {
         hotConfig.registerValidator("custom.port",
-                v -> { int port = Integer.parseInt(v); return port >= 1024 && port <= 65535; },
+                v -> {
+                    int port = Integer.parseInt(v);
+                    return port >= 1024 && port <= 65535;
+                },
                 "Port must be between 1024 and 65535");
 
         assertThat(hotConfig.set("custom.port", "8080")).isTrue();
@@ -373,11 +388,15 @@ class NewFeaturesWave2Test {
 
     // ── PropertyTestGenerator ─────────────────────────────────────────────
 
-    @Mock SingleAgentOrchestrator orchestrator3;
-    @Mock GamelanConfig            config3;
-    @Mock AgentTelemetry           telemetry4;
+    @Mock
+    SingleAgentOrchestrator orchestrator3;
+    @Mock
+    GamelanConfig config3;
+    @Mock
+    AgentTelemetry telemetry4;
 
-    @InjectMocks PropertyTestGenerator propGen;
+    @InjectMocks
+    PropertyTestGenerator propGen;
 
     @BeforeEach
     void setUpPropGen() {
@@ -387,7 +406,7 @@ class NewFeaturesWave2Test {
         when(orchestrator3.execute(any(AgentRequest.class)))
                 .thenReturn(OrchestratorResult.ok(
                         "[{\"name\":\"non_null_result\",\"category\":\"INVARIANT\"," +
-                        "\"description\":\"result is not null\",\"assertion\":\"assertThat(result).isNotNull()\"}]",
+                                "\"description\":\"result is not null\",\"assertion\":\"assertThat(result).isNotNull()\"}]",
                         "react", 1, List.of(), Duration.ZERO));
     }
 
@@ -423,7 +442,7 @@ class NewFeaturesWave2Test {
     @Test
     void generateForMethodProducesJqwikCode() {
         var test = propGen.generateForMethod(
-                "public List<Integer> sort(List<Integer> input)", "class Sorter {}", 
+                "public List<Integer> sort(List<Integer> input)", "class Sorter {}",
                 PropertyTestGenerator.TestFramework.JQWIK);
         assertThat(test.testCode()).isNotBlank();
         assertThat(test.propertyCount()).isGreaterThan(0);
@@ -434,7 +453,7 @@ class NewFeaturesWave2Test {
         Path src = tmpDir.resolve("sorter.py");
         Files.writeString(src, "def sort(items): return sorted(items)");
         var test = propGen.generateForMethod(
-                "def sort(items: list) -> list", "", 
+                "def sort(items: list) -> list", "",
                 PropertyTestGenerator.TestFramework.HYPOTHESIS);
         assertThat(test.testCode()).isNotBlank();
     }
@@ -457,7 +476,7 @@ class NewFeaturesWave2Test {
 
     @Test
     void analyzeExistingTestsReturnsSuggestions(@TempDir Path tmp) throws IOException {
-        Path src  = tmp.resolve("Calculator.java");
+        Path src = tmp.resolve("Calculator.java");
         Path test = tmp.resolve("CalculatorTest.java");
         Files.writeString(src, "public class Calculator {\n    public int add(int a, int b) { return a+b; }\n}");
         Files.writeString(test, "@Test void testAdd() { assertThat(calc.add(1,2)).isEqualTo(3); }");

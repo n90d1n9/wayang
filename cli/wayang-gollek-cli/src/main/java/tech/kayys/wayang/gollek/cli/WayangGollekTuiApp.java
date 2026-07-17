@@ -172,10 +172,100 @@ You are operating on a real local filesystem. All file paths are local.
             CountDownLatch latch = new CountDownLatch(1);
             Map<String, StringBuilder> pendingInputs = new ConcurrentHashMap<>();
 
+            class TokenFilter {
+                StringBuilder buffer = new StringBuilder();
+                boolean inThought = false;
+                void process(String delta) {
+                    buffer.append(delta);
+                    while (buffer.length() > 0) {
+                        String current = buffer.toString();
+                        if (inThought) {
+                            int endIdx = current.indexOf("<channel|>");
+                            if (endIdx != -1) {
+                                String thought = current.substring(0, endIdx);
+                                if (!thought.isEmpty()) onEvent.accept(new StreamEvent.ThinkingDelta(thought));
+                                onEvent.accept(new StreamEvent.ThinkingEnd());
+                                buffer.delete(0, endIdx + 10);
+                                inThought = false;
+                            } else {
+                                int safeIdx = current.lastIndexOf('<');
+                                if (safeIdx != -1) {
+                                    if (safeIdx > 0) {
+                                        onEvent.accept(new StreamEvent.ThinkingDelta(current.substring(0, safeIdx)));
+                                        buffer.delete(0, safeIdx);
+                                    }
+                                    break;
+                                } else {
+                                    onEvent.accept(new StreamEvent.ThinkingDelta(current));
+                                    buffer.setLength(0);
+                                }
+                            }
+                        } else {
+                            int startIdx1 = current.indexOf("<|channel>thought");
+                            int startIdx2 = current.indexOf("<thought");
+                            int startIdx = startIdx1;
+                            int tagLen = 17; // "<|channel>thought".length()
+                            if (startIdx1 == -1 || (startIdx2 != -1 && startIdx2 < startIdx1)) {
+                                startIdx = startIdx2;
+                                tagLen = 8; // "<thought".length()
+                            }
+                            
+                            if (startIdx != -1) {
+                                if (startIdx > 0) onEvent.accept(new StreamEvent.TextDelta(current.substring(0, startIdx)));
+                                int endOfThought = startIdx + tagLen;
+                                if (current.length() > endOfThought && current.charAt(endOfThought) == '\n') endOfThought++;
+                                buffer.delete(0, endOfThought);
+                                inThought = true;
+                            } else {
+                                // Also silently swallow orphaned <channel|> that sometimes leak
+                                int endTagIdx = current.indexOf("<channel|>");
+                                if (endTagIdx != -1) {
+                                    if (endTagIdx > 0) onEvent.accept(new StreamEvent.TextDelta(current.substring(0, endTagIdx)));
+                                    buffer.delete(0, endTagIdx + 10);
+                                    continue;
+                                }
+                                
+                                int safeIdx = current.lastIndexOf('<');
+                                if (safeIdx != -1) {
+                                    if (safeIdx > 0) {
+                                        onEvent.accept(new StreamEvent.TextDelta(current.substring(0, safeIdx)));
+                                        buffer.delete(0, safeIdx);
+                                    }
+                                    if (buffer.length() > 20) {
+                                        onEvent.accept(new StreamEvent.TextDelta(buffer.substring(0, 1)));
+                                        buffer.delete(0, 1);
+                                    } else {
+                                        break;
+                                    }
+                                } else {
+                                    onEvent.accept(new StreamEvent.TextDelta(current));
+                                    buffer.setLength(0);
+                                }
+                            }
+                        }
+                    }
+                }
+                void flush() {
+                    if (buffer.length() > 0) {
+                        String remaining = buffer.toString().replace("<channel|>", "");
+                        if (inThought) {
+                            if (!remaining.isEmpty()) onEvent.accept(new StreamEvent.ThinkingDelta(remaining));
+                            onEvent.accept(new StreamEvent.ThinkingEnd());
+                        } else {
+                            if (!remaining.isEmpty()) onEvent.accept(new StreamEvent.TextDelta(remaining));
+                        }
+                        buffer.setLength(0);
+                        inThought = false;
+                    }
+                }
+            }
+            TokenFilter filter = new TokenFilter();
+
             svc.inferenceStreaming(modelId, systemPrompt, gollekHistory, tools, params)
                .subscribe().with(
                         chunk -> {
                             if (chunk.isToolCallStart()) {
+                                filter.flush();
                                 pendingInputs.put(chunk.toolCallId(), new StringBuilder());
                                 onEvent.accept(new StreamEvent.ToolUseStart(
                                     chunk.toolCallId(), chunk.toolName()));
@@ -191,9 +281,10 @@ You are operating on a real local filesystem. All file paths are local.
                                 onEvent.accept(new StreamEvent.ToolUseEnd(
                                     chunk.toolCallId(), parsed));
                             } else if (chunk.delta() != null && !chunk.delta().isEmpty()) {
-                                onEvent.accept(new StreamEvent.TextDelta(chunk.delta()));
+                                filter.process(chunk.delta());
                             }
                             if (chunk.finished()) {
+                                filter.flush();
                                 onEvent.accept(new StreamEvent.MessageStop("end_turn"));
                                 latch.countDown();
                             }

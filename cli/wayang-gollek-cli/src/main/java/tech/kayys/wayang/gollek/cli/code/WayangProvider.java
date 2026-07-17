@@ -92,6 +92,7 @@ public class WayangProvider implements Provider {
         CountDownLatch latch = new CountDownLatch(1);
         java.util.Map<String, StringBuilder> toolInputBuffers = new java.util.HashMap<>();
         StringBuilder textBuffer = new StringBuilder();
+        boolean[] isThinking = {false};
 
         List<Message> gollekMessages = toGollekMessages(messages, this.providerId);
         List<ToolDefinition> gollekTools = toToolDefinitions(tools);
@@ -107,102 +108,181 @@ public class WayangProvider implements Provider {
 
         String finalSystemPrompt = injectedPrompt.toString();
 
-        service.inferenceStreaming(this.modelId, finalSystemPrompt, gollekMessages, gollekTools, tech.kayys.gollek.sdk.core.ChatParams.of(temperature, maxTokens))
+        io.smallrye.mutiny.subscription.Cancellable cancellable = service.inferenceStreaming(this.modelId, finalSystemPrompt, gollekMessages, gollekTools, tech.kayys.gollek.sdk.core.ChatParams.of(temperature, maxTokens))
                .subscribe().with(
                         chunk -> {
                             String delta = chunk.delta();
                             if (delta != null && !delta.isEmpty()) {
                                 textBuffer.append(delta);
-                                String tb = textBuffer.toString();
-                                int startIdx = tb.indexOf("<tool_call>");
-                                
-                                if (startIdx >= 0) {
-                                    if (startIdx > 0) {
-                                        onEvent.accept(new StreamEvent.TextDelta(tb.substring(0, startIdx)));
-                                        tb = tb.substring(startIdx);
-                                        textBuffer.setLength(0);
-                                        textBuffer.append(tb);
-                                    }
+                                boolean processing = true;
+                                while (processing && textBuffer.length() > 0) {
+                                    processing = false;
+                                    String tb = textBuffer.toString();
                                     
-                                    int endIdx = tb.indexOf("</tool_call>");
-                                    if (endIdx >= 0) {
-                                        String toolRaw = tb.substring("<tool_call>".length(), endIdx).trim();
-                                        
-                                        try {
-                                            String tId = java.util.UUID.randomUUID().toString();
-                                            String tName = null;
-                                            tech.kayys.wayang.sdk.json.JsonValue args = null;
-
-                                            // Format 1: standard {"name":"tool","arguments":{...}}
-                                            int jsonStart = toolRaw.indexOf('{');
-                                            int jsonEnd = toolRaw.lastIndexOf('}');
-                                            if (jsonStart == 0 && jsonEnd > jsonStart) {
-                                                // Starts with { — try standard JSON
-                                                try {
-                                                    tech.kayys.wayang.sdk.json.JsonValue parsed = tech.kayys.wayang.sdk.json.Json.parse(toolRaw);
-                                                    tName = parsed.get("name") != null ? parsed.get("name").asString() : null;
-                                                    args = parsed.get("arguments");
-                                                } catch (Exception ignored) {}
+                                    if (isThinking[0]) {
+                                        int endThink = tb.indexOf("</thought>");
+                                        int startTool = tb.indexOf("<tool_call>");
+                                        if (startTool >= 0 && (endThink < 0 || startTool < endThink)) {
+                                            if (startTool > 0) {
+                                                onEvent.accept(new StreamEvent.ThinkingDelta(tb.substring(0, startTool)));
                                             }
+                                            onEvent.accept(new StreamEvent.ThinkingEnd());
+                                            isThinking[0] = false;
+                                            textBuffer.setLength(0);
+                                            textBuffer.append(tb.substring(startTool));
+                                            processing = true;
+                                        } else if (endThink >= 0) {
+                                            if (endThink > 0) {
+                                                onEvent.accept(new StreamEvent.ThinkingDelta(tb.substring(0, endThink)));
+                                            }
+                                            onEvent.accept(new StreamEvent.ThinkingEnd());
+                                            isThinking[0] = false;
+                                            textBuffer.setLength(0);
+                                            textBuffer.append(tb.substring(endThink + "</thought>".length()));
+                                            processing = true;
+                                        } else {
+                                            boolean endsWithPartial = false;
+                                            String endTag = "</thought>";
+                                            for (int i = 1; i <= endTag.length(); i++) {
+                                                if (tb.endsWith(endTag.substring(0, i))) {
+                                                    endsWithPartial = true;
+                                                    break;
+                                                }
+                                            }
+                                            if (!endsWithPartial) {
+                                                onEvent.accept(new StreamEvent.ThinkingDelta(tb));
+                                                textBuffer.setLength(0);
+                                            } else if (tb.length() > endTag.length()) {
+                                                int flushLen = tb.length();
+                                                for (int i = 1; i <= endTag.length(); i++) {
+                                                    if (tb.endsWith(endTag.substring(0, i))) {
+                                                        flushLen = tb.length() - i;
+                                                        break;
+                                                    }
+                                                }
+                                                onEvent.accept(new StreamEvent.ThinkingDelta(tb.substring(0, flushLen)));
+                                                textBuffer.setLength(0);
+                                                textBuffer.append(tb.substring(flushLen));
+                                            }
+                                        }
+                                    } else {
+                                        int startTool = tb.indexOf("<tool_call>");
+                                        int startThink = tb.indexOf("<thought>");
+                                        
+                                        int firstTag = -1;
+                                        boolean isTool = false;
+                                        if (startTool >= 0 && startThink >= 0) {
+                                            firstTag = Math.min(startTool, startThink);
+                                            isTool = (startTool < startThink);
+                                        } else if (startTool >= 0) {
+                                            firstTag = startTool;
+                                            isTool = true;
+                                        } else if (startThink >= 0) {
+                                            firstTag = startThink;
+                                            isTool = false;
+                                        }
 
-                                            // Format 2: toolName{...} or toolName({...})
-                                            if (tName == null && jsonStart > 0) {
-                                                String namePart = toolRaw.substring(0, jsonStart).trim();
-                                                // Strip trailing ( if present
-                                                if (namePart.endsWith("(")) namePart = namePart.substring(0, namePart.length() - 1).trim();
-                                                tName = namePart.replaceAll("[^a-zA-Z0-9_]", "");
-                                                String jsonPart = toolRaw.substring(jsonStart, jsonEnd + 1);
-                                                // Try to parse args - they might use single quotes or unquoted keys
-                                                try {
-                                                    args = tech.kayys.wayang.sdk.json.Json.parse(jsonPart);
-                                                } catch (Exception ignored) {
-                                                    // Try fixing common model hallucinations: single-quoted strings, unquoted keys
-                                                    String fixed = jsonPart
-                                                        .replaceAll("'([^']*)'", "\"$1\"")
-                                                        .replaceAll("([{,])\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*:", "$1\"$2\":");
+                                        if (firstTag > 0) {
+                                            onEvent.accept(new StreamEvent.TextDelta(tb.substring(0, firstTag)));
+                                            textBuffer.setLength(0);
+                                            textBuffer.append(tb.substring(firstTag));
+                                            processing = true;
+                                        } else if (firstTag == 0) {
+                                            if (isTool) {
+                                                int endIdx = tb.indexOf("</tool_call>");
+                                                if (endIdx >= 0) {
+                                                    String toolRaw = tb.substring("<tool_call>".length(), endIdx).trim();
                                                     try {
-                                                        args = tech.kayys.wayang.sdk.json.Json.parse(fixed);
-                                                    } catch (Exception ignored2) {
-                                                        // Build a simple path argument from raw text
-                                                        args = tech.kayys.wayang.sdk.json.Json.parse("{\"path\": " + com.fasterxml.jackson.databind.node.TextNode.valueOf(jsonPart).toString() + "}");
+                                                        String tId = java.util.UUID.randomUUID().toString();
+                                                        String tName = null;
+                                                        tech.kayys.wayang.sdk.json.JsonValue args = null;
+
+                                                        int jsonStart = toolRaw.indexOf('{');
+                                                        int jsonEnd = toolRaw.lastIndexOf('}');
+                                                        if (jsonStart == 0 && jsonEnd > jsonStart) {
+                                                            try {
+                                                                tech.kayys.wayang.sdk.json.JsonValue parsed = tech.kayys.wayang.sdk.json.Json.parse(toolRaw);
+                                                                tName = parsed.get("name") != null ? parsed.get("name").asString() : null;
+                                                                args = parsed.get("arguments");
+                                                            } catch (Exception ignored) {}
+                                                        }
+
+                                                        if (tName == null && jsonStart > 0) {
+                                                            String namePart = toolRaw.substring(0, jsonStart).trim();
+                                                            if (namePart.endsWith("(")) namePart = namePart.substring(0, namePart.length() - 1).trim();
+                                                            tName = namePart.replaceAll("[^a-zA-Z0-9_]", "");
+                                                            String jsonPart = toolRaw.substring(jsonStart, jsonEnd + 1);
+                                                            try {
+                                                                args = tech.kayys.wayang.sdk.json.Json.parse(jsonPart);
+                                                            } catch (Exception ignored) {
+                                                                String fixed = jsonPart
+                                                                    .replaceAll("'([^']*)'", "\"$1\"")
+                                                                    .replaceAll("([{,])\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*:", "$1\"$2\":");
+                                                                try {
+                                                                    args = tech.kayys.wayang.sdk.json.Json.parse(fixed);
+                                                                } catch (Exception ignored2) {
+                                                                    args = tech.kayys.wayang.sdk.json.Json.parse("{\"path\": " + com.fasterxml.jackson.databind.node.TextNode.valueOf(jsonPart).toString() + "}");
+                                                                }
+                                                            }
+                                                        }
+                                                        
+                                                        if (tName == null && !toolRaw.isEmpty()) {
+                                                            tName = toolRaw.split("[\\s({]")[0].replaceAll("[^a-zA-Z0-9_]", "");
+                                                            args = tech.kayys.wayang.sdk.json.JsonValue.object();
+                                                        }
+
+                                                        if (tName != null && !tName.isBlank()) {
+                                                            onEvent.accept(new StreamEvent.ToolUseStart(tId, tName));
+                                                            if (args != null) {
+                                                                onEvent.accept(new StreamEvent.ToolUseInputDelta(tId, args.toString()));
+                                                            }
+                                                            onEvent.accept(new StreamEvent.ToolUseEnd(tId, args != null ? args : tech.kayys.wayang.sdk.json.JsonValue.object()));
+                                                        } else {
+                                                            onEvent.accept(new StreamEvent.TextDelta("\n[tool call parse failed: " + toolRaw + "]\n"));
+                                                        }
+                                                    } catch (Exception e) {
+                                                        onEvent.accept(new StreamEvent.TextDelta("\n[WayangProvider] Failed to parse tool call: " + toolRaw + "\n"));
+                                                    }
+                                                    textBuffer.setLength(0);
+                                                    textBuffer.append(tb.substring(endIdx + "</tool_call>".length()));
+                                                    processing = true;
+                                                }
+                                                // If no </tool_call> yet, wait for more data.
+                                            } else {
+                                                // It's a <thought>
+                                                isThinking[0] = true;
+                                                textBuffer.setLength(0);
+                                                textBuffer.append(tb.substring("<thought>".length()));
+                                                processing = true;
+                                            }
+                                        } else {
+                                            // Stream normal text delta
+                                            boolean endsWithPartial = false;
+                                            for (String tc : new String[]{"<tool_call>", "<thought>"}) {
+                                                for (int i = 1; i <= tc.length(); i++) {
+                                                    if (tb.endsWith(tc.substring(0, i))) {
+                                                        endsWithPartial = true;
+                                                        break;
                                                     }
                                                 }
                                             }
-                                            
-                                            // Format 3: toolName with no JSON (just name)
-                                            if (tName == null && !toolRaw.isEmpty()) {
-                                                tName = toolRaw.split("[\\s({]")[0].replaceAll("[^a-zA-Z0-9_]", "");
-                                                args = tech.kayys.wayang.sdk.json.JsonValue.object();
-                                            }
-
-                                            if (tName != null && !tName.isBlank()) {
-                                                onEvent.accept(new StreamEvent.ToolUseStart(tId, tName));
-                                                if (args != null) {
-                                                    onEvent.accept(new StreamEvent.ToolUseInputDelta(tId, args.toString()));
+                                            if (!endsWithPartial) {
+                                                onEvent.accept(new StreamEvent.TextDelta(tb));
+                                                textBuffer.setLength(0);
+                                            } else if (tb.length() > 11) { // 11 is length of <tool_call>
+                                                int maxLen = 0;
+                                                for (String tc : new String[]{"<tool_call>", "<thought>"}) {
+                                                    for (int i = 1; i <= tc.length(); i++) {
+                                                        if (tb.endsWith(tc.substring(0, i))) {
+                                                            maxLen = Math.max(maxLen, i);
+                                                        }
+                                                    }
                                                 }
-                                                onEvent.accept(new StreamEvent.ToolUseEnd(tId, args != null ? args : tech.kayys.wayang.sdk.json.JsonValue.object()));
-                                            } else {
-                                                onEvent.accept(new StreamEvent.TextDelta("\n[tool call parse failed: " + toolRaw + "]\n"));
+                                                onEvent.accept(new StreamEvent.TextDelta(tb.substring(0, tb.length() - maxLen)));
+                                                textBuffer.setLength(0);
+                                                textBuffer.append(tb.substring(tb.length() - maxLen));
                                             }
-                                        } catch (Exception e) {
-                                            onEvent.accept(new StreamEvent.TextDelta("\n[WayangProvider] Failed to parse tool call: " + toolRaw + "\n"));
                                         }
-                                        tb = tb.substring(endIdx + "</tool_call>".length());
-                                        textBuffer.setLength(0);
-                                        textBuffer.append(tb);
-                                    }
-                                } else {
-                                    boolean endsWithPartial = false;
-                                    String tc = "<tool_call>";
-                                    for (int i = 1; i <= tc.length(); i++) {
-                                        if (tb.endsWith(tc.substring(0, i))) {
-                                            endsWithPartial = true;
-                                            break;
-                                        }
-                                    }
-                                    if (!endsWithPartial) {
-                                        onEvent.accept(new StreamEvent.TextDelta(tb));
-                                        textBuffer.setLength(0);
                                     }
                                 }
                             }
@@ -277,7 +357,14 @@ public class WayangProvider implements Provider {
                         }
                );
 
-        latch.await();
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            if (cancellable != null) {
+                cancellable.cancel();
+            }
+            throw e;
+        }
     }
 
     private static List<Message> toGollekMessages(List<ChatMessage> history, String providerId) {
@@ -412,22 +499,42 @@ public class WayangProvider implements Provider {
             prompt.append("IMPORTANT RULES:\n");
             prompt.append("- The JSON inside <tool_call> MUST start with {\"name\": followed by the exact tool name\n");
             prompt.append("- Do NOT write list_dir{...} or list_dir(...) — always use {\"name\": \"list_dir\", \"arguments\": {...}}\n");
+            prompt.append("- Always include ALL required parameters in arguments\n");
             prompt.append("- After outputting the tool call, stop. Do not write anything else.\n\n");
             prompt.append("Available tools:\n");
             for (ToolSpec t : tools) {
                 prompt.append("- ").append(t.name()).append(": ").append(t.description()).append("\n");
-                String schemaJson = "{}";
                 if (t.inputSchema() != null) {
-                    try {
-                        java.util.Map<String, Object> strippedSchema = stripDescriptions(t.inputSchema());
-                        schemaJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(strippedSchema);
-                    } catch (Exception ignore) {
-                        schemaJson = t.inputSchema().toString();
-                    }
+                    appendParamDocs(prompt, t.inputSchema());
                 }
-                prompt.append("  Schema: ").append(schemaJson).append("\n");
             }
             prompt.append("\nDo NOT wrap the tool call in markdown code blocks. Output the raw `<tool_call>` tag.\n");
+        }
+
+        @SuppressWarnings("unchecked")
+        private void appendParamDocs(StringBuilder prompt, java.util.Map<String, Object> schema) {
+            Object propsObj = schema.get("properties");
+            Object reqObj   = schema.get("required");
+            if (!(propsObj instanceof java.util.Map)) return;
+            java.util.Map<String, Object> props = (java.util.Map<String, Object>) propsObj;
+            java.util.Set<String> required = new java.util.HashSet<>();
+            if (reqObj instanceof java.util.List) {
+                for (Object r : (java.util.List<?>) reqObj) required.add(String.valueOf(r));
+            }
+            if (props.isEmpty()) return;
+            prompt.append("  Parameters:\n");
+            for (java.util.Map.Entry<String, Object> e : props.entrySet()) {
+                String name = e.getKey();
+                String req  = required.contains(name) ? " [required]" : " [optional]";
+                String type = "";
+                String desc = "";
+                if (e.getValue() instanceof java.util.Map) {
+                    java.util.Map<String, Object> p = (java.util.Map<String, Object>) e.getValue();
+                    type = p.containsKey("type") ? " (" + p.get("type") + ")" : "";
+                    desc = p.containsKey("description") ? " — " + p.get("description") : "";
+                }
+                prompt.append("    - ").append(name).append(req).append(type).append(desc).append("\n");
+            }
         }
 
         @SuppressWarnings("unchecked")

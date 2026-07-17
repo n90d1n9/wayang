@@ -72,7 +72,7 @@
         <module>prompt</module>
         <module>rag</module>
         <module>tools</module>
-        <module>a2a</module>
+      
         <module>agentic-commerce</module>
         <module>vector</module>
         <module>embedding</module>
@@ -123,12 +123,7 @@
     </pluginRepositories>
 
     <profiles>
-        <profile>
-            <id>pro-enterprise-addons</id>
-            <modules>
-                <module>a2ui</module>
-            </modules>
-        </profile>
+
         <!-- CI-friendly profile: disables Quarkus DevServices which require Docker or configured datasources.
              Use with: mvn -Pci ...  -->
         <profile>

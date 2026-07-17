@@ -90,5 +90,8 @@
 
         <!-- Harness: compile-ready chaos engineering and packaging support -->
         <module>agent-shaker</module>
+        
+        <!-- Advanced Coding Agent module -->
+        <module>agent-coder</module>
     </modules>
 </project>

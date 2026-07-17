@@ -121,6 +121,12 @@
 
         <dependency>
             <groupId>tech.kayys.wayang</groupId>
+            <artifactId>agent-coder</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
             <artifactId>wayang-tools</artifactId>
             <version>${project.version}</version>
         </dependency>
@@ -146,6 +152,18 @@
         <dependency>
             <groupId>tech.kayys.wayang</groupId>
             <artifactId>wayang-memory-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>wayang-skill-spi</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>rag-core</artifactId>
             <version>${project.version}</version>
         </dependency>
 

@@ -175,6 +175,64 @@ public class PgVectorStore<T> implements VectorStore<T> {
     }
 
     @Override
+    public List<VectorSearchHit<T>> keywordSearch(
+            String namespace,
+            String query,
+            int topK,
+            Map<String, Object> filters) {
+            
+        Objects.requireNonNull(namespace, "namespace must not be null");
+        Objects.requireNonNull(query, "query must not be null");
+        if (topK <= 0 || query.isBlank()) {
+            return List.of();
+        }
+
+        StringBuilder sql = new StringBuilder("""
+                SELECT id, payload, metadata,
+                       ts_rank_cd(to_tsvector('english', payload->>'text'), plainto_tsquery('english', ?)) AS score
+                FROM %s
+                WHERE namespace = ?
+                  AND to_tsvector('english', payload->>'text') @@ plainto_tsquery('english', ?)
+                """.formatted(tableName));
+
+        boolean hasFilters = filters != null && !filters.isEmpty();
+        if (hasFilters) {
+            sql.append(" AND metadata @> CAST(? AS jsonb)");
+        }
+
+        sql.append(" ORDER BY score DESC");
+        sql.append(" LIMIT ?");
+
+        try (Connection connection = dataSource.getConnection();
+                PreparedStatement statement = connection.prepareStatement(sql.toString())) {
+
+            int parameterIndex = 1;
+            statement.setString(parameterIndex++, query);
+            statement.setString(parameterIndex++, namespace);
+            statement.setString(parameterIndex++, query);
+            
+            if (hasFilters) {
+                statement.setString(parameterIndex++, toJson(filters));
+            }
+            statement.setInt(parameterIndex, topK);
+
+            List<VectorSearchHit<T>> hits = new ArrayList<>();
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    String id = resultSet.getString("id");
+                    T payload = payloadCodec.deserialize(resultSet.getString("payload"));
+                    Map<String, Object> metadata = fromJson(resultSet.getString("metadata"));
+                    double score = resultSet.getDouble("score");
+                    hits.add(new VectorSearchHit<>(id, payload, score, metadata));
+                }
+            }
+            return hits;
+        } catch (SQLException e) {
+            throw new IllegalStateException("Failed to execute keyword search", e);
+        }
+    }
+
+    @Override
     public boolean delete(String namespace, String id) {
         Objects.requireNonNull(namespace, "namespace must not be null");
         Objects.requireNonNull(id, "id must not be null");

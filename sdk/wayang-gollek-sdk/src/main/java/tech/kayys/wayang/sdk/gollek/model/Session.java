@@ -7,7 +7,10 @@ public final class Session {
     private final String id;
     private String name;
     private final Instant createdAt;
-    private Instant lastAccess;
+    private Instant updatedAt;
+    private boolean isPinned;
+    private java.util.List<String> tags = new java.util.ArrayList<>();
+    private String systemPrompt;
     // Parent lineage: if this session was forked, parentSessionId points to source session
     private String parentSessionId;
     // If forked from a checkpoint, index of the message (inclusive) used as branch point; null means full transcript
@@ -17,7 +20,8 @@ public final class Session {
         this.id = Objects.requireNonNull(id);
         this.name = name == null ? id : name;
         this.createdAt = Instant.now();
-        this.lastAccess = this.createdAt;
+        this.updatedAt = this.createdAt;
+        this.isPinned = false;
         this.parentSessionId = null;
         this.parentCheckpointIndex = null;
     }
@@ -26,7 +30,8 @@ public final class Session {
         this.id = Objects.requireNonNull(id);
         this.name = name == null ? id : name;
         this.createdAt = Instant.now();
-        this.lastAccess = this.createdAt;
+        this.updatedAt = this.createdAt;
+        this.isPinned = false;
         this.parentSessionId = parentSessionId;
         this.parentCheckpointIndex = parentCheckpointIndex;
     }
@@ -35,8 +40,15 @@ public final class Session {
     public String name() { return name; }
     public void setName(String name) { this.name = name; }
     public Instant createdAt() { return createdAt; }
-    public Instant lastAccess() { return lastAccess; }
-    public void touch() { this.lastAccess = Instant.now(); }
+    public Instant updatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
+    public void touch() { this.updatedAt = Instant.now(); }
+    public boolean isPinned() { return isPinned; }
+    public void setPinned(boolean isPinned) { this.isPinned = isPinned; }
+    public java.util.List<String> tags() { return tags; }
+    public void setTags(java.util.List<String> tags) { this.tags = tags != null ? tags : new java.util.ArrayList<>(); }
+    public String systemPrompt() { return systemPrompt; }
+    public void setSystemPrompt(String systemPrompt) { this.systemPrompt = systemPrompt; }
     public String parentSessionId() { return parentSessionId; }
     public Integer parentCheckpointIndex() { return parentCheckpointIndex; }
 
@@ -49,7 +61,20 @@ public final class Session {
         sb.append(',');
         sb.append("\"createdAt\":\"").append(createdAt.toString()).append('\"');
         sb.append(',');
-        sb.append("\"lastAccess\":\"").append(lastAccess.toString()).append('\"');
+        sb.append("\"updatedAt\":\"").append(updatedAt.toString()).append('\"');
+        sb.append(',');
+        sb.append("\"isPinned\":").append(isPinned);
+        if (systemPrompt != null) {
+            sb.append(',');
+            sb.append("\"systemPrompt\":\"").append(escape(systemPrompt)).append('\"');
+        }
+        sb.append(',');
+        sb.append("\"tags\":[");
+        for (int i = 0; i < tags.size(); i++) {
+            if (i > 0) sb.append(',');
+            sb.append('\"').append(escape(tags.get(i))).append('\"');
+        }
+        sb.append(']');
         if (parentSessionId != null) {
             sb.append(',');
             sb.append("\"parentSessionId\":\"").append(escape(parentSessionId)).append('\"');

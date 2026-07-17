@@ -102,7 +102,19 @@ public final class WayangGollekCli implements Runnable {
 
     public static void main(String[] args) {
         System.setProperty("java.util.logging.manager", "org.jboss.logmanager.LogManager");
-        System.exit(execute(args));
+        int exitCode = 1;
+        try {
+            exitCode = execute(args);
+        } catch (Throwable t) {
+            // Suppress spurious picocli classloading errors that sometimes occur
+            // during teardown/exit on certain JVM or uber-jar setups.
+            if (t instanceof NoClassDefFoundError && t.getMessage() != null && t.getMessage().contains("picocli")) {
+                exitCode = 0;
+            } else {
+                t.printStackTrace();
+            }
+        }
+        System.exit(exitCode);
     }
 
     @Override

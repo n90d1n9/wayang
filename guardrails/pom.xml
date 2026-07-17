@@ -12,7 +12,6 @@
     <artifactId>wayang-guardrails-parent</artifactId>
     <packaging>pom</packaging>
     <modules>
-        <module>guardrails-runtime</module>
         <module>guardrails-core</module>
         <module>guardrails-plugins</module>
     </modules>

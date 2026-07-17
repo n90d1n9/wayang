@@ -94,6 +94,10 @@ echo "$GREEN:) Module manifest resolved cleanly.$RESET"
 cd "$ROOT_DIR"
 
 # Forward arguments directly to the CLI (don't rewrite 'code' or 'agent')
+if [[ "$#" -gt 0 && "$1" == "wayang" ]]; then
+  shift
+fi
+
 if [[ "$#" -gt 0 ]]; then
   printf -v QUARKUS_ARGS '%q ' "$@"
 else

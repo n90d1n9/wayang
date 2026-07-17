@@ -147,6 +147,10 @@ public final class WayangAgent {
         List<ToolSpec> toolSpecs = buildToolSpecs();
 
         for (int iteration = 0; iteration < MAX_TOOL_ITERATIONS; iteration++) {
+            if (Thread.currentThread().isInterrupted()) {
+                listener.onError("Interrupted by user.");
+                return;
+            }
             TurnAccumulator acc = new TurnAccumulator();
 
             try {

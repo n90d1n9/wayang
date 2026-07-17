@@ -30,7 +30,8 @@ import static org.mockito.Mockito.*;
 
 /**
  * Wave 9 tests — DualMemoryManager, SelfCritiqueEngine, ToolResultOptimizer,
- * PriorityExecutionEngine, CollaborativeWorkspace, MultiModelEnsemble, OfflineRuntimeManager.
+ * PriorityExecutionEngine, CollaborativeWorkspace, MultiModelEnsemble,
+ * OfflineRuntimeManager.
  */
 @ExtendWith(MockitoExtension.class)
 class Wave9EnhancementsTest {
@@ -39,11 +40,15 @@ class Wave9EnhancementsTest {
     // DualMemoryManager — §2.3.3
     // ═══════════════════════════════════════════════════════════════════════
 
-    @Mock GamelanConfig           config;
-    @Mock AgentTelemetry          telemetry;
-    @Mock SingleAgentOrchestrator orchestrator;
+    @Mock
+    GamelanConfig config;
+    @Mock
+    AgentTelemetry telemetry;
+    @Mock
+    SingleAgentOrchestrator orchestrator;
 
-    @InjectMocks DualMemoryManager dualMemory;
+    @InjectMocks
+    DualMemoryManager dualMemory;
 
     private List<ConversationMessage> history(int turns) {
         List<ConversationMessage> msgs = new ArrayList<>();
@@ -63,7 +68,8 @@ class Wave9EnhancementsTest {
     @Test
     void assembleThinkingContextReturnsBoundedMessages() {
         var context = dualMemory.assembleThinkingContext(history(20), "current task");
-        // Working memory = last 12 messages (6 pairs * 2), plus possible episodic, plus query
+        // Working memory = last 12 messages (6 pairs * 2), plus possible episodic, plus
+        // query
         assertThat(context).isNotEmpty();
         // Last element should be the current query
         var last = context.get(context.size() - 1);
@@ -109,12 +115,17 @@ class Wave9EnhancementsTest {
     // SelfCritiqueEngine — §2.2.6
     // ═══════════════════════════════════════════════════════════════════════
 
-    @Mock WorkloadModelRouter      modelRouter;
-    @Mock SingleAgentOrchestrator  orchestrator2;
-    @Mock GamelanConfig            config2;
-    @Mock AgentTelemetry           telemetry2;
+    @Mock
+    WorkloadModelRouter modelRouter;
+    @Mock
+    SingleAgentOrchestrator orchestrator2;
+    @Mock
+    GamelanConfig config2;
+    @Mock
+    AgentTelemetry telemetry2;
 
-    @InjectMocks SelfCritiqueEngine critique;
+    @InjectMocks
+    SelfCritiqueEngine critique;
 
     @BeforeEach
     void setUpCritique() {
@@ -174,10 +185,13 @@ class Wave9EnhancementsTest {
     // ToolResultOptimizer — §2.3.2
     // ═══════════════════════════════════════════════════════════════════════
 
-    @Mock AgentTelemetry telemetry3;
-    @Mock tech.kayys.gamelan.context.compaction.AdaptiveContextCompaction acc;
+    @Mock
+    AgentTelemetry telemetry3;
+    @Mock
+    tech.kayys.gamelan.context.compaction.AdaptiveContextCompaction acc;
 
-    @InjectMocks ToolResultOptimizer optimizer;
+    @InjectMocks
+    ToolResultOptimizer optimizer;
 
     @Test
     void fileReadSummarizedToMetadata() {
@@ -239,7 +253,7 @@ class Wave9EnhancementsTest {
     @Test
     void errorOutputTruncated() {
         String error = "NullPointerException: cannot call method on null\n" +
-                "    at com.example.Foo.bar(Foo.java:42)\n".repeat(20);
+                "    at tech.kayys.Foo.bar(Foo.java:42)\n".repeat(20);
         var result = optimizer.optimize("run_command", error, false);
         assertThat(result.contextContent()).contains("Error");
         assertThat(result.contextContent().length()).isLessThan(error.length());
@@ -260,26 +274,34 @@ class Wave9EnhancementsTest {
     // PriorityExecutionEngine
     // ═══════════════════════════════════════════════════════════════════════
 
-    @Mock AgentTelemetry telemetry4;
+    @Mock
+    AgentTelemetry telemetry4;
 
-    @InjectMocks PriorityExecutionEngine engine;
+    @InjectMocks
+    PriorityExecutionEngine engine;
 
     @Test
     void criticalTaskRunsBeforeLow() throws Exception {
         List<String> order = Collections.synchronizedList(new ArrayList<>());
-        var lowSpec      = PriorityExecutionEngine.TaskSpec.builder()
+        var lowSpec = PriorityExecutionEngine.TaskSpec.builder()
                 .id("low").priority(PriorityExecutionEngine.Priority.LOW).batched(true).build();
         var criticalSpec = PriorityExecutionEngine.TaskSpec.builder()
                 .id("crit").priority(PriorityExecutionEngine.Priority.CRITICAL).batched(true).build();
 
-        engine.submit(lowSpec,      () -> { order.add("low"); return null; });
-        engine.submit(criticalSpec, () -> { order.add("critical"); return null; });
+        engine.submit(lowSpec, () -> {
+            order.add("low");
+            return null;
+        });
+        engine.submit(criticalSpec, () -> {
+            order.add("critical");
+            return null;
+        });
         engine.drain();
 
         assertThat(order).isNotEmpty();
         // Critical should execute first or be in the list
         int critIdx = order.indexOf("critical");
-        int lowIdx  = order.indexOf("low");
+        int lowIdx = order.indexOf("low");
         if (critIdx >= 0 && lowIdx >= 0) {
             assertThat(critIdx).isLessThan(lowIdx);
         }
@@ -290,8 +312,22 @@ class Wave9EnhancementsTest {
         CountDownLatch bothStarted = new CountDownLatch(2);
         var spec1 = PriorityExecutionEngine.TaskSpec.builder().readOnly(true).batched(true).build();
         var spec2 = PriorityExecutionEngine.TaskSpec.builder().readOnly(true).batched(true).build();
-        engine.submit(spec1, () -> { bothStarted.countDown(); try { Thread.sleep(50); } catch (Exception e) {} return "r1"; });
-        engine.submit(spec2, () -> { bothStarted.countDown(); try { Thread.sleep(50); } catch (Exception e) {} return "r2"; });
+        engine.submit(spec1, () -> {
+            bothStarted.countDown();
+            try {
+                Thread.sleep(50);
+            } catch (Exception e) {
+            }
+            return "r1";
+        });
+        engine.submit(spec2, () -> {
+            bothStarted.countDown();
+            try {
+                Thread.sleep(50);
+            } catch (Exception e) {
+            }
+            return "r2";
+        });
         engine.drain();
         // Both should have started (parallel execution)
         assertThat(bothStarted.await(3, TimeUnit.SECONDS)).isTrue();
@@ -324,7 +360,7 @@ class Wave9EnhancementsTest {
         var dep = PriorityExecutionEngine.TaskSpec.builder().id("dep").build();
         var dependent = PriorityExecutionEngine.TaskSpec.builder()
                 .id("child").after("dep").build();
-        engine.submit(dep,       () -> "dep-done");
+        engine.submit(dep, () -> "dep-done");
         engine.submit(dependent, () -> "child-done");
         engine.drain();
         // Both should eventually reach some terminal state
@@ -348,12 +384,16 @@ class Wave9EnhancementsTest {
     // CollaborativeWorkspace
     // ═══════════════════════════════════════════════════════════════════════
 
-    @Mock AgentTelemetry telemetry5;
+    @Mock
+    AgentTelemetry telemetry5;
 
-    @InjectMocks CollaborativeWorkspace workspace;
+    @InjectMocks
+    CollaborativeWorkspace workspace;
 
     @BeforeEach
-    void clearWorkspace() { workspace.clear(); }
+    void clearWorkspace() {
+        workspace.clear();
+    }
 
     @Test
     void blackboardWriteAndRead() {
@@ -374,9 +414,8 @@ class Wave9EnhancementsTest {
     @Test
     void failFastThrowsOnConflict() {
         workspace.write("key", "v1", "agentA", CollaborativeWorkspace.ConflictPolicy.LAST_WINS);
-        assertThatThrownBy(() ->
-                workspace.write("key", "v2", "agentB",
-                        CollaborativeWorkspace.ConflictPolicy.FAIL_FAST))
+        assertThatThrownBy(() -> workspace.write("key", "v2", "agentB",
+                CollaborativeWorkspace.ConflictPolicy.FAIL_FAST))
                 .isInstanceOf(CollaborativeWorkspace.WorkspaceConflictException.class);
     }
 
@@ -467,10 +506,13 @@ class Wave9EnhancementsTest {
     // OfflineRuntimeManager
     // ═══════════════════════════════════════════════════════════════════════
 
-    @Mock GamelanConfig  config6;
-    @Mock AgentTelemetry telemetry6;
+    @Mock
+    GamelanConfig config6;
+    @Mock
+    AgentTelemetry telemetry6;
 
-    @InjectMocks OfflineRuntimeManager offline;
+    @InjectMocks
+    OfflineRuntimeManager offline;
 
     @Test
     void healthyByDefault() {

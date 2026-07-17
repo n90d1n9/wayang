@@ -33,11 +33,15 @@ class Wave4Test {
     // AgentChain
     // ═══════════════════════════════════════════════════════════════════════
 
-    @Mock SingleAgentOrchestrator orchestrator;
-    @Mock GamelanConfig config;
-    @Mock AgentTelemetry telemetry;
+    @Mock
+    SingleAgentOrchestrator orchestrator;
+    @Mock
+    GamelanConfig config;
+    @Mock
+    AgentTelemetry telemetry;
 
-    @InjectMocks AgentChain chainEngine;
+    @InjectMocks
+    AgentChain chainEngine;
 
     @BeforeEach
     void setUpChain() {
@@ -69,7 +73,7 @@ class Wave4Test {
 
         AgentChain.ChainResult result = chainEngine.builder("pipeline")
                 .llm("summarize", "Summarize: {{input}}")
-                .llm("classify",  "Classify sentiment of: {{input}}")
+                .llm("classify", "Classify sentiment of: {{input}}")
                 .build()
                 .run("some long text");
 
@@ -98,7 +102,7 @@ class Wave4Test {
                 .filter("non-empty", s -> !s.isBlank())
                 .llm("should-not-run", "Process: {{input}}")
                 .build()
-                .run("   ");  // blank input → filter returns false
+                .run("   "); // blank input → filter returns false
 
         assertThat(result.shortCircuited()).isTrue();
         assertThat(result.steps()).hasSize(1);
@@ -125,7 +129,7 @@ class Wave4Test {
         AgentChain.ChainResult result = chainEngine.builder("validate-test")
                 .validate("has-content", s -> s.length() > 10)
                 .build()
-                .run("short");  // < 10 chars → validate fails
+                .run("short"); // < 10 chars → validate fails
 
         assertThat(result.success()).isFalse();
         assertThat(result.error()).contains("Validation failed");
@@ -140,9 +144,9 @@ class Wave4Test {
 
         AgentChain.ChainResult result = chainEngine.builder("branch-test")
                 .branch("parallel-review",
-                        AgentChain.step("bugs",     "Find bugs: {{input}}"),
+                        AgentChain.step("bugs", "Find bugs: {{input}}"),
                         AgentChain.step("security", "Find security issues: {{input}}"),
-                        AgentChain.step("perf",     "Find perf issues: {{input}}"))
+                        AgentChain.step("perf", "Find perf issues: {{input}}"))
                 .build()
                 .run("public void process() { /* code */ }");
 
@@ -246,10 +250,13 @@ class Wave4Test {
     // SessionAnalyticsEngine
     // ═══════════════════════════════════════════════════════════════════════
 
-    @Mock EpisodicMemory  episodic2;
-    @Mock AgentTelemetry  telemetry2;
+    @Mock
+    EpisodicMemory episodic2;
+    @Mock
+    AgentTelemetry telemetry2;
 
-    @InjectMocks SessionAnalyticsEngine analytics;
+    @InjectMocks
+    SessionAnalyticsEngine analytics;
 
     @Test
     void recordTaskUpdatesHeatMap() {
@@ -295,16 +302,17 @@ class Wave4Test {
         var report = analytics.generateReport(null);
         assertThat(report.bottlenecks()).anyMatch(
                 b -> b.name().equals("slow_tool") &&
-                     b.type() == SessionAnalyticsEngine.BottleneckType.HIGH_LATENCY);
+                        b.type() == SessionAnalyticsEngine.BottleneckType.HIGH_LATENCY);
     }
 
     @Test
     void bottleneckDetectedForHighErrorRate() {
-        for (int i = 0; i < 5; i++) analytics.recordToolCall("flaky_tool", 500, true, 0, Instant.now());
+        for (int i = 0; i < 5; i++)
+            analytics.recordToolCall("flaky_tool", 500, true, 0, Instant.now());
         var report = analytics.generateReport(null);
         assertThat(report.bottlenecks()).anyMatch(
                 b -> b.name().equals("flaky_tool") &&
-                     b.type() == SessionAnalyticsEngine.BottleneckType.HIGH_ERROR_RATE);
+                        b.type() == SessionAnalyticsEngine.BottleneckType.HIGH_ERROR_RATE);
     }
 
     @Test
@@ -355,14 +363,16 @@ class Wave4Test {
     // KnowledgeGraph
     // ═══════════════════════════════════════════════════════════════════════
 
-    @Mock AgentTelemetry telemetry3;
+    @Mock
+    AgentTelemetry telemetry3;
 
-    @InjectMocks KnowledgeGraph kg;
+    @InjectMocks
+    KnowledgeGraph kg;
 
     @Test
     void upsertAndFindNode() {
         kg.upsertNode("class:UserService", KnowledgeGraph.NodeType.CLASS, "UserService",
-                Map.of("package", "com.example"));
+                Map.of("package", "tech.kayys"));
         var node = kg.findNode("class:UserService");
         assertThat(node).isPresent();
         assertThat(node.get().label()).isEqualTo("UserService");
@@ -402,8 +412,8 @@ class Wave4Test {
     @Test
     void impactAnalysisFindsAffectedNodes() {
         // UserController → UserService → UserRepository
-        kg.addEdge("UserController", "UserService",    KnowledgeGraph.EdgeType.DEPENDS_ON, 1.0, null);
-        kg.addEdge("UserService",    "UserRepository", KnowledgeGraph.EdgeType.DEPENDS_ON, 1.0, null);
+        kg.addEdge("UserController", "UserService", KnowledgeGraph.EdgeType.DEPENDS_ON, 1.0, null);
+        kg.addEdge("UserService", "UserRepository", KnowledgeGraph.EdgeType.DEPENDS_ON, 1.0, null);
         // Test covers UserService
         kg.addEdge("UserServiceTest", "UserService", KnowledgeGraph.EdgeType.TESTED_BY, 1.0, null);
 
@@ -440,7 +450,7 @@ class Wave4Test {
     void shortestPathFound() {
         kg.addEdge("S", "M1", KnowledgeGraph.EdgeType.RELATED_TO, 1.0, null);
         kg.addEdge("M1", "T", KnowledgeGraph.EdgeType.RELATED_TO, 1.0, null);
-        kg.addEdge("S",  "T", KnowledgeGraph.EdgeType.RELATED_TO, 1.0, null);  // direct path
+        kg.addEdge("S", "T", KnowledgeGraph.EdgeType.RELATED_TO, 1.0, null); // direct path
 
         var paths = kg.shortestPaths("S", "T", 5);
         assertThat(paths).isNotEmpty();
@@ -496,13 +506,19 @@ class Wave4Test {
     // MemorySnapshotManager
     // ═══════════════════════════════════════════════════════════════════════
 
-    @Mock EpisodicMemory    episodic3;
-    @Mock SemanticMemory    semantic3;
-    @Mock ProceduralMemory  procedural3;
-    @Mock PlanVersionStore  planStore3;
-    @Mock AgentTelemetry    telemetry4;
+    @Mock
+    EpisodicMemory episodic3;
+    @Mock
+    SemanticMemory semantic3;
+    @Mock
+    ProceduralMemory procedural3;
+    @Mock
+    PlanVersionStore planStore3;
+    @Mock
+    AgentTelemetry telemetry4;
 
-    @InjectMocks MemorySnapshotManager snapshotMgr;
+    @InjectMocks
+    MemorySnapshotManager snapshotMgr;
 
     private EpisodicMemory.Episode fakeEpisode(String id) {
         return new EpisodicMemory.Episode(id, "task " + id, "answer " + id,

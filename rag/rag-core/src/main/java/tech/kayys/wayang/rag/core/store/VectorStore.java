@@ -17,4 +17,12 @@ public interface VectorStore<T> {
     boolean delete(String namespace, String id);
 
     void clear(String namespace);
+
+    default List<VectorSearchHit<T>> keywordSearch(
+            String namespace,
+            String query,
+            int topK,
+            Map<String, Object> filters) {
+        return List.of();
+    }
 }

@@ -32,10 +32,10 @@ class JavaImportValidationServiceTest {
         Path pkgDir = tempDir.resolve("com/example");
         pkgDir.toFile().mkdirs();
         Path testClass = pkgDir.resolve("TestClass.java");
-        Files.writeString(testClass, "package com.example;\npublic class TestClass {}");
+        Files.writeString(testClass, "package tech.kayys;\npublic class TestClass {}");
 
         Path testFile = tempDir.resolve("Test.java");
-        Files.writeString(testFile, "package test;\nimport com.example.TestClass;\npublic class Test {}");
+        Files.writeString(testFile, "package test;\nimport tech.kayys.TestClass;\npublic class Test {}");
 
         JavaImportValidationService service = new JavaImportValidationService(tempDir.toString());
         List<ImportValidationIssue> issues = service.validateFile(testFile);
@@ -46,13 +46,12 @@ class JavaImportValidationServiceTest {
     void testValidateContent() throws IOException {
         Path pkgDir = tempDir.resolve("com/example");
         pkgDir.toFile().mkdirs();
-        Files.writeString(pkgDir.resolve("TestClass.java"), "package com.example;\npublic class TestClass {}");
+        Files.writeString(pkgDir.resolve("TestClass.java"), "package tech.kayys;\npublic class TestClass {}");
 
         JavaImportValidationService service = new JavaImportValidationService(tempDir.toString());
         List<ImportValidationIssue> issues = service.validateContent(
-            Path.of("Test.java"),
-            "package test;\nimport com.example.TestClass;\npublic class Test {}"
-        );
+                Path.of("Test.java"),
+                "package test;\nimport tech.kayys.TestClass;\npublic class Test {}");
         assertTrue(issues.isEmpty(), "Should find no issues for correct import in content");
     }
 
@@ -60,7 +59,7 @@ class JavaImportValidationServiceTest {
     void testGetErrors() throws IOException {
         Path pkgDir = tempDir.resolve("com/example");
         pkgDir.toFile().mkdirs();
-        Files.writeString(pkgDir.resolve("GoodClass.java"), "package com.example;\npublic class GoodClass {}");
+        Files.writeString(pkgDir.resolve("GoodClass.java"), "package tech.kayys;\npublic class GoodClass {}");
 
         Path badFile = tempDir.resolve("Bad.java");
         Files.writeString(badFile, "package test;\nimport com.wrong.Class;\npublic class Bad {}");

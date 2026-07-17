@@ -34,5 +34,7 @@
 
     <modules>
         <module>skill-spi</module>
+        <module>skills-repo</module>
+        <module>skills-repo-db</module>
     </modules>
 </project>

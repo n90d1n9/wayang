@@ -64,7 +64,12 @@ public class JsonFilePersistence implements PersistenceStrategy {
             sn.put("id", s.id());
             sn.put("name", s.name());
             sn.put("createdAt", s.createdAt().toString());
-            sn.put("lastAccess", s.lastAccess().toString());
+            sn.put("updatedAt", s.updatedAt().toString());
+            sn.put("isPinned", s.isPinned());
+            if (s.systemPrompt() != null) sn.put("systemPrompt", s.systemPrompt());
+            var tagsArr = mapper.createArrayNode();
+            s.tags().forEach(tagsArr::add);
+            sn.set("tags", tagsArr);
             if (s.parentSessionId() != null) sn.put("parentSessionId", s.parentSessionId());
             if (s.parentCheckpointIndex() != null) sn.put("parentCheckpointIndex", s.parentCheckpointIndex());
             arr.add(sn);
@@ -145,7 +150,19 @@ public class JsonFilePersistence implements PersistenceStrategy {
                     String sname = s.hasNonNull("name") ? s.get("name").asText() : sid;
                     String parentId = s.hasNonNull("parentSessionId") ? s.get("parentSessionId").asText() : null;
                     Integer parentCheckpoint = s.hasNonNull("parentCheckpointIndex") ? s.get("parentCheckpointIndex").asInt() : null;
-                    if (sid != null) p.addSession(new Session(sid, sname, parentId, parentCheckpoint));
+                    if (sid != null) {
+                        Session session = new Session(sid, sname, parentId, parentCheckpoint);
+                        if (s.hasNonNull("updatedAt")) session.setUpdatedAt(java.time.Instant.parse(s.get("updatedAt").asText()));
+                        else if (s.hasNonNull("lastAccess")) session.setUpdatedAt(java.time.Instant.parse(s.get("lastAccess").asText()));
+                        if (s.hasNonNull("isPinned")) session.setPinned(s.get("isPinned").asBoolean());
+                        if (s.hasNonNull("systemPrompt")) session.setSystemPrompt(s.get("systemPrompt").asText());
+                        if (s.hasNonNull("tags")) {
+                            List<String> tags = new ArrayList<>();
+                            for (JsonNode t : s.get("tags")) tags.add(t.asText());
+                            session.setTags(tags);
+                        }
+                        p.addSession(session);
+                    }
                 }
             }
             return p;

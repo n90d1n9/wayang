@@ -37,9 +37,9 @@ Create, build, and deploy custom inference-gollek plugins to extend platform cap
 
 ```bash
 mvn archetype:generate \
-  -DgroupId=com.example \
+  -DgroupId=tech.kayys \
   -DartifactId=my-inference-plugin \
-  -DpackageName=com.example.inference.plugin \
+  -DpackageName=tech.kayys.inference.plugin \
   -Dversion=1.0.0
 ```
 
@@ -90,7 +90,7 @@ public class MyModelRouterPlugin implements InferencePlugin {
 
 ```java
 // Add to META-INF/services/tech.kayys.wayang.inference.plugin.spi.InferencePlugin
-com.example.inference.plugin.MyModelRouterPlugin
+tech.kayys.inference.plugin.MyModelRouterPlugin
 ```
 
 ### 5. Build Plugin JAR

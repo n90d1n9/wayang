@@ -23,24 +23,26 @@ public class KeywordRetrievalStrategy implements RetrievalStrategy {
 
         LOG.debug("Keyword retrieval (BM25) for query: {}", query);
 
-        // For in-memory stores, we can iterate; for production use dedicated keyword
-        // index
-        if (!(store instanceof InMemoryVectorStore)) {
-            LOG.warn("Keyword search not optimized for store type: {}", store.getClass());
-            return List.of();
-        }
-
         try {
-            // Internal search for all documents (passing a large topK and 0 score to
-            // effectively scan)
-            // Note: In a real production system, this would use a proper search index
-            // (Elastic/Lucene)
-            List<RagChunk> allDocs = store.search("default", new float[1], 10000, 0.0f, Map.of()).stream()
-                    .map(hit -> hit.payload())
-                    .toList();
+            List<tech.kayys.wayang.rag.core.store.VectorSearchHit<RagChunk>> hits = 
+                    store.keywordSearch("default", query, config.topK(), config.metadataFilters());
 
-            // Calculate BM25 scores
-            return calculateBM25Scores(query, allDocs, config.topK());
+            if (!hits.isEmpty()) {
+                return hits.stream()
+                        .map(hit -> new ScoredDocument(hit.payload(), hit.score()))
+                        .toList();
+            }
+
+            // Fallback for InMemoryVectorStore or stores that don't implement keywordSearch natively
+            if (store instanceof InMemoryVectorStore) {
+                List<RagChunk> allDocs = store.search("default", new float[1], 10000, 0.0f, Map.of()).stream()
+                        .map(hit -> hit.payload())
+                        .toList();
+                return calculateBM25Scores(query, allDocs, config.topK());
+            }
+
+            LOG.warn("Keyword search returned empty and store does not support native keyword search: {}", store.getClass());
+            return List.of();
 
         } catch (Exception e) {
             LOG.error("Keyword retrieval failed", e);

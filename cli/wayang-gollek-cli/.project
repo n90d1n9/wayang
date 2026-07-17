@@ -20,6 +20,13 @@
 		<nature>org.eclipse.jdt.core.javanature</nature>
 		<nature>org.eclipse.m2e.core.maven2Nature</nature>
 	</natures>
+	<linkedResources>
+		<link>
+			<name>.._.._skills_skills</name>
+			<type>2</type>
+			<location>//Users/bhangun/Workspace/workkayys/Products/Wayang/wayang-platform/Wayang-Projects/wayang/skills/skills/</location>
+		</link>
+	</linkedResources>
 	<filteredResources>
 		<filter>
 			<id>1781487886105</id>

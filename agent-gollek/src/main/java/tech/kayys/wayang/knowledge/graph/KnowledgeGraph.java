@@ -24,14 +24,15 @@ import java.util.stream.*;
  * A flat list of semantic memory nodes answers "what do I know about X?"
  * A knowledge graph answers richer questions:
  * <ul>
- *   <li>"What classes depend on UserService?"</li>
- *   <li>"What has changed since yesterday?"</li>
- *   <li>"Which modules have circular dependencies?"</li>
- *   <li>"What does this PR affect transitively?"</li>
- *   <li>"Which tests cover the code I'm about to edit?"</li>
+ * <li>"What classes depend on UserService?"</li>
+ * <li>"What has changed since yesterday?"</li>
+ * <li>"Which modules have circular dependencies?"</li>
+ * <li>"What does this PR affect transitively?"</li>
+ * <li>"Which tests cover the code I'm about to edit?"</li>
  * </ul>
  *
  * <h2>Graph model</h2>
+ * 
  * <pre>
  * Node types: CLASS | METHOD | FILE | MODULE | CONCEPT | PERSON | ISSUE | PR | TEST
  *
@@ -50,9 +51,12 @@ import java.util.stream.*;
  *
  * <h2>Inference rules</h2>
  * <ul>
- *   <li>Transitive closure: if A→B and B→C via DEPENDS_ON, then A transitively depends on C</li>
- *   <li>Test coverage: if A TESTED_BY T and A DEPENDS_ON B, then B is also indirectly tested by T</li>
- *   <li>Impact analysis: given a changed node, find all nodes reachable via DEPENDS_ON (reversed)</li>
+ * <li>Transitive closure: if A→B and B→C via DEPENDS_ON, then A transitively
+ * depends on C</li>
+ * <li>Test coverage: if A TESTED_BY T and A DEPENDS_ON B, then B is also
+ * indirectly tested by T</li>
+ * <li>Impact analysis: given a changed node, find all nodes reachable via
+ * DEPENDS_ON (reversed)</li>
  * </ul>
  */
 @ApplicationScoped
@@ -60,15 +64,15 @@ public class KnowledgeGraph {
 
     private static final Logger log = LoggerFactory.getLogger(KnowledgeGraph.class);
     private static final ObjectMapper MAPPER = new ObjectMapper().registerModule(new JavaTimeModule());
-    private static final Path PERSIST_DIR =
-            Path.of(System.getProperty("user.home"), ".gamelan", "knowledge");
+    private static final Path PERSIST_DIR = Path.of(System.getProperty("user.home"), ".gamelan", "knowledge");
 
-    @Inject AgentTelemetry telemetry;
+    @Inject
+    AgentTelemetry telemetry;
 
-    private final Map<String, KgNode>               nodes = new ConcurrentHashMap<>();
-    private final Map<String, List<KgEdge>>         outEdges = new ConcurrentHashMap<>(); // nodeId → edges
-    private final Map<String, List<KgEdge>>         inEdges  = new ConcurrentHashMap<>();
-    private final AtomicLong                         edgeCount = new AtomicLong(0);
+    private final Map<String, KgNode> nodes = new ConcurrentHashMap<>();
+    private final Map<String, List<KgEdge>> outEdges = new ConcurrentHashMap<>(); // nodeId → edges
+    private final Map<String, List<KgEdge>> inEdges = new ConcurrentHashMap<>();
+    private final AtomicLong edgeCount = new AtomicLong(0);
 
     @PostConstruct
     void init() {
@@ -81,14 +85,15 @@ public class KnowledgeGraph {
     /**
      * Adds or updates a node in the graph.
      *
-     * @param id         unique node identifier (e.g., "class:com.example.UserService")
+     * @param id         unique node identifier (e.g.,
+     *                   "class:tech.kayys.UserService")
      * @param type       the node type
      * @param label      human-readable label
      * @param properties additional metadata
      * @return the upserted node
      */
     public KgNode upsertNode(String id, NodeType type, String label,
-                              Map<String, String> properties) {
+            Map<String, String> properties) {
         KgNode node = new KgNode(id, type, label,
                 properties != null ? Map.copyOf(properties) : Map.of(),
                 Instant.now());
@@ -110,17 +115,17 @@ public class KnowledgeGraph {
      * @return the created edge
      */
     public KgEdge addEdge(String fromId, String toId, EdgeType type,
-                           double weight, Map<String, String> properties) {
+            double weight, Map<String, String> properties) {
         // Auto-create nodes if missing
         nodes.computeIfAbsent(fromId, id -> new KgNode(id, NodeType.CONCEPT, id, Map.of(), Instant.now()));
-        nodes.computeIfAbsent(toId,   id -> new KgNode(id, NodeType.CONCEPT, id, Map.of(), Instant.now()));
+        nodes.computeIfAbsent(toId, id -> new KgNode(id, NodeType.CONCEPT, id, Map.of(), Instant.now()));
 
         String edgeId = fromId + ":" + type.name() + ":" + toId;
         KgEdge edge = new KgEdge(edgeId, fromId, toId, type, weight,
                 properties != null ? Map.copyOf(properties) : Map.of(), Instant.now());
 
         outEdges.computeIfAbsent(fromId, k -> new CopyOnWriteArrayList<>()).add(edge);
-        inEdges.computeIfAbsent(toId,    k -> new CopyOnWriteArrayList<>()).add(edge);
+        inEdges.computeIfAbsent(toId, k -> new CopyOnWriteArrayList<>()).add(edge);
         edgeCount.incrementAndGet();
 
         telemetry.count("kg.edge.add");
@@ -132,19 +137,36 @@ public class KnowledgeGraph {
      * Removes a node and all its edges.
      */
     public boolean removeNode(String nodeId) {
-        if (!nodes.containsKey(nodeId)) return false;
+        if (!nodes.containsKey(nodeId))
+            return false;
         nodes.remove(nodeId);
         List<KgEdge> out = outEdges.remove(nodeId);
-        List<KgEdge> in  = inEdges.remove(nodeId);
-        if (out != null) { edgeCount.addAndGet(-out.size()); out.forEach(e -> { List<KgEdge> i = inEdges.get(e.toId()); if (i != null) i.removeIf(x -> x.fromId().equals(nodeId)); }); }
-        if (in  != null) { edgeCount.addAndGet(-in.size());  in.forEach(e  -> { List<KgEdge> o = outEdges.get(e.fromId()); if (o != null) o.removeIf(x -> x.toId().equals(nodeId)); }); }
+        List<KgEdge> in = inEdges.remove(nodeId);
+        if (out != null) {
+            edgeCount.addAndGet(-out.size());
+            out.forEach(e -> {
+                List<KgEdge> i = inEdges.get(e.toId());
+                if (i != null)
+                    i.removeIf(x -> x.fromId().equals(nodeId));
+            });
+        }
+        if (in != null) {
+            edgeCount.addAndGet(-in.size());
+            in.forEach(e -> {
+                List<KgEdge> o = outEdges.get(e.fromId());
+                if (o != null)
+                    o.removeIf(x -> x.toId().equals(nodeId));
+            });
+        }
         return true;
     }
 
     // ── Queries ────────────────────────────────────────────────────────────
 
     /** Finds a node by its ID. */
-    public Optional<KgNode> findNode(String id) { return Optional.ofNullable(nodes.get(id)); }
+    public Optional<KgNode> findNode(String id) {
+        return Optional.ofNullable(nodes.get(id));
+    }
 
     /** Finds all nodes of a given type. */
     public List<KgNode> findByType(NodeType type) {
@@ -156,7 +178,7 @@ public class KnowledgeGraph {
         String lower = text.toLowerCase();
         return nodes.values().stream()
                 .filter(n -> n.label().toLowerCase().contains(lower) ||
-                             n.id().toLowerCase().contains(lower))
+                        n.id().toLowerCase().contains(lower))
                 .toList();
     }
 
@@ -188,9 +210,9 @@ public class KnowledgeGraph {
      * Computes the transitive closure from a node via a given edge type.
      * Uses BFS — stops at maxDepth to prevent infinite traversal.
      *
-     * @param startId   starting node
-     * @param edgeType  the edge type to follow
-     * @param maxDepth  maximum BFS depth
+     * @param startId  starting node
+     * @param edgeType the edge type to follow
+     * @param maxDepth maximum BFS depth
      * @return all reachable nodes (excluding start)
      */
     public Set<KgNode> reachable(String startId, EdgeType edgeType, int maxDepth) {
@@ -203,7 +225,8 @@ public class KnowledgeGraph {
         while (!queue.isEmpty()) {
             String current = queue.poll();
             int d = depth.get(current);
-            if (d >= maxDepth) continue;
+            if (d >= maxDepth)
+                continue;
 
             neighbors(current, edgeType).forEach(neighbor -> {
                 if (!depth.containsKey(neighbor.id())) {
@@ -220,14 +243,14 @@ public class KnowledgeGraph {
      * Impact analysis: given a changed node, find all nodes that transitively
      * depend on it (i.e., follow DEPENDS_ON edges in reverse).
      *
-     * @param changedNodeId  the node that was modified
-     * @param maxDepth       BFS depth limit
+     * @param changedNodeId the node that was modified
+     * @param maxDepth      BFS depth limit
      * @return nodes that are impacted by the change
      */
     public ImpactSet impactAnalysis(String changedNodeId, int maxDepth) {
         // Traverse DEPENDS_ON edges in reverse (predecessors)
         Set<KgNode> impacted = new LinkedHashSet<>();
-        Queue<String> queue  = new ArrayDeque<>();
+        Queue<String> queue = new ArrayDeque<>();
         Map<String, Integer> depth = new HashMap<>();
         queue.add(changedNodeId);
         depth.put(changedNodeId, 0);
@@ -235,7 +258,8 @@ public class KnowledgeGraph {
         while (!queue.isEmpty()) {
             String current = queue.poll();
             int d = depth.get(current);
-            if (d >= maxDepth) continue;
+            if (d >= maxDepth)
+                continue;
 
             predecessors(current, EdgeType.DEPENDS_ON).forEach(pred -> {
                 if (!depth.containsKey(pred.id())) {
@@ -261,7 +285,7 @@ public class KnowledgeGraph {
      */
     public List<List<String>> detectCycles() {
         // Tarjan's SCC algorithm (iterative to avoid stack overflow)
-        Map<String, Integer> index  = new HashMap<>();
+        Map<String, Integer> index = new HashMap<>();
         Map<String, Integer> lowlink = new HashMap<>();
         Map<String, Boolean> onStack = new HashMap<>();
         Deque<String> stack = new ArrayDeque<>();
@@ -281,7 +305,8 @@ public class KnowledgeGraph {
      * Finds all shortest paths between two nodes using BFS.
      */
     public List<List<String>> shortestPaths(String fromId, String toId, int maxPaths) {
-        if (!nodes.containsKey(fromId) || !nodes.containsKey(toId)) return List.of();
+        if (!nodes.containsKey(fromId) || !nodes.containsKey(toId))
+            return List.of();
 
         List<List<String>> paths = new ArrayList<>();
         Queue<List<String>> queue = new ArrayDeque<>();
@@ -295,7 +320,8 @@ public class KnowledgeGraph {
                 paths.add(path);
                 continue;
             }
-            if (!paths.isEmpty() && path.size() > paths.get(0).size()) break;
+            if (!paths.isEmpty() && path.size() > paths.get(0).size())
+                break;
 
             outEdges.getOrDefault(last, List.of()).stream()
                     .map(KgEdge::toId)
@@ -321,8 +347,7 @@ public class KnowledgeGraph {
 
         // Find most-connected nodes (by total in+out degree)
         List<String> hubNodes = nodes.keySet().stream()
-                .sorted(Comparator.comparingInt((String id) ->
-                        outEdges.getOrDefault(id, List.of()).size() +
+                .sorted(Comparator.comparingInt((String id) -> outEdges.getOrDefault(id, List.of()).size() +
                         inEdges.getOrDefault(id, List.of()).size()).reversed())
                 .limit(5)
                 .toList();
@@ -333,23 +358,25 @@ public class KnowledgeGraph {
     /** Converts the graph to a Mermaid diagram string (for documentation). */
     public String toMermaid(int maxNodes) {
         StringBuilder sb = new StringBuilder("graph TD\n");
-        nodes.values().stream().limit(maxNodes).forEach(n ->
-                sb.append("    ").append(sanitize(n.id()))
-                  .append("[\"").append(n.label()).append("\"]\n"));
-        outEdges.values().stream().flatMap(Collection::stream).limit(maxNodes * 3).forEach(e ->
-                sb.append("    ").append(sanitize(e.fromId()))
-                  .append(" -->|").append(e.type().name()).append("| ")
-                  .append(sanitize(e.toId())).append("\n"));
+        nodes.values().stream().limit(maxNodes).forEach(n -> sb.append("    ").append(sanitize(n.id()))
+                .append("[\"").append(n.label()).append("\"]\n"));
+        outEdges.values().stream().flatMap(Collection::stream).limit(maxNodes * 3)
+                .forEach(e -> sb.append("    ").append(sanitize(e.fromId()))
+                        .append(" -->|").append(e.type().name()).append("| ")
+                        .append(sanitize(e.toId())).append("\n"));
         return sb.toString();
     }
 
     // ── Private ────────────────────────────────────────────────────────────
 
-    private void tarjanDfs(String v, Map<String,Integer> index, Map<String,Integer> lowlink,
-                            Map<String,Boolean> onStack, Deque<String> stack,
-                            List<List<String>> sccs, AtomicInteger idx) {
-        index.put(v, idx.get()); lowlink.put(v, idx.get()); idx.incrementAndGet();
-        stack.push(v); onStack.put(v, true);
+    private void tarjanDfs(String v, Map<String, Integer> index, Map<String, Integer> lowlink,
+            Map<String, Boolean> onStack, Deque<String> stack,
+            List<List<String>> sccs, AtomicInteger idx) {
+        index.put(v, idx.get());
+        lowlink.put(v, idx.get());
+        idx.incrementAndGet();
+        stack.push(v);
+        onStack.put(v, true);
 
         for (KgEdge e : outEdges.getOrDefault(v, List.of())) {
             String w = e.toId();
@@ -363,7 +390,12 @@ public class KnowledgeGraph {
 
         if (lowlink.get(v).equals(index.get(v))) {
             List<String> scc = new ArrayList<>();
-            String w; do { w = stack.pop(); onStack.put(w, false); scc.add(w); } while (!w.equals(v));
+            String w;
+            do {
+                w = stack.pop();
+                onStack.put(w, false);
+                scc.add(w);
+            } while (!w.equals(v));
             sccs.add(scc);
         }
     }
@@ -381,7 +413,7 @@ public class KnowledgeGraph {
                         outEdges.values().stream().flatMap(Collection::stream).toList(),
                         Instant.now());
                 MAPPER.writerWithDefaultPrettyPrinter()
-                      .writeValue(PERSIST_DIR.resolve("graph.json").toFile(), snap);
+                        .writeValue(PERSIST_DIR.resolve("graph.json").toFile(), snap);
             } catch (IOException e) {
                 log.warn("[kg] persist failed: {}", e.getMessage());
             }
@@ -390,13 +422,14 @@ public class KnowledgeGraph {
 
     private void loadFromDisk() {
         Path file = PERSIST_DIR.resolve("graph.json");
-        if (!Files.exists(file)) return;
+        if (!Files.exists(file))
+            return;
         try {
             GraphSnapshot snap = MAPPER.readValue(file.toFile(), GraphSnapshot.class);
             snap.nodes().forEach(n -> nodes.put(n.id(), n));
             snap.edges().forEach(e -> {
                 outEdges.computeIfAbsent(e.fromId(), k -> new CopyOnWriteArrayList<>()).add(e);
-                inEdges.computeIfAbsent(e.toId(),    k -> new CopyOnWriteArrayList<>()).add(e);
+                inEdges.computeIfAbsent(e.toId(), k -> new CopyOnWriteArrayList<>()).add(e);
                 edgeCount.incrementAndGet();
             });
         } catch (IOException e) {
@@ -406,18 +439,25 @@ public class KnowledgeGraph {
 
     // ── Data types ─────────────────────────────────────────────────────────
 
-    public enum NodeType { CLASS, METHOD, FILE, MODULE, CONCEPT, PERSON, ISSUE, PR, TEST, PACKAGE }
-    public enum EdgeType { DEPENDS_ON, TESTED_BY, IMPLEMENTS, EXTENDS, CALLS,
-                           DEFINED_IN, RELATED_TO, CONTRADICTS, AUTHORED_BY, TRACKS, PART_OF }
+    public enum NodeType {
+        CLASS, METHOD, FILE, MODULE, CONCEPT, PERSON, ISSUE, PR, TEST, PACKAGE
+    }
+
+    public enum EdgeType {
+        DEPENDS_ON, TESTED_BY, IMPLEMENTS, EXTENDS, CALLS,
+        DEFINED_IN, RELATED_TO, CONTRADICTS, AUTHORED_BY, TRACKS, PART_OF
+    }
 
     public record KgNode(String id, NodeType type, String label,
-                          Map<String,String> properties, Instant createdAt) {}
+            Map<String, String> properties, Instant createdAt) {
+    }
 
     public record KgEdge(String id, String fromId, String toId, EdgeType type,
-                          double weight, Map<String,String> properties, Instant createdAt) {}
+            double weight, Map<String, String> properties, Instant createdAt) {
+    }
 
     public record ImpactSet(String changedNode, Set<KgNode> impactedNodes,
-                             Set<KgNode> affectedTests, int impactCount, int testCount) {
+            Set<KgNode> affectedTests, int impactCount, int testCount) {
         public String summary() {
             return String.format("Impact[%s]: %d nodes affected, %d tests to run",
                     changedNode, impactCount, testCount);
@@ -425,13 +465,14 @@ public class KnowledgeGraph {
     }
 
     public record GraphStats(long nodeCount, long edgeCount,
-                              Map<NodeType,Long> nodesByType, Map<EdgeType,Long> edgesByType,
-                              List<String> hubNodes) {
+            Map<NodeType, Long> nodesByType, Map<EdgeType, Long> edgesByType,
+            List<String> hubNodes) {
         public String summary() {
             return String.format("Graph: %d nodes, %d edges | hubs=%s",
                     nodeCount, edgeCount, hubNodes.stream().limit(3).toList());
         }
     }
 
-    private record GraphSnapshot(List<KgNode> nodes, List<KgEdge> edges, Instant savedAt) {}
+    private record GraphSnapshot(List<KgNode> nodes, List<KgEdge> edges, Instant savedAt) {
+    }
 }

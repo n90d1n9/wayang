@@ -399,7 +399,12 @@ final class WayangCodeCommand implements Callable<Integer> {
                     }
                 } catch (Exception ignore) {}
             }
-            tech.kayys.wayang.sdk.provider.Provider tuiProvider = new tech.kayys.wayang.gollek.cli.code.WayangProvider(resolvedModel, this.providerId, tuiApiKey);
+            tech.kayys.wayang.sdk.provider.Provider tuiProvider;
+            if ("gollek-engine".equals(this.providerId)) {
+                tuiProvider = new tech.kayys.wayang.gollek.cli.code.LocalCoderProvider("tdd");
+            } else {
+                tuiProvider = new tech.kayys.wayang.gollek.cli.code.WayangProvider(resolvedModel, this.providerId, tuiApiKey);
+            }
 
             // Populate shared context for internal agent tools
             agentCtx.projectStore = this.projectStore;
@@ -483,7 +488,7 @@ final class WayangCodeCommand implements Callable<Integer> {
                                 return proj.sessions().stream()
                                     .map(s -> new tech.kayys.wayang.tui.ui.GenericPickerWidget.PickerItem(
                                             s.id(), s.id(), s.name(), "", 
-                                            s.lastAccess() != null ? fmt.format(s.lastAccess()) : ""))
+                                            s.updatedAt() != null ? fmt.format(s.updatedAt()) : ""))
                                     .toList();
                             } else {
                                 // fallback to listSessions if project model doesn't hold it
@@ -750,15 +755,19 @@ final class WayangCodeCommand implements Callable<Integer> {
                     // Validate provider exists via Gollek SDK
                     java.util.List<tech.kayys.wayang.gollek.cli.GollekSdkAdapter.ProviderRow> available = sdkAdapter.listAvailableProviders();
                     boolean found = false;
-                    if (available != null) {
+                    if ("gollek-engine".equals(newProviderId)) {
+                        found = true;
+                    } else if (available != null) {
                         for (var p : available) { if (p.id().equals(newProviderId)) { found = true; break; } }
                     }
                     if (!found) {
                         String known = available == null ? "<unknown>" : available.stream().map(p -> p.id()).toList().toString();
                         printError(out, color, "Provider '" + newProviderId + "' not found. Known providers: " + known);
                     } else {
-                        sdkAdapter.setPreferredProvider(newProviderId);
-                        sdkAdapter.writeConfigProvider(newProviderId);
+                        if (!"gollek-engine".equals(newProviderId)) {
+                            sdkAdapter.setPreferredProvider(newProviderId);
+                            sdkAdapter.writeConfigProvider(newProviderId);
+                        }
                         String currentModel = chatSession == null ? modelId : chatSessionGetModelId(chatSession);
                         refreshCodeAgentExtensions(resolveWorkspacePath(workspace), currentModel, currentSessionId, newProviderId);
                         this.chatSession = createChatSession(currentModel, newProviderId, resolveWorkspacePath(workspace));
@@ -1146,10 +1155,15 @@ final class WayangCodeCommand implements Callable<Integer> {
                     TaskStoreIface ts = toolsFactory.createTaskStore(projectDir);
                     var tasks = ts.listTasks();
                     for (var t : tasks) if (t.id().equals(id)) { t.setStatus("done"); ts.updateTask(t); printInfo(out, color, "Marked done: " + id); return false; }
-                    printInfo(out, color, "Task not found: " + id);
-                } catch (Exception e) { printError(out, color, "Mark done failed: " + e.getMessage()); }
+            } catch (Exception e) { printError(out, color, "Mark done failed: " + e.getMessage()); }
                 return false;
             }
+        }
+        if (cmd.equals("/coder")) {
+            out.println(color ? "\u001B[32mSwitching to TDD Coder Orchestrator...\u001B[0m" : "Switching to TDD Coder Orchestrator...");
+            out.println(color ? "\u001B[33mActive provider is now TDD Coder (via REST API).\u001B[0m" : "Active provider is now TDD Coder (via REST API).");
+            out.println("To use the coder fully, ensure you configure the AgentEngineProvider in your config.");
+            return false;
         }
 
         if (cmd.startsWith("/help") || cmd.startsWith("/?")) {

@@ -47,6 +47,18 @@ final class WayangCodePromptComposer {
                 When the user says things like "show my sessions", "switch to project X", "what project am I in?", "show status", or "list my projects" — use the appropriate tool above instead of guessing.
                 """;
 
+        String workspaceToolsSection = """
+
+                Workspace search tools (MANDATORY usage rules):
+                - ALWAYS prefer `semantic_search` for ANY question that starts with: find, where, how, what, show, list, explain.
+                - Use `search_files(pattern)` for exact keyword/regex searches (class names, method names, import paths).
+                - Use `list_files(path)` to explore directory structure before diving into files.
+                - Use `read_file(path, start_line, end_line)` to read specific files or line ranges.
+                - NEVER claim "I cannot find" or "I don't know" without first calling at least one of these tools.
+                - DO NOT fabricate file paths or code content — always verify with tools first.
+                - When a user asks to "show code for X": call `semantic_search("X")` → pick the best file → call `read_file(path)`.
+                """;
+
         String basePrompt = ("""
                 You are Wayang Code, a workspace-aware terminal coding agent running on the Wayang platform.
 
@@ -72,7 +84,7 @@ final class WayangCodePromptComposer {
                         model.memoryEnabled() ? "enabled" : "disabled",
                         model.harnessEnabled() ? "enabled" : "disabled",
                         model.maxSteps())
-                + memorySection + internalToolsSection + """
+                + memorySection + internalToolsSection + workspaceToolsSection + """
 
                 Coding-agent behavior (improved):
                 - Act like a focused, workspace-aware code assistant (Concise, deterministic, and reproducible outputs).
@@ -88,10 +100,10 @@ final class WayangCodePromptComposer {
                 Treat natural language such as "inspect this code" as a request to run quick repository inspection steps (list files, search, open relevant files) and report findings before editing.
 
                 Response style:
-                - Be conversational, natural, and helpful. Format your responses readably using standard markdown.
-                - When explaining code or proposing changes, be clear and concise.
-                - Do not use rigid, robotic section headings (like Summary, Findings, Plan, etc.) unless explicitly requested. Just respond naturally to the user.
-                - When proposing edits, it is helpful to provide a concise explanation and a small reproducible verification step if appropriate.
+                - Before answering or calling any tools, you MUST reason about the task inside a <thought> block.
+                - Inside the <thought> block, use these headings: Summary, Findings, Plan, Changes, Tests & Verification, Next.
+                - Important: NEVER put a <tool_call> inside the <thought> block. All tool calls MUST be output AFTER the </thought> closing tag.
+                - After the </thought> block, you may output tool calls or respond naturally to the user.
                 - Always include at least one actionable next step or follow-up question if you need more information.
                 - For ambiguous scope, propose an explicit, small incremental plan and ask for confirmation before non-trivial edits.
                 """).strip();

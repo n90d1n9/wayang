@@ -18,17 +18,7 @@
 
     <modules>
         <module>rag-plugin-api</module>
-        <module>rag-plugin-normalize-query</module>
-        <module>rag-plugin-safety-filter</module>
-        <module>rag-plugin-lexical-rerank</module>
-        <module>rag-runtime</module>
         <module>rag-core</module>
-        <module>wayang-rag-retrieval</module>
-        <module>wayang-rag-config</module>
-        <module>wayang-rag-embedding</module>
-        <module>wayang-rag-slo</module>
-        <module>rag-memory-integration</module>
-        <module>rag-graph-integration</module>
     </modules>
 
     <dependencyManagement>

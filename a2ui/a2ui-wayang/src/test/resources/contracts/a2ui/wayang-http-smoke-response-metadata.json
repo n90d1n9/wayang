@@ -1,9 +1,0 @@
-{
-  "responseKind": "http-smoke-result",
-  "passed": true,
-  "exitCode": 0,
-  "suiteId": "a2ui-http-smoke-suite",
-  "scenarioCount": 1,
-  "issueCount": 0,
-  "routeCount": 6
-}

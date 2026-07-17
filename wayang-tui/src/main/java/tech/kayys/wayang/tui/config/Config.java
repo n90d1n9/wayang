@@ -13,10 +13,14 @@ import java.util.*;
  * Application configuration: which AI providers are available, the
  * active profile (provider + model + system prompt + UI mode), and
  * agent-mode settings (tool permissions). Loaded from
- * ~/.agentic-tui/config.json, with environment variables as a
+ * ~/.wayang/config.json, with environment variables as a
  * fallback/override for API keys so secrets don't have to live on disk.
  */
 public final class Config {
+
+    public String globalProvider = "";
+    public String runner = "";
+    public String defaultModel = "";
 
     public enum UiMode { REPL, PANEL }
     public enum AgentMode { CHAT, AGENT }
@@ -48,7 +52,7 @@ public final class Config {
 
     public static Path defaultConfigDir() {
         String home = System.getProperty("user.home");
-        return Paths.get(home, ".agentic-tui");
+        return Paths.get(home, ".wayang");
     }
 
     public static Path defaultConfigPath() {
@@ -61,7 +65,7 @@ public final class Config {
             try {
                 String text = Files.readString(path, StandardCharsets.UTF_8);
                 return fromJson(Json.parse(text));
-            } catch (IOException e) {
+            } catch (Exception e) {
                 System.err.println("Warning: failed to read config at " + path + ": " + e.getMessage());
             }
         }
@@ -104,6 +108,13 @@ public final class Config {
     public static Config defaultConfig() {
         Config c = new Config();
 
+        ProviderConfig gollek = new ProviderConfig();
+        gollek.name = "gollek";
+        gollek.type = "engine";
+        gollek.baseUrl = "http://localhost:8080/api/v1/coder/run";
+        gollek.apiKeyEnv = null;
+        c.providers.add(gollek);
+
         ProviderConfig anthropic = new ProviderConfig();
         anthropic.name = "anthropic";
         anthropic.type = "anthropic";
@@ -133,7 +144,7 @@ public final class Config {
 
         Profile def = new Profile();
         def.name = "default";
-        def.provider = "anthropic";
+        def.provider = "gollek";
         def.model = "claude-sonnet-4-6";
         def.systemPrompt = "You are a helpful coding assistant running in a terminal UI.";
         def.uiMode = UiMode.REPL;
@@ -148,6 +159,12 @@ public final class Config {
 
     public JsonValue toJson() {
         JsonValue root = JsonValue.object();
+        
+        // Preserve CLI fields
+        if (globalProvider != null && !globalProvider.isEmpty()) root.put("provider", globalProvider);
+        if (runner != null && !runner.isEmpty()) root.put("runner", runner);
+        if (defaultModel != null && !defaultModel.isEmpty()) root.put("defaultModel", defaultModel);
+        
         JsonValue provArr = JsonValue.array();
         for (ProviderConfig pc : providers) {
             JsonValue p = JsonValue.object();
@@ -184,32 +201,50 @@ public final class Config {
 
     public static Config fromJson(JsonValue root) {
         Config c = new Config();
-        for (JsonValue p : root.get("providers").asArray()) {
-            ProviderConfig pc = new ProviderConfig();
-            pc.name = p.get("name").asString();
-            pc.type = p.get("type").asString();
-            pc.baseUrl = p.get("baseUrl").asString();
-            pc.apiKeyEnv = p.has("apiKeyEnv") ? p.get("apiKeyEnv").asString() : null;
-            pc.apiKey = p.has("apiKey") ? p.get("apiKey").asString() : null;
-            c.providers.add(pc);
+        
+        // Parse CLI fields
+        if (root.has("provider")) c.globalProvider = root.get("provider").asString("");
+        if (root.has("runner")) c.runner = root.get("runner").asString("");
+        if (root.has("defaultModel")) c.defaultModel = root.get("defaultModel").asString("");
+        
+        if (root.has("providers")) {
+            for (JsonValue p : root.get("providers").asArray()) {
+                ProviderConfig pc = new ProviderConfig();
+                pc.name = p.get("name").asString();
+                pc.type = p.get("type").asString();
+                pc.baseUrl = p.get("baseUrl").asString();
+                pc.apiKeyEnv = p.has("apiKeyEnv") ? p.get("apiKeyEnv").asString() : null;
+                pc.apiKey = p.has("apiKey") ? p.get("apiKey").asString() : null;
+                c.providers.add(pc);
+            }
         }
-        c.activeProfile = root.get("activeProfile").asString("default");
-        for (JsonValue p : root.get("profiles").asArray()) {
-            Profile pr = new Profile();
-            pr.name = p.get("name").asString();
-            pr.provider = p.get("provider").asString();
-            pr.model = p.get("model").asString();
-            pr.systemPrompt = p.get("systemPrompt").asString("");
-            pr.uiMode = UiMode.valueOf(p.get("uiMode").asString("REPL"));
-            pr.agentMode = AgentMode.valueOf(p.get("agentMode").asString("CHAT"));
-            pr.temperature = p.has("temperature") ? p.get("temperature").asDouble() : 1.0;
-            pr.maxTokens = p.has("maxTokens") ? p.get("maxTokens").asInt() : 4096;
-            pr.autoApproveTools = p.get("autoApproveTools").asBoolean(false);
-            for (JsonValue t : p.get("allowedTools").asArray()) pr.allowedTools.add(t.asString());
-            c.profiles.add(pr);
+        
+        c.activeProfile = root.has("activeProfile") ? root.get("activeProfile").asString("default") : "default";
+        
+        if (root.has("profiles")) {
+            for (JsonValue p : root.get("profiles").asArray()) {
+                Profile pr = new Profile();
+                pr.name = p.get("name").asString();
+                pr.provider = p.get("provider").asString();
+                pr.model = p.get("model").asString();
+                pr.systemPrompt = p.get("systemPrompt").asString("");
+                pr.uiMode = UiMode.valueOf(p.has("uiMode") ? p.get("uiMode").asString("REPL") : "REPL");
+                pr.agentMode = AgentMode.valueOf(p.has("agentMode") ? p.get("agentMode").asString("CHAT") : "CHAT");
+                pr.temperature = p.has("temperature") ? p.get("temperature").asDouble() : 1.0;
+                pr.maxTokens = p.has("maxTokens") ? p.get("maxTokens").asInt() : 4096;
+                pr.autoApproveTools = p.has("autoApproveTools") ? p.get("autoApproveTools").asBoolean(false) : false;
+                if (p.has("allowedTools")) {
+                    for (JsonValue t : p.get("allowedTools").asArray()) pr.allowedTools.add(t.asString());
+                }
+                c.profiles.add(pr);
+            }
         }
+        
         if (c.profiles.isEmpty()) {
-            return defaultConfig();
+            Config def = defaultConfig();
+            c.profiles = def.profiles;
+            c.providers = def.providers;
+            c.activeProfile = def.activeProfile;
         }
         return c;
     }

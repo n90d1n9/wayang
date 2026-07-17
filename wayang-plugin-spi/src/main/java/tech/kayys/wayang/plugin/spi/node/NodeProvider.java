@@ -41,12 +41,12 @@ import tech.kayys.wayang.plugin.WayangPlugin;
  * <pre>
  * {@code
  * public class MyNodeProvider implements NodeProvider {
- *     &#64;Override public String id()          { return "com.example.my-plugin"; }
+ *     &#64;Override public String id()          { return "tech.kayys.my-plugin"; }
  *     &#64;Override public String name()        { return "My Plugin"; }
  *     &#64;Override public String version()     { return "1.0.0"; }
  *     &#64;Override public String description() { return "Custom node set."; }
  *
- *     @Override
+ *     &#64;Override
  *     public List<NodeDefinition> nodes() {
  *         return List.of(
  *             new NodeDefinition("my-node", "My Node", "Custom", ...));
