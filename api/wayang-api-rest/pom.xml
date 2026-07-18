@@ -22,6 +22,17 @@
             <version>${project.version}</version>
         </dependency>
 
+            <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>wayang-tool-execution</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>tech.kayys.wayang</groupId>
+            <artifactId>wayang-tool-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-rest</artifactId>

@@ -45,7 +45,7 @@ Date: 2026-05-26
 - Migrated the MCP tool wrapper in `wayang-tool-mcp` onto the active
   `tech.kayys.wayang.tools.spi.Tool` contract, leaving the old
   `tech.kayys.wayang.tool.spi.Tool` path as compatibility-only.
-- Made `agent-tools-spi` a self-contained SPI again by removing its dependency
+- Made `wayang-tool-spi` a self-contained SPI again by removing its dependency
   on `wayang-tool-core`. Legacy/new tool bridge classes now live in
   `wayang-tool-core` under `tech.kayys.wayang.tool.adapter`, where the
   deprecated core-local SPI is available.

@@ -1,6 +1,6 @@
 package tech.kayys.wayang.api.rest;
 
-import jakarta.inject.Inject;
+
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;

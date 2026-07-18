@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>tech.kayys.wayang</groupId>
+        <artifactId>wayang-agentic-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>agent-parent</artifactId>
+    <packaging>pom</packaging>
+
+    <name>agent-parent</name>
+    <description>agent-parent</description>
+
+
+    <properties>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Inherit from parent Quarkus BOM -->
+            <dependency>
+                <groupId>io.quarkus.platform</groupId>
+                <artifactId>quarkus-bom</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+
+    </dependencies>
+
+    <modules>
+        <!-- Programmatic compatibility adapters over the active SPI -->
+        <module>agent-adapter</module>
+        <module>agent-api</module>
+       
+
+        <!-- Gollek inference backend adapter: current SDK/SPI bridge -->
+        <module>agent-backend-gollek</module>
+
+        <!-- Gamelan workflow backend adapter: current SDK/SPI bridge -->
+        <module>agent-backend-gamelan</module>
+ <module>agent-cli</module>
+       <!-- Core: Agent and skill implementation, discovery, loading, validation -->
+        <module>agent-core</module>
+
+        <!-- Gamelan workflow integration services: agent memory + graph telemetry -->
+        <module>agent-integration-gamelan</module>
+
+        <!-- MCP bridge: external MCP tools exposed as active AgentSkill instances -->
+        <module>agent-mcp</module>
+       
+    
+        <!-- Orchestration: backend-agnostic planning and tool definition helpers -->
+        <module>agent-orchestration</module>
+
+        <!-- Harness: compile-ready chaos engineering and packaging support -->
+        <module>agent-shaker</module>
+        
+          <!-- SPI: Pure interfaces and types, unified agent + skill SPI -->
+        <module>agent-spi</module>
+
+    </modules>
+</project>
