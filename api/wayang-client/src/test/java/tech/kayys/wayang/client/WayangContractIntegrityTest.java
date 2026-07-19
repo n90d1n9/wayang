@@ -3,6 +3,12 @@ package tech.kayys.wayang.client;
 import org.junit.jupiter.api.Test;
 
 import tech.kayys.wayang.agent.lifecycle.AgentRunLifecycleContract;
+import tech.kayys.wayang.contract.WayangContractCatalog;
+import tech.kayys.wayang.contract.WayangContractDescriptor;
+import tech.kayys.wayang.contract.WayangContractDescriptors;
+import tech.kayys.wayang.contract.WayangContractIntegrity;
+import tech.kayys.wayang.contract.WayangContractIntegrityReport;
+import tech.kayys.wayang.workbench.WayangWorkbenchCatalog;
 import tech.kayys.wayang.workbench.WorkbenchCommand;
 import tech.kayys.wayang.workbench.WorkbenchCommandContract;
 

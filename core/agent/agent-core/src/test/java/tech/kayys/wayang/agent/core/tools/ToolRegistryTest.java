@@ -19,11 +19,8 @@ class ToolRegistryTest {
         Mockito.when(tool.description()).thenReturn("Mock Tool");
         Mockito.when(tool.inputSchema()).thenReturn(Map.of("arg", "string"));
 
-        @SuppressWarnings("unchecked")
-        Instance<Tool> instances = Mockito.mock(Instance.class);
-        Mockito.when(instances.iterator()).thenReturn(List.of(tool).iterator());
-
-        ToolRegistry registry = new ToolRegistry(instances);
+        ToolRegistry registry = new ToolRegistry();
+        registry.register(tool);
 
         Assertions.assertTrue(registry.getTool("mock-tool").isPresent());
         Assertions.assertEquals(1, registry.listTools().size());
@@ -38,11 +35,8 @@ class ToolRegistryTest {
         Mockito.when(tool.execute(Mockito.anyMap(), Mockito.any()))
                 .thenReturn(ToolResult.success(Map.of("status", "success")));
 
-        @SuppressWarnings("unchecked")
-        Instance<Tool> instances = Mockito.mock(Instance.class);
-        Mockito.when(instances.iterator()).thenReturn(List.of(tool).iterator());
-
-        ToolRegistry registry = new ToolRegistry(instances);
+        ToolRegistry registry = new ToolRegistry();
+        registry.register(tool);
         Map<String, Object> result = registry.executeTool("mock-tool", Map.of("x", 1), Map.of())
                 .await().indefinitely();
 
@@ -53,10 +47,7 @@ class ToolRegistryTest {
 
     @Test
     void testExecuteToolNotFound() {
-        @SuppressWarnings("unchecked")
-        Instance<Tool> instances = Mockito.mock(Instance.class);
-        Mockito.when(instances.iterator()).thenReturn(List.<Tool>of().iterator());
-        ToolRegistry registry = new ToolRegistry(instances);
+        ToolRegistry registry = new ToolRegistry();
 
         IllegalArgumentException ex = Assertions.assertThrows(
                 IllegalArgumentException.class,

@@ -4,8 +4,14 @@ import org.junit.jupiter.api.Test;
 
 import tech.kayys.wayang.agent.planner.AgentRunPlanningContract;
 import tech.kayys.wayang.alignment.WayangStandardAlignmentContract;
+import tech.kayys.wayang.catalog.WayangStandardCatalogContract;
 import tech.kayys.wayang.command.WayangCommandDiscoveryContract;
 import tech.kayys.wayang.command.WayangCommandDiscoveryService;
+import tech.kayys.wayang.contract.WayangContractKey;
+import tech.kayys.wayang.readiness.WayangReadinessContract;
+import tech.kayys.wayang.skill.WayangSkillContract;
+import tech.kayys.wayang.workbench.WayangWorkbenchCatalog;
+import tech.kayys.wayang.workbench.WayangWorkbenchContract;
 import tech.kayys.wayang.workbench.WorkbenchCommand;
 import tech.kayys.wayang.workbench.WorkbenchCommandContract;
 import tech.kayys.wayang.workbench.WorkbenchCommandDiscovery;

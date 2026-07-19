@@ -60,33 +60,39 @@
     </dependencies>
 
     <modules>
-        <module>wayang-error-spi</module>
-        <module>wayang-plugin-spi</module>
-        <module>wayang-plugin-registry</module>
-        <module>agent</module>
-        <module>wayang-agent-engine</module>
-        <module>graph</module>
-        <module>guardrails</module>
-        <module>hitl</module>
-        <module>memory</module>
-        <module>prompt</module>
-        <module>rag</module>
-        <module>tools</module>
-      
-        <module>agentic-commerce</module>
-        <module>vector</module>
-        <module>embedding</module>
-        <module>storage</module>
-        <module>runtime-quarkus</module>
-        <module>sdk/wayang-gollek-sdk</module>
-        <module>sdk/wayang-gollek-sdk-storage</module>
-        <module>sdk/wayang-gollek-sdk-storage-s3</module>
-        <module>sdk/wayang-gollek-sdk-remote</module>
-        <module>cli/wayang-gollek-cli</module>
-        <module>cli/wayang-gollek-cli-remote</module>
-        <module>wayang-tui</module>
-        <module>tools/wayang-tools</module>
-        <module>api</module>
+        <!-- Core Modules -->
+        <module>core/wayang-error-spi</module>
+        <module>core/apikey-tenant-resolver</module>
+        <module>core/wayang-embedding-core</module>
+        <module>core/runtime-quarkus</module>
+
+        <!-- Tool SPI must be before agent modules that depend on it -->
+        <module>modules/tool</module>
+
+        <!-- Agent Core -->
+        <module>core/agent/agent-api</module>
+        <module>core/agent/agent-spi</module>
+        <module>core/agent/agent-adapter</module>
+        <module>core/agent/agent-backend-gamelan</module>
+        <module>core/agent/agent-backend-gollek</module>
+        <module>core/agent/agent-core</module>
+        <module>core/agent/agent-integration-gamelan</module>
+        <module>core/agent/agent-mcp</module>
+        <module>core/agent/agent-orchestration</module>
+        <module>core/agent/agent-shaker</module>
+
+        <!-- Feature Modules -->
+        <module>modules/graph</module>
+        <module>modules/guardrails</module>
+        <module>modules/hitl</module>
+        <module>modules/memory</module>
+        <module>modules/rag</module>
+        <module>modules/skills</module>
+        <module>modules/vector</module>
+
+        <!-- CLI -->
+        <module>cli/wayang-cli</module>
+        <!-- <module>cli/agent-cli</module> --> <!-- gamelan CLI has old gollek imports, skipping for foundation build -->
     </modules>
 
     <repositories>

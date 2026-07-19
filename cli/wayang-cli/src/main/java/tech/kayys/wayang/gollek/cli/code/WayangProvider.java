@@ -47,7 +47,7 @@ public class WayangProvider implements Provider {
             System.setProperty("gollek.preferred.provider", providerId);
         }
         this.service = WayangInferenceServiceFactory.create(
-                "You are a helpful coding assistant.", this.modelId);
+                "You are a helpful general-purpose AI assistant.", this.modelId);
         // Set preferred provider on SDK after creation
         try {
             tech.kayys.gollek.sdk.core.GollekSdk sdk = service.getSdk();
@@ -100,7 +100,7 @@ public class WayangProvider implements Provider {
         if (systemPrompt != null && !systemPrompt.isEmpty()) {
             injectedPrompt.append(systemPrompt);
         } else {
-            injectedPrompt.append("You are a helpful coding assistant.");
+            injectedPrompt.append("You are a helpful general-purpose AI assistant.");
         }
 
         ToolPromptAdapter adapter = resolveAdapter(this.providerId);
@@ -120,25 +120,39 @@ public class WayangProvider implements Provider {
                                     String tb = textBuffer.toString();
                                     
                                     if (isThinking[0]) {
-                                        int endThink = tb.indexOf("</thought>");
-                                        int startTool = tb.indexOf("<tool_call>");
-                                        if (startTool >= 0 && (endThink < 0 || startTool < endThink)) {
-                                            if (startTool > 0) {
-                                                onEvent.accept(new StreamEvent.ThinkingDelta(tb.substring(0, startTool)));
+                                            int endThink = tb.indexOf("</thought>");
+                                            int endThinkLen = 0;
+                                            if (endThink < 0) {
+                                                endThink = tb.indexOf("</thought");
+                                                if (endThink >= 0) {
+                                                    // Consume up to the next newline or > if it exists.
+                                                    int nextGt = tb.indexOf(">", endThink);
+                                                    int nextNl = tb.indexOf("\n", endThink);
+                                                    if (nextGt >= 0) endThinkLen = nextGt - endThink + 1;
+                                                    else if (nextNl >= 0) endThinkLen = nextNl - endThink + 1;
+                                                    else endThinkLen = "</thought".length();
+                                                }
+                                            } else {
+                                                endThinkLen = "</thought>".length();
                                             }
-                                            onEvent.accept(new StreamEvent.ThinkingEnd());
-                                            isThinking[0] = false;
-                                            textBuffer.setLength(0);
-                                            textBuffer.append(tb.substring(startTool));
-                                            processing = true;
-                                        } else if (endThink >= 0) {
-                                            if (endThink > 0) {
-                                                onEvent.accept(new StreamEvent.ThinkingDelta(tb.substring(0, endThink)));
-                                            }
-                                            onEvent.accept(new StreamEvent.ThinkingEnd());
-                                            isThinking[0] = false;
-                                            textBuffer.setLength(0);
-                                            textBuffer.append(tb.substring(endThink + "</thought>".length()));
+                                            int startTool = tb.indexOf("<tool_call>");
+                                            if (startTool >= 0 && (endThink < 0 || startTool < endThink)) {
+                                                if (startTool > 0) {
+                                                    onEvent.accept(new StreamEvent.ThinkingDelta(tb.substring(0, startTool)));
+                                                }
+                                                onEvent.accept(new StreamEvent.ThinkingEnd());
+                                                isThinking[0] = false;
+                                                textBuffer.setLength(0);
+                                                textBuffer.append(tb.substring(startTool));
+                                                processing = true;
+                                            } else if (endThink >= 0) {
+                                                if (endThink > 0) {
+                                                    onEvent.accept(new StreamEvent.ThinkingDelta(tb.substring(0, endThink)));
+                                                }
+                                                onEvent.accept(new StreamEvent.ThinkingEnd());
+                                                isThinking[0] = false;
+                                                textBuffer.setLength(0);
+                                                textBuffer.append(tb.substring(endThink + endThinkLen));
                                             processing = true;
                                         } else {
                                             boolean endsWithPartial = false;

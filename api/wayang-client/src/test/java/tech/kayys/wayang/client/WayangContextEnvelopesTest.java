@@ -2,6 +2,7 @@ package tech.kayys.wayang.client;
 
 import org.junit.jupiter.api.Test;
 
+import tech.kayys.wayang.context.WayangContextEnvelopes;
 import tech.kayys.wayang.harness.HarnessCheck;
 import tech.kayys.wayang.harness.HarnessPlan;
 

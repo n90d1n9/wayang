@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>tech.kayys.wayang</groupId>
+        <artifactId>wayang-agentic-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>skill-parent</artifactId>
+    <packaging>pom</packaging>
+
+    <name>skill-parent</name>
+    <description>skill-parent</description>
+
+
+    <properties>
+        <maven.compiler.source>25</maven.compiler.source>
+        <maven.compiler.target>25</maven.compiler.target>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+
+    </dependencies>
+
+    <modules>
+        <module>skill-spi</module>
+        <!-- <module>skill-core</module> --> <!-- has external golok deps not in this reactor -->
+        <module>skill-repo</module>
+        <!-- <module>skill-repo-db</module> -->
+         <!-- Skill lifecycle management over the active SkillRegistry SPI -->
+        <module>skill-management</module>
+        <module>skill-management-api</module>
+
+        <!-- Skill audit trail and compliance tracking -->
+        <module>skill-audit</module>
+
+        <!-- Skill usage analytics and performance metrics -->
+        <module>skill-analytics</module>
+
+        <!-- REST API over active agent execution and skill contracts -->
+
+        <!-- Skills CLI: command-line lifecycle wrapper over active skill contracts -->
+        <module>skill-cli</module>
+    </modules>
+</project>

@@ -30,7 +30,7 @@ import java.lang.reflect.Method;
         description = "Wayang agentic platform CLI. Compatibility alias: wayang-gollek.",
         mixinStandardHelpOptions = true,
         subcommands = {
-                WayangCodeCommand.class,
+                WayangAgentCommand.class,
                WayangProjectCommand.class,
                WayangGollekProxyCommand.class,
                WayangPlatformCommands.StatusCommand.class,

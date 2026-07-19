@@ -32,7 +32,7 @@ public final class ShellChatSession {
         this.modelId = extractModelId(modelId);
         this.providerId = providerId;
         this.memory = memory;
-        this.systemPrompt = "You are a helpful coding assistant.";
+        this.systemPrompt = "You are a helpful general-purpose AI assistant.";
         // Load persisted history if available
         try {
             List<ChatMessage> loaded = persistence.load();
@@ -116,7 +116,7 @@ public final class ShellChatSession {
     }
     
     public void setSystemPrompt(String prompt) { 
-        this.systemPrompt = prompt != null ? prompt : "You are a helpful coding assistant.";
+        this.systemPrompt = prompt != null ? prompt : "You are a helpful general-purpose AI assistant.";
     }
 
     public Stream stream(String userPrompt) {

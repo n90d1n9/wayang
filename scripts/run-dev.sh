@@ -98,17 +98,13 @@ if [[ "$#" -gt 0 && "$1" == "wayang" ]]; then
   shift
 fi
 
-if [[ "$#" -gt 0 ]]; then
-  printf -v QUARKUS_ARGS '%q ' "$@"
-else
-  QUARKUS_ARGS=""
-fi
+
 
 # Prefer running already-built Wayang CLI artifact (no build). If not present, fall back to gollek-cli artifact.
-WAYANG_CLI_DIR="$ROOT_DIR/cli/wayang-gollek-cli"
+WAYANG_CLI_DIR="$ROOT_DIR/cli/wayang-cli"
 # Prefer assembled artifact that names the CLI explicitly and avoid repackager 'original-' jars
 WAYANG_JAR_CANDIDATES=(
-  "$WAYANG_CLI_DIR/target"/*wayang-gollek-cli*.jar
+  "$WAYANG_CLI_DIR/target"/*wayang-cli*.jar
   "$WAYANG_CLI_DIR/build/libs"/*-runner.jar
   "$WAYANG_CLI_DIR/build/libs"/*-all.jar
   "$WAYANG_CLI_DIR/build/libs"/*.jar
@@ -133,7 +129,7 @@ done
 
 if [[ -n "$WAYANG_FOUND_JAR" ]]; then
   echo "Running Wayang CLI from artifact: $WAYANG_FOUND_JAR"
-  exec java -jar "$WAYANG_FOUND_JAR" $QUARKUS_ARGS
+  exec java -jar "$WAYANG_FOUND_JAR" "$@"
 fi
 
 # Prefer running already-built gollek-cli artifact (no build). If not present, refuse to build unless ALLOW_BUILD=1.
@@ -161,7 +157,7 @@ done
 
 if [[ -n "$FOUND_JAR" ]]; then
   echo "Running gollek-cli from artifact: $FOUND_JAR"
-  exec java -jar "$FOUND_JAR" $QUARKUS_ARGS
+  exec java -jar "$FOUND_JAR" "$@"
 else
   if [[ "${ALLOW_BUILD:-0}" == "1" ]]; then
     echo "No built gollek-cli artifact found; ALLOW_BUILD=1 so falling back to gradle quarkusDev (this will build)."

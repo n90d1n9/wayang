@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import tech.kayys.wayang.agent.planner.AgentRunPlanningContract;
 import tech.kayys.wayang.command.WayangCommandDiscoveryService;
+import tech.kayys.wayang.workbench.WayangWorkbenchCatalog;
 import tech.kayys.wayang.workbench.WorkbenchCommand;
 import tech.kayys.wayang.workbench.WorkbenchCommandContractSummary;
 import tech.kayys.wayang.workbench.WorkbenchCommandDiscovery;

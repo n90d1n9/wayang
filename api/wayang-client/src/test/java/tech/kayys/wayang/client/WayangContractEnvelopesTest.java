@@ -3,6 +3,23 @@ package tech.kayys.wayang.client;
 import org.junit.jupiter.api.Test;
 
 import tech.kayys.wayang.agent.planner.AgentRunPlanningContract;
+import tech.kayys.wayang.capability.WayangProviderCapabilityContract;
+import tech.kayys.wayang.contract.WayangContractCatalog;
+import tech.kayys.wayang.contract.WayangContractCommandCoverageEntry;
+import tech.kayys.wayang.contract.WayangContractCommandCoverageReport;
+import tech.kayys.wayang.contract.WayangContractCoverageContract;
+import tech.kayys.wayang.contract.WayangContractDescriptor;
+import tech.kayys.wayang.contract.WayangContractDescriptors;
+import tech.kayys.wayang.contract.WayangContractDiscovery;
+import tech.kayys.wayang.contract.WayangContractEnvelopes;
+import tech.kayys.wayang.contract.WayangContractFacetSummary;
+import tech.kayys.wayang.contract.WayangContractIntegrityIssue;
+import tech.kayys.wayang.contract.WayangContractIntegrityReport;
+import tech.kayys.wayang.contract.WayangContractJsonSchema;
+import tech.kayys.wayang.contract.WayangContractJsonSchemaBundle;
+import tech.kayys.wayang.contract.WayangContractJsonSchemas;
+import tech.kayys.wayang.contract.WayangContractKey;
+import tech.kayys.wayang.contract.WayangContractQuery;
 
 import java.util.List;
 import java.util.Map;

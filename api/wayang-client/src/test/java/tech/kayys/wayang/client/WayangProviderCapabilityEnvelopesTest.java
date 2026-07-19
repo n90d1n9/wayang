@@ -2,6 +2,16 @@ package tech.kayys.wayang.client;
 
 import org.junit.jupiter.api.Test;
 
+import tech.kayys.wayang.capability.WayangProviderCapabilityCatalog;
+import tech.kayys.wayang.capability.WayangProviderCapabilityDescriptor;
+import tech.kayys.wayang.capability.WayangProviderCapabilityDiscovery;
+import tech.kayys.wayang.capability.WayangProviderCapabilityDiscoveryService;
+import tech.kayys.wayang.capability.WayangProviderCapabilityEnvelopes;
+import tech.kayys.wayang.capability.WayangProviderCapabilityFacetSummary;
+import tech.kayys.wayang.capability.WayangProviderCapabilityQuery;
+import tech.kayys.wayang.capability.WayangProviderCapabilityState;
+import tech.kayys.wayang.registry.WayangStandardRegistry;
+
 import java.util.List;
 import java.util.Map;
 

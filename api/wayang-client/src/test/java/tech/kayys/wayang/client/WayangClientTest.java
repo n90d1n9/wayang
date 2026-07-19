@@ -22,10 +22,20 @@ import tech.kayys.wayang.alignment.WayangStandardAlignmentPolicyConfig;
 import tech.kayys.wayang.harness.HarnessPlan;
 import tech.kayys.wayang.harness.HarnessPlanRequest;
 import tech.kayys.wayang.readiness.WayangPlatformReadinessProfileValidationReport;
+import tech.kayys.wayang.registry.WayangStandardRegistry;
+import tech.kayys.wayang.skill.RegisteredSkill;
 import tech.kayys.wayang.workbench.WorkbenchCommandDiscovery;
 import tech.kayys.wayang.workbench.WorkbenchCommandQuery;
 import tech.kayys.wayang.boundry.WayangSdkBoundary;
 import tech.kayys.wayang.boundry.WayangSdkBoundaryCatalogValidationReport;
+import tech.kayys.wayang.capability.WayangProviderCapabilityDescriptor;
+import tech.kayys.wayang.capability.WayangProviderCapabilityDiscovery;
+import tech.kayys.wayang.capability.WayangProviderCapabilityQuery;
+import tech.kayys.wayang.catalog.WayangStandardCatalog;
+import tech.kayys.wayang.context.WayangContextApi;
+import tech.kayys.wayang.contract.WayangContractDiscovery;
+import tech.kayys.wayang.contract.WayangContractKey;
+import tech.kayys.wayang.contract.WayangContractQuery;
 
 import java.util.List;
 

@@ -2,6 +2,9 @@ package tech.kayys.wayang.client;
 
 import org.junit.jupiter.api.Test;
 
+import tech.kayys.wayang.readiness.WayangReadinessReport;
+import tech.kayys.wayang.readiness.WayangReadinessReports;
+
 import java.util.List;
 import java.util.Map;
 

@@ -4,6 +4,9 @@ import org.junit.jupiter.api.Test;
 
 import tech.kayys.wayang.agent.lifecycle.AgentRunLifecycleContract;
 import tech.kayys.wayang.agent.planner.AgentRunPlanningContract;
+import tech.kayys.wayang.contract.WayangContractDescriptor;
+import tech.kayys.wayang.contract.WayangContractDescriptors;
+import tech.kayys.wayang.contract.WayangContractKey;
 import tech.kayys.wayang.workbench.WorkbenchCommandContract;
 
 import static org.assertj.core.api.Assertions.assertThat;
